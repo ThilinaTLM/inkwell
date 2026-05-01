@@ -12,8 +12,11 @@
 //                                                         -> sets session cookie
 //   4. DELETE /api/admin/invites/:token                  -> revoke (admin)
 
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { Env, InviteAdminRow, InviteRow, UserRow } from "./types";
 import { rowToInvitePublic } from "./types";
+import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newToken, now } from "./util";
 import { createSessionCookie } from "./auth";
 import {
@@ -26,20 +29,30 @@ import {
 
 // ─── Admin: list ──────────────────────────────────────────────────────
 export async function listInvitesAdmin(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT i.token, i.created_by, i.created_at, i.expires_at,
-            i.used_by_user_id, i.used_at, i.revoked_at,
-            cu.email AS created_by_email,
-            uu.email AS used_by_email
-     FROM invites i
-     LEFT JOIN users cu ON cu.id = i.created_by
-     LEFT JOIN users uu ON uu.id = i.used_by_user_id
-     ORDER BY i.created_at DESC
-     LIMIT 500`
-  ).all<InviteAdminRow>();
-  const t = now();
+  const db = getDb(env);
+  const cu = alias(t.users, "cu");
+  const uu = alias(t.users, "uu");
+  const rows = await db
+    .select({
+      token: t.invites.token,
+      created_by: t.invites.created_by,
+      created_at: t.invites.created_at,
+      expires_at: t.invites.expires_at,
+      used_by_user_id: t.invites.used_by_user_id,
+      used_at: t.invites.used_at,
+      revoked_at: t.invites.revoked_at,
+      created_by_email: cu.email,
+      used_by_email: uu.email,
+    })
+    .from(t.invites)
+    .leftJoin(cu, eq(cu.id, t.invites.created_by))
+    .leftJoin(uu, eq(uu.id, t.invites.used_by_user_id))
+    .orderBy(desc(t.invites.created_at))
+    .limit(500)
+    .all();
+  const ts = now();
   return jsonResponse({
-    invites: (results || []).map((r) => rowToInvitePublic(r, t)),
+    invites: rows.map((r) => rowToInvitePublic(r as InviteAdminRow, ts)),
   });
 }
 
@@ -67,28 +80,36 @@ export async function createInviteAdmin(
   }
 
   const token = newToken();
-  const t = now();
-  await env.DB.prepare(
-    `INSERT INTO invites
-       (token, created_by, created_at, expires_at, used_by_user_id, used_at, revoked_at)
-     VALUES (?, ?, ?, ?, NULL, NULL, NULL)`
-  )
-    .bind(token, creatorId, t, expiresAt)
+  const ts = now();
+  const db = getDb(env);
+  await db
+    .insert(t.invites)
+    .values({
+      token,
+      created_by: creatorId,
+      created_at: ts,
+      expires_at: expiresAt,
+    })
     .run();
 
   const url = origin ? `${origin}/invite/${token}` : `/invite/${token}`;
-  return jsonResponse({ token, url, expiresAt, createdAt: t });
+  return jsonResponse({ token, url, expiresAt, createdAt: ts });
 }
 
 // ─── Admin: revoke ────────────────────────────────────────────────────
 export async function revokeInviteAdmin(env: Env, token: string): Promise<Response> {
-  const row = await env.DB.prepare(`SELECT token, used_at FROM invites WHERE token = ?`)
-    .bind(token)
-    .first<{ token: string; used_at: number | null }>();
+  const db = getDb(env);
+  const row = await db
+    .select({ token: t.invites.token, used_at: t.invites.used_at })
+    .from(t.invites)
+    .where(eq(t.invites.token, token))
+    .get();
   if (!row) return errorResponse(404, "invite not found");
   if (row.used_at) return errorResponse(409, "invite already used");
-  await env.DB.prepare(`UPDATE invites SET revoked_at = ? WHERE token = ?`)
-    .bind(now(), token)
+  await db
+    .update(t.invites)
+    .set({ revoked_at: now() })
+    .where(eq(t.invites.token, token))
     .run();
   return jsonResponse({ ok: true });
 }
@@ -148,26 +169,32 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
   // Race-safely consume the invite. If another acceptance won the race we
   // delete the user we just created and return 409 so the client can retry
   // with a fresh attempt (or see that the invite was used).
-  const consumed = await env.DB.prepare(
-    `UPDATE invites
-       SET used_at = ?, used_by_user_id = ?
-       WHERE token = ?
-         AND used_at IS NULL
-         AND revoked_at IS NULL
-         AND (expires_at IS NULL OR expires_at > ?)`
-  )
-    .bind(now(), user.id, token, Date.now())
+  const db = getDb(env);
+  const nowMs = Date.now();
+  const consumed = await db
+    .update(t.invites)
+    .set({ used_at: nowMs, used_by_user_id: user.id })
+    .where(
+      and(
+        eq(t.invites.token, token),
+        isNull(t.invites.used_at),
+        isNull(t.invites.revoked_at),
+        or(isNull(t.invites.expires_at), gt(t.invites.expires_at, nowMs))
+      )
+    )
     .run();
 
   if (!consumed.meta?.changes) {
     // Roll back the user. Best-effort.
-    await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(user.id).run();
+    await db.delete(t.users).where(eq(t.users.id, user.id)).run();
     return errorResponse(409, "invite no longer usable");
   }
 
   // Issue a session cookie immediately so the new user lands logged in.
-  await env.DB.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`)
-    .bind(now(), user.id)
+  await db
+    .update(t.users)
+    .set({ last_login_at: now() })
+    .where(eq(t.users.id, user.id))
     .run();
   const cookie = await createSessionCookie(env, user.id);
   return new Response(
@@ -176,7 +203,7 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
-      isAdmin: !!user.is_admin,
+      isAdmin: user.is_admin,
     }),
     {
       status: 200,
@@ -190,13 +217,13 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
 
 // ─── Internals ────────────────────────────────────────────────────────
 async function loadInvite(env: Env, token: string): Promise<InviteRow | null> {
-  return await env.DB.prepare(
-    `SELECT token, created_by, created_at, expires_at,
-            used_by_user_id, used_at, revoked_at
-     FROM invites WHERE token = ?`
-  )
-    .bind(token)
-    .first<InviteRow>();
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.invites)
+    .where(eq(t.invites.token, token))
+    .get();
+  return row ?? null;
 }
 
 function unusableReason(r: InviteRow): string | null {

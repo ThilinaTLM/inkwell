@@ -1,4 +1,13 @@
 // Shared Worker types. Mirrors the bindings declared in wrangler.toml.
+//
+// Row types are inferred from the Drizzle schema in `worker/db/schema.ts`
+// and re-exported here so handlers don't have to import from two places.
+// Public ("wire") shapes and `rowTo*Public` mappers stay hand-written —
+// they are the JSON contract with the SPA and changing them must be a
+// deliberate act.
+
+import type { InferSelectModel } from "drizzle-orm";
+import * as t from "./db/schema";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -13,18 +22,7 @@ export interface Env {
 }
 
 // ─── Users ────────────────────────────────────────────────────────────
-export interface UserRow {
-  id: string;
-  email: string;
-  password_hash: string;
-  first_name: string;
-  last_name: string;
-  is_admin: number;            // 0 | 1
-  disabled: number;            // 0 | 1
-  created_at: number;
-  updated_at: number;
-  last_login_at: number | null;
-}
+export type UserRow = InferSelectModel<typeof t.users>;
 
 // What we hand to clients. Never includes the password hash.
 export interface UserPublic {
@@ -45,8 +43,8 @@ export function rowToUserPublic(r: UserRow): UserPublic {
     email: r.email,
     firstName: r.first_name,
     lastName: r.last_name,
-    isAdmin: !!r.is_admin,
-    disabled: !!r.disabled,
+    isAdmin: r.is_admin,
+    disabled: r.disabled,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     lastLoginAt: r.last_login_at,
@@ -54,9 +52,7 @@ export function rowToUserPublic(r: UserRow): UserPublic {
 }
 
 // Admin-list rows include an aggregated scene count.
-export interface AdminUserRow extends UserRow {
-  scene_count: number;
-}
+export type AdminUserRow = UserRow & { scene_count: number };
 
 export interface AdminUserPublic extends UserPublic {
   sceneCount: number;
@@ -70,15 +66,7 @@ export function rowToAdminUserPublic(r: AdminUserRow): AdminUserPublic {
 }
 
 // ─── Invites ──────────────────────────────────────────────────────────
-export interface InviteRow {
-  token: string;
-  created_by: string;
-  created_at: number;
-  expires_at: number | null;
-  used_by_user_id: string | null;
-  used_at: number | null;
-  revoked_at: number | null;
-}
+export type InviteRow = InferSelectModel<typeof t.invites>;
 
 export type InviteStatus = "pending" | "used" | "revoked" | "expired";
 
@@ -104,10 +92,10 @@ export function inviteStatus(r: InviteRow, nowMs: number): InviteStatus {
 
 // Row shape returned by the admin listing JOIN. Fields suffixed `_email`
 // come from joined `users` rows (creator and user-who-used).
-export interface InviteAdminRow extends InviteRow {
+export type InviteAdminRow = InviteRow & {
   created_by_email: string | null;
   used_by_email: string | null;
-}
+};
 
 export function rowToInvitePublic(
   r: InviteRow | InviteAdminRow,
@@ -131,15 +119,7 @@ export function rowToInvitePublic(
 }
 
 // ─── Folders ──────────────────────────────────────────────────────────
-export interface FolderRow {
-  id: string;
-  owner: string;
-  parent_id: string | null;
-  name: string;
-  is_default: number;          // 0 | 1
-  created_at: number;
-  updated_at: number;
-}
+export type FolderRow = InferSelectModel<typeof t.folders>;
 
 export interface FolderMeta {
   id: string;
@@ -161,7 +141,7 @@ export function rowToFolderMeta(
     id: r.id,
     parentId: r.parent_id,
     name: r.name,
-    isDefault: !!r.is_default,
+    isDefault: r.is_default,
     tags: extras.tags ?? [],
     sceneCount: extras.sceneCount ?? 0,
     subfolderCount: extras.subfolderCount ?? 0,
@@ -171,18 +151,7 @@ export function rowToFolderMeta(
 }
 
 // ─── Scenes ───────────────────────────────────────────────────────────
-// D1 row shape for the `scenes` table.
-export interface SceneRow {
-  id: string;
-  owner: string;               // users.id
-  folder_id: string | null;    // FK to folders.id; app keeps it non-null
-  name: string;
-  version: number;
-  size_bytes: number;
-  has_thumb: number;           // 0 | 1
-  created_at: number;
-  updated_at: number;
-}
+export type SceneRow = InferSelectModel<typeof t.scenes>;
 
 // API-facing metadata (omits internal fields).
 export interface SceneMeta {
@@ -205,19 +174,14 @@ export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
     tags,
     version: r.version,
     sizeBytes: r.size_bytes,
-    hasThumb: !!r.has_thumb,
+    hasThumb: r.has_thumb,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
 }
 
 // ─── Tags ─────────────────────────────────────────────────────────────
-export interface TagRow {
-  id: string;
-  owner: string;
-  name: string;
-  created_at: number;
-}
+export type TagRow = InferSelectModel<typeof t.tags>;
 
 export interface TagPublic {
   id: string;
@@ -228,13 +192,7 @@ export interface TagPublic {
 
 export type TagTargetType = "scene" | "folder";
 
-export interface TaggingRow {
-  tag_id: string;
-  target_type: TagTargetType;
-  target_id: string;
-  owner: string;
-  created_at: number;
-}
+export type TaggingRow = InferSelectModel<typeof t.taggings>;
 
 // What the client PUTs as a scene blob. We don't validate the inner shape
 // of `elements` / `appState` / `files` — Excalidraw owns that schema and
@@ -249,19 +207,7 @@ export interface SceneBlob {
 export type SharePermission = "read" | "write";
 export type ShareTargetType = "scene" | "folder";
 
-export interface ShareRow {
-  token: string;
-  owner: string;
-  target_type: ShareTargetType;
-  target_id: string;
-  permission: SharePermission;
-  allow_download: number;        // 0 | 1
-  label: string | null;
-  created_at: number;
-  expires_at: number | null;
-  revoked_at: number | null;
-  last_accessed_at: number | null;
-}
+export type ShareRow = InferSelectModel<typeof t.shares>;
 
 export interface SharePublic {
   token: string;
@@ -283,7 +229,7 @@ export function rowToSharePublic(r: ShareRow, targetName?: string): SharePublic 
     targetId: r.target_id,
     targetName,
     permission: r.permission,
-    allowDownload: !!r.allow_download,
+    allowDownload: r.allow_download,
     label: r.label,
     createdAt: r.created_at,
     expiresAt: r.expires_at,

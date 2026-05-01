@@ -9,10 +9,12 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "deploy": "pnpm run build && wrangler deploy",
-    "db:init:local": "wrangler d1 execute excalidash --local --file=./schema.sql",
-    "db:init:remote": "wrangler d1 execute excalidash --remote --file=./schema.sql",
-    "db:migrate:local": "wrangler d1 execute excalidash --local --file=./migrations/0001_organization.sql",
-    "db:migrate:remote": "wrangler d1 execute excalidash --remote --file=./migrations/0001_organization.sql",
+    "db:generate": "drizzle-kit generate",
+    "db:migrations:list:local": "wrangler d1 migrations list excalidash --local",
+    "db:migrations:list:remote": "wrangler d1 migrations list excalidash --remote",
+    "db:migrate:local": "wrangler d1 migrations apply excalidash --local",
+    "db:migrate:remote": "wrangler d1 migrations apply excalidash --remote",
+    "db:studio": "drizzle-kit studio",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.16",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -40,6 +43,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "wrangler": "^4.87.0"

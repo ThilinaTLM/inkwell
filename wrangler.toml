@@ -25,6 +25,9 @@ preview_bucket_name = "excalidash"
 binding = "DB"
 database_name = "excalidash"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# Drizzle generates SQL into ./drizzle; wrangler tracks applied files in
+# the d1_migrations table inside D1.
+migrations_dir = "drizzle"
 
 # Non-secret config. Override per-env in [env.production.vars].
 [vars]

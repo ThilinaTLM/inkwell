@@ -14,8 +14,13 @@
 //
 // All write paths upsert tags lazily — no separate "create tag" call.
 
-import type { Env, TagPublic, TagRow, TagTargetType } from "./types";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
+import type { Env, TagPublic, TagTargetType } from "./types";
+import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
+
+type SqliteBatchItem = BatchItem<"sqlite">;
 
 const MAX_TAG_LENGTH = 50;
 const MAX_TAGS_PER_TARGET = 20;
@@ -45,21 +50,21 @@ export function normalizeTagSet(raw: unknown): string[] {
 
 // ─── Read paths ───────────────────────────────────────────────────────
 export async function listTags(env: Env, owner: string): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT
-        t.id   AS id,
-        t.name AS name,
-        SUM(CASE WHEN g.target_type = 'scene'  THEN 1 ELSE 0 END) AS scene_count,
-        SUM(CASE WHEN g.target_type = 'folder' THEN 1 ELSE 0 END) AS folder_count
-     FROM tags t
-     LEFT JOIN taggings g ON g.tag_id = t.id
-     WHERE t.owner = ?
-     GROUP BY t.id
-     ORDER BY t.name COLLATE NOCASE ASC`
-  )
-    .bind(owner)
-    .all<{ id: string; name: string; scene_count: number; folder_count: number }>();
-  const tags: TagPublic[] = (results || []).map((r) => ({
+  const db = getDb(env);
+  const rows = await db
+    .select({
+      id: t.tags.id,
+      name: t.tags.name,
+      scene_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'scene'  THEN 1 ELSE 0 END)`,
+      folder_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'folder' THEN 1 ELSE 0 END)`,
+    })
+    .from(t.tags)
+    .leftJoin(t.taggings, eq(t.taggings.tag_id, t.tags.id))
+    .where(eq(t.tags.owner, owner))
+    .groupBy(t.tags.id)
+    .orderBy(sql`${t.tags.name} COLLATE NOCASE ASC`)
+    .all();
+  const tags: TagPublic[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
     sceneCount: r.scene_count ?? 0,
@@ -73,15 +78,20 @@ export async function listTagsFor(
   targetType: TagTargetType,
   targetId: string
 ): Promise<string[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT t.name AS name
-     FROM taggings g JOIN tags t ON t.id = g.tag_id
-     WHERE g.target_type = ? AND g.target_id = ?
-     ORDER BY t.name COLLATE NOCASE`
-  )
-    .bind(targetType, targetId)
-    .all<{ name: string }>();
-  return (results || []).map((r) => r.name);
+  const db = getDb(env);
+  const rows = await db
+    .select({ name: t.tags.name })
+    .from(t.taggings)
+    .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
+    .where(
+      and(
+        eq(t.taggings.target_type, targetType),
+        eq(t.taggings.target_id, targetId)
+      )
+    )
+    .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
+    .all();
+  return rows.map((r) => r.name);
 }
 
 // Batch loader: returns a Map<targetId, string[]> for the given ids.
@@ -92,16 +102,20 @@ export async function collectTagsForMany(
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (targetIds.length === 0) return out;
-  const placeholders = targetIds.map(() => "?").join(",");
-  const { results } = await env.DB.prepare(
-    `SELECT g.target_id AS id, t.name AS name
-     FROM taggings g JOIN tags t ON t.id = g.tag_id
-     WHERE g.target_type = ? AND g.target_id IN (${placeholders})
-     ORDER BY t.name COLLATE NOCASE`
-  )
-    .bind(targetType, ...targetIds)
-    .all<{ id: string; name: string }>();
-  for (const r of results || []) {
+  const db = getDb(env);
+  const rows = await db
+    .select({ id: t.taggings.target_id, name: t.tags.name })
+    .from(t.taggings)
+    .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
+    .where(
+      and(
+        eq(t.taggings.target_type, targetType),
+        inArray(t.taggings.target_id, targetIds)
+      )
+    )
+    .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
+    .all();
+  for (const r of rows) {
     const arr = out.get(r.id);
     if (arr) arr.push(r.name);
     else out.set(r.id, [r.name]);
@@ -120,48 +134,61 @@ export async function replaceTagsFor(
   raw: unknown
 ): Promise<string[]> {
   const desired = normalizeTagSet(raw);
-  // Look up existing tag rows for this owner that match any desired name.
-  const t = now();
+  const db = getDb(env);
+  const ts = now();
+
+  // Resolve tag ids — looking up existing rows and inserting missing ones.
+  // Done as individual round-trips (one per desired tag) because D1 lacks
+  // an upsert-and-return primitive that respects our app-generated ids.
   const tagIds: string[] = [];
   for (const name of desired) {
-    let row = await env.DB.prepare(`SELECT id FROM tags WHERE owner = ? AND name = ?`)
-      .bind(owner, name)
-      .first<{ id: string }>();
+    let row = await db
+      .select({ id: t.tags.id })
+      .from(t.tags)
+      .where(and(eq(t.tags.owner, owner), eq(t.tags.name, name)))
+      .get();
     if (!row) {
       const id = newId();
-      await env.DB.prepare(
-        `INSERT INTO tags (id, owner, name, created_at) VALUES (?, ?, ?, ?)`
-      )
-        .bind(id, owner, name, t)
+      await db
+        .insert(t.tags)
+        .values({ id, owner, name, created_at: ts })
         .run();
       row = { id };
     }
     tagIds.push(row.id);
   }
-  // Replace the tagging set atomically-ish (D1 doesn't support multi-stmt
-  // transactions, so do it as delete-then-insert).
-  await env.DB.prepare(
-    `DELETE FROM taggings WHERE target_type = ? AND target_id = ?`
-  )
-    .bind(targetType, targetId)
-    .run();
-  for (const tagId of tagIds) {
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO taggings (tag_id, target_type, target_id, owner, created_at)
-       VALUES (?, ?, ?, ?, ?)`
+
+  // Replace the tagging set + GC orphan tags atomically. D1 batches run
+  // in an implicit transaction, so this closes the delete-then-insert
+  // race the previous implementation had.
+  const head: SqliteBatchItem = db
+    .delete(t.taggings)
+    .where(
+      and(
+        eq(t.taggings.target_type, targetType),
+        eq(t.taggings.target_id, targetId)
+      )
+    );
+  const inserts: SqliteBatchItem[] = tagIds.map((tagId) =>
+    db
+      .insert(t.taggings)
+      .values({
+        tag_id: tagId,
+        target_type: targetType,
+        target_id: targetId,
+        owner,
+        created_at: ts,
+      })
+      .onConflictDoNothing()
+  );
+  // Garbage-collect tags that no longer have any taggings.
+  const gc: SqliteBatchItem = db.delete(t.tags).where(
+    and(
+      eq(t.tags.owner, owner),
+      sql`${t.tags.id} NOT IN (SELECT DISTINCT ${t.taggings.tag_id} FROM ${t.taggings} WHERE ${t.taggings.owner} = ${owner})`
     )
-      .bind(tagId, targetType, targetId, owner, t)
-      .run();
-  }
-  // Garbage-collect tags that no longer have any taggings (keeps the
-  // sidebar list clean). Cheap because the index covers it.
-  await env.DB.prepare(
-    `DELETE FROM tags
-     WHERE owner = ?
-       AND id NOT IN (SELECT DISTINCT tag_id FROM taggings WHERE owner = ?)`
-  )
-    .bind(owner, owner)
-    .run();
+  );
+  await db.batch([head, ...inserts, gc]);
   return desired;
 }
 
@@ -172,11 +199,12 @@ export async function renameTag(
   owner: string,
   id: string
 ): Promise<Response> {
-  const tag = await env.DB.prepare(
-    `SELECT id, owner, name, created_at FROM tags WHERE id = ? AND owner = ?`
-  )
-    .bind(id, owner)
-    .first<TagRow>();
+  const db = getDb(env);
+  const tag = await db
+    .select()
+    .from(t.tags)
+    .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
+    .get();
   if (!tag) return errorResponse(404, "tag not found");
   let body: { name?: string };
   try {
@@ -191,31 +219,37 @@ export async function renameTag(
   }
   // If a tag with the new name already exists for this owner, merge
   // taggings into it and delete the old row.
-  const existing = await env.DB.prepare(
-    `SELECT id FROM tags WHERE owner = ? AND name = ?`
-  )
-    .bind(owner, next)
-    .first<{ id: string }>();
+  const existing = await db
+    .select({ id: t.tags.id })
+    .from(t.tags)
+    .where(and(eq(t.tags.owner, owner), eq(t.tags.name, next)))
+    .get();
   if (existing) {
     // Merge: rewrite taggings to point at the existing tag, dedupe.
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO taggings (tag_id, target_type, target_id, owner, created_at)
-       SELECT ?, target_type, target_id, owner, created_at
-       FROM taggings WHERE tag_id = ?`
-    )
-      .bind(existing.id, id)
-      .run();
-    await env.DB.prepare(`DELETE FROM tags WHERE id = ?`).bind(id).run();
+    await db.batch([
+      db.run(
+        sql`INSERT OR IGNORE INTO ${t.taggings} (tag_id, target_type, target_id, owner, created_at)
+            SELECT ${existing.id}, target_type, target_id, owner, created_at
+            FROM ${t.taggings} WHERE ${t.taggings.tag_id} = ${id}`
+      ),
+      db.delete(t.tags).where(eq(t.tags.id, id)),
+    ]);
     return jsonResponse({ id: existing.id, name: next });
   }
-  await env.DB.prepare(`UPDATE tags SET name = ? WHERE id = ? AND owner = ?`)
-    .bind(next, id, owner)
+  await db
+    .update(t.tags)
+    .set({ name: next })
+    .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
     .run();
   return jsonResponse({ id, name: next });
 }
 
 // DELETE /api/tags/:id — drop the tag (and its taggings via FK CASCADE).
 export async function deleteTag(env: Env, owner: string, id: string): Promise<Response> {
-  await env.DB.prepare(`DELETE FROM tags WHERE id = ? AND owner = ?`).bind(id, owner).run();
+  const db = getDb(env);
+  await db
+    .delete(t.tags)
+    .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
+    .run();
   return jsonResponse({ ok: true });
 }

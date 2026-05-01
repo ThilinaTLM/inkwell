@@ -27,6 +27,7 @@
 //   POST /api/share/:token/scenes                (folder-share write)
 //   GET  /api/share/:token/folders               (folder-share subtree listing)
 
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type {
   Env,
   FolderRow,
@@ -41,6 +42,7 @@ import {
   rowToMeta,
   rowToSharePublic,
 } from "./types";
+import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newToken, now } from "./util";
 import {
   createSceneInFolder,
@@ -60,16 +62,22 @@ import { collectTagsForMany } from "./tags";
 
 // ─── Owner-side helpers ────────────────────────────────────────────────
 async function ensureOwnsScene(env: Env, owner: string, sceneId: string): Promise<boolean> {
-  const r = await env.DB.prepare(`SELECT id FROM scenes WHERE id = ? AND owner = ?`)
-    .bind(sceneId, owner)
-    .first<{ id: string }>();
+  const db = getDb(env);
+  const r = await db
+    .select({ id: t.scenes.id })
+    .from(t.scenes)
+    .where(and(eq(t.scenes.id, sceneId), eq(t.scenes.owner, owner)))
+    .get();
   return !!r;
 }
 
 async function ensureOwnsFolder(env: Env, owner: string, folderId: string): Promise<boolean> {
-  const r = await env.DB.prepare(`SELECT id FROM folders WHERE id = ? AND owner = ?`)
-    .bind(folderId, owner)
-    .first<{ id: string }>();
+  const db = getDb(env);
+  const r = await db
+    .select({ id: t.folders.id })
+    .from(t.folders)
+    .where(and(eq(t.folders.id, folderId), eq(t.folders.owner, owner)))
+    .get();
   return !!r;
 }
 
@@ -90,21 +98,28 @@ async function createShareRow(
   const permission: SharePermission = body.permission === "write" ? "write" : "read";
   // Write shares always allow download; read shares default to allowing it.
   const allowDownload =
-    permission === "write" ? 1 : body.allowDownload === false ? 0 : 1;
+    permission === "write" ? true : body.allowDownload !== false;
   const expiresAt =
     body.expiresAt !== undefined && body.expiresAt !== null && Number.isFinite(body.expiresAt)
       ? Number(body.expiresAt)
       : null;
   const label = typeof body.label === "string" ? body.label.slice(0, 200) : null;
   const token = newToken();
-  const t = now();
-  await env.DB.prepare(
-    `INSERT INTO shares
-       (token, owner, target_type, target_id, permission, allow_download,
-        label, created_at, expires_at, revoked_at, last_accessed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`
-  )
-    .bind(token, owner, targetType, targetId, permission, allowDownload, label, t, expiresAt)
+  const ts = now();
+  const db = getDb(env);
+  await db
+    .insert(t.shares)
+    .values({
+      token,
+      owner,
+      target_type: targetType,
+      target_id: targetId,
+      permission,
+      allow_download: allowDownload,
+      label,
+      created_at: ts,
+      expires_at: expiresAt,
+    })
     .run();
   return {
     token,
@@ -114,7 +129,7 @@ async function createShareRow(
     permission,
     allow_download: allowDownload,
     label,
-    created_at: t,
+    created_at: ts,
     expires_at: expiresAt,
     revoked_at: null,
     last_accessed_at: null,
@@ -180,14 +195,20 @@ async function listSharesForTarget(
   targetType: ShareTargetType,
   targetId: string
 ): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM shares
-     WHERE owner = ? AND target_type = ? AND target_id = ?
-     ORDER BY created_at DESC`
-  )
-    .bind(owner, targetType, targetId)
-    .all<ShareRow>();
-  const tokens: SharePublic[] = (results || [])
+  const db = getDb(env);
+  const rows = await db
+    .select()
+    .from(t.shares)
+    .where(
+      and(
+        eq(t.shares.owner, owner),
+        eq(t.shares.target_type, targetType),
+        eq(t.shares.target_id, targetId)
+      )
+    )
+    .orderBy(desc(t.shares.created_at))
+    .all();
+  const tokens: SharePublic[] = rows
     .filter((r) => !r.revoked_at)
     .map((r) => rowToSharePublic(r));
   return jsonResponse({ tokens });
@@ -195,22 +216,32 @@ async function listSharesForTarget(
 
 // All of the caller's shares, joined with target name for the admin list.
 export async function listAllShares(env: Env, owner: string): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT s.*,
-            CASE s.target_type
-              WHEN 'scene'  THEN sc.name
-              WHEN 'folder' THEN f.name
-            END AS target_name
-     FROM shares s
-     LEFT JOIN scenes  sc ON s.target_type = 'scene'  AND sc.id = s.target_id
-     LEFT JOIN folders f  ON s.target_type = 'folder' AND f.id  = s.target_id
-     WHERE s.owner = ? AND s.revoked_at IS NULL
-     ORDER BY s.created_at DESC`
-  )
-    .bind(owner)
-    .all<ShareRow & { target_name: string | null }>();
-  const shares: SharePublic[] = (results || []).map((r) =>
-    rowToSharePublic(r, r.target_name ?? undefined)
+  const db = getDb(env);
+  const rows = await db
+    .select({
+      share: t.shares,
+      target_name: sql<string | null>`CASE ${t.shares.target_type}
+        WHEN 'scene'  THEN ${t.scenes.name}
+        WHEN 'folder' THEN ${t.folders.name}
+      END`,
+    })
+    .from(t.shares)
+    .leftJoin(
+      t.scenes,
+      and(eq(t.shares.target_type, "scene"), eq(t.scenes.id, t.shares.target_id))
+    )
+    .leftJoin(
+      t.folders,
+      and(
+        eq(t.shares.target_type, "folder"),
+        eq(t.folders.id, t.shares.target_id)
+      )
+    )
+    .where(and(eq(t.shares.owner, owner), isNull(t.shares.revoked_at)))
+    .orderBy(desc(t.shares.created_at))
+    .all();
+  const shares: SharePublic[] = rows.map((r) =>
+    rowToSharePublic(r.share, r.target_name ?? undefined)
   );
   return jsonResponse({ shares });
 }
@@ -223,11 +254,18 @@ export async function revokeShareGeneric(
   // Soft-revoke so we keep an audit-friendly history; cleanup happens on
   // owner delete (user deletion cascades). Hard delete also fine, but
   // soft is harmless and lets the UI distinguish revoked.
-  const t = now();
-  const result = await env.DB.prepare(
-    `UPDATE shares SET revoked_at = ? WHERE token = ? AND owner = ? AND revoked_at IS NULL`
-  )
-    .bind(t, token, owner)
+  const ts = now();
+  const db = getDb(env);
+  const result = await db
+    .update(t.shares)
+    .set({ revoked_at: ts })
+    .where(
+      and(
+        eq(t.shares.token, token),
+        eq(t.shares.owner, owner),
+        isNull(t.shares.revoked_at)
+      )
+    )
     .run();
   if ((result.meta?.changes ?? 0) === 0) return errorResponse(404, "share not found");
   return jsonResponse({ ok: true });
@@ -255,17 +293,23 @@ export async function revokeFolderShare(
 
 // ─── Token resolution ─────────────────────────────────────────────────
 async function resolveToken(env: Env, token: string): Promise<ShareRow | null> {
-  const row = await env.DB.prepare(`SELECT * FROM shares WHERE token = ?`)
-    .bind(token)
-    .first<ShareRow>();
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.shares)
+    .where(eq(t.shares.token, token))
+    .get();
   if (!row) return null;
   if (!isShareActive(row, Date.now())) return null;
   return row;
 }
 
 function touchAccess(env: Env, token: string, ctx: ExecutionContext | null): void {
-  const p = env.DB.prepare(`UPDATE shares SET last_accessed_at = ? WHERE token = ?`)
-    .bind(now(), token)
+  const db = getDb(env);
+  const p = db
+    .update(t.shares)
+    .set({ last_accessed_at: now() })
+    .where(eq(t.shares.token, token))
     .run();
   if (ctx) ctx.waitUntil(p.then(() => undefined).catch(() => undefined));
 }
@@ -335,7 +379,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
     share: {
       token: tk.token,
       permission: tk.permission,
-      allowDownload: !!tk.allow_download,
+      allowDownload: tk.allow_download,
       label: tk.label,
     },
     root: rowToFolderMeta(

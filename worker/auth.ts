@@ -15,7 +15,9 @@
 // admin manages their password via the UI; the env var is only consulted
 // again if no row exists for that email.
 
+import { eq } from "drizzle-orm";
 import type { Env, UserRow } from "./types";
+import { getDb, t } from "./db/client";
 import { hashPassword, verifyPassword } from "./passwords";
 import { base64url, newId, now, timingSafeEqual } from "./util";
 
@@ -84,7 +86,7 @@ export async function validateSession(req: Request, env: Env): Promise<Session |
   return {
     userId: user.id,
     email: user.email,
-    isAdmin: !!user.is_admin,
+    isAdmin: user.is_admin,
     expiresAt,
   };
 }
@@ -95,23 +97,19 @@ export async function validateSession(req: Request, env: Env): Promise<Session |
 // ones it needs for the admin surface.
 
 export async function getUserById(env: Env, id: string): Promise<UserRow | null> {
-  return await env.DB.prepare(
-    `SELECT id, email, password_hash, first_name, last_name, is_admin, disabled,
-            created_at, updated_at, last_login_at
-     FROM users WHERE id = ?`
-  )
-    .bind(id)
-    .first<UserRow>();
+  const db = getDb(env);
+  const row = await db.select().from(t.users).where(eq(t.users.id, id)).get();
+  return row ?? null;
 }
 
 export async function getUserByEmail(env: Env, email: string): Promise<UserRow | null> {
-  return await env.DB.prepare(
-    `SELECT id, email, password_hash, first_name, last_name, is_admin, disabled,
-            created_at, updated_at, last_login_at
-     FROM users WHERE email = ?`
-  )
-    .bind(email.toLowerCase())
-    .first<UserRow>();
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.users)
+    .where(eq(t.users.email, email.toLowerCase()))
+    .get();
+  return row ?? null;
 }
 
 // ─── Login + bootstrap ────────────────────────────────────────────────
@@ -166,25 +164,32 @@ export async function loginWithPassword(
   if (!ok) return { ok: false, reason: "invalid" };
 
   // Update last_login_at; ignore failures (non-critical).
-  const t = now();
-  await env.DB.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`)
-    .bind(t, user.id)
-    .run();
-  user.last_login_at = t;
+  const ts = now();
+  const db = getDb(env);
+  await db.update(t.users).set({ last_login_at: ts }).where(eq(t.users.id, user.id)).run();
+  user.last_login_at = ts;
   return { ok: true, user };
 }
 
 async function createSuperAdmin(env: Env, email: string, password: string): Promise<UserRow> {
   const id = newId();
-  const t = now();
+  const ts = now();
   const hash = await hashPassword(password);
-  await env.DB.prepare(
-    `INSERT INTO users
-       (id, email, password_hash, first_name, last_name, is_admin, disabled,
-        created_at, updated_at, last_login_at)
-     VALUES (?, ?, ?, '', '', 1, 0, ?, ?, ?)`
-  )
-    .bind(id, email, hash, t, t, t)
+  const db = getDb(env);
+  await db
+    .insert(t.users)
+    .values({
+      id,
+      email,
+      password_hash: hash,
+      first_name: "",
+      last_name: "",
+      is_admin: true,
+      disabled: false,
+      created_at: ts,
+      updated_at: ts,
+      last_login_at: ts,
+    })
     .run();
   return {
     id,
@@ -192,11 +197,11 @@ async function createSuperAdmin(env: Env, email: string, password: string): Prom
     password_hash: hash,
     first_name: "",
     last_name: "",
-    is_admin: 1,
-    disabled: 0,
-    created_at: t,
-    updated_at: t,
-    last_login_at: t,
+    is_admin: true,
+    disabled: false,
+    created_at: ts,
+    updated_at: ts,
+    last_login_at: ts,
   };
 }
 
@@ -214,8 +219,11 @@ export async function changeOwnPassword(
   const ok = await verifyPassword(currentPassword, user.password_hash);
   if (!ok) return { ok: false, reason: "invalid_current" };
   const newHash = await hashPassword(newPassword);
-  await env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`)
-    .bind(newHash, now(), userId)
+  const db = getDb(env);
+  await db
+    .update(t.users)
+    .set({ password_hash: newHash, updated_at: now() })
+    .where(eq(t.users.id, userId))
     .run();
   return { ok: true };
 }

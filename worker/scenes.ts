@@ -12,8 +12,10 @@
 // send `If-Match: <version>`; mismatch returns 409 with the current row so
 // the client can decide whether to retry or surface the conflict.
 
+import { and, desc, eq } from "drizzle-orm";
 import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
 import { rowToMeta } from "./types";
+import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 import {
   descendantFolderIds,
@@ -52,6 +54,7 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
   const tagFilters = params.getAll("tag").map((t) => t.trim().toLowerCase()).filter(Boolean);
   const q = (params.get("q") || "").trim();
 
+  const db = getDb(env);
   let rows: SceneRow[];
 
   if (folderParam) {
@@ -60,24 +63,22 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
       const ids = await descendantFolderIds(env, owner, folderId);
       rows = await loadScenesInFolders(env, owner, ids);
     } else {
-      const r = await env.DB.prepare(
-        `SELECT id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at
-         FROM scenes WHERE owner = ? AND folder_id = ?
-         ORDER BY updated_at DESC LIMIT 1000`
-      )
-        .bind(owner, folderId)
-        .all<SceneRow>();
-      rows = r.results || [];
+      rows = await db
+        .select()
+        .from(t.scenes)
+        .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, folderId)))
+        .orderBy(desc(t.scenes.updated_at))
+        .limit(1000)
+        .all();
     }
   } else {
-    const r = await env.DB.prepare(
-      `SELECT id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at
-       FROM scenes WHERE owner = ?
-       ORDER BY updated_at DESC LIMIT 1000`
-    )
-      .bind(owner)
-      .all<SceneRow>();
-    rows = r.results || [];
+    rows = await db
+      .select()
+      .from(t.scenes)
+      .where(eq(t.scenes.owner, owner))
+      .orderBy(desc(t.scenes.updated_at))
+      .limit(1000)
+      .all();
   }
 
   // Filter by name substring in JS — small dataset; cheap.
@@ -114,18 +115,19 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     /* ignore — empty body is fine */
   }
   const inbox = await ensureInbox(env, owner);
-  let folderId = body.folderId || inbox.id;
+  const db = getDb(env);
+  const folderId = body.folderId || inbox.id;
   if (folderId !== inbox.id) {
-    const folder = await env.DB.prepare(
-      `SELECT id FROM folders WHERE id = ? AND owner = ?`
-    )
-      .bind(folderId, owner)
-      .first<{ id: string }>();
+    const folder = await db
+      .select({ id: t.folders.id })
+      .from(t.folders)
+      .where(and(eq(t.folders.id, folderId), eq(t.folders.owner, owner)))
+      .get();
     if (!folder) return errorResponse(404, "folder not found");
   }
 
   const id = newId();
-  const t = now();
+  const ts = now();
   const name = (body.name || "Untitled").slice(0, 200);
 
   // Seed an empty scene so subsequent GETs return something predictable.
@@ -135,11 +137,19 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     httpMetadata: { contentType: "application/json" },
   });
 
-  await env.DB.prepare(
-    `INSERT INTO scenes (id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, 0, ?, ?)`
-  )
-    .bind(id, owner, folderId, name, seedBytes.byteLength, t, t)
+  await db
+    .insert(t.scenes)
+    .values({
+      id,
+      owner,
+      folder_id: folderId,
+      name,
+      version: 1,
+      size_bytes: seedBytes.byteLength,
+      has_thumb: false,
+      created_at: ts,
+      updated_at: ts,
+    })
     .run();
 
   const tags = Array.isArray(body.tags)
@@ -154,30 +164,28 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     version: 1,
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
-    createdAt: t,
-    updatedAt: t,
+    createdAt: ts,
+    updatedAt: ts,
   };
   return jsonResponse(meta);
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────
 async function loadRow(env: Env, owner: string, id: string): Promise<SceneRow | null> {
-  return await env.DB.prepare(
-    `SELECT id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at
-     FROM scenes WHERE id = ? AND owner = ?`
-  )
-    .bind(id, owner)
-    .first<SceneRow>();
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.scenes)
+    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .get();
+  return row ?? null;
 }
 
 // Used by /api/share/:token too; doesn't filter by owner.
 export async function loadRowAnyOwner(env: Env, id: string): Promise<SceneRow | null> {
-  return await env.DB.prepare(
-    `SELECT id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at
-     FROM scenes WHERE id = ?`
-  )
-    .bind(id)
-    .first<SceneRow>();
+  const db = getDb(env);
+  const row = await db.select().from(t.scenes).where(eq(t.scenes.id, id)).get();
+  return row ?? null;
 }
 
 export async function getScene(env: Env, owner: string, id: string): Promise<Response> {
@@ -262,14 +270,18 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
     httpMetadata: { contentType: "application/json" },
   });
 
-  const t = now();
+  const ts = now();
   const nextVersion = row.version + 1;
-  await env.DB.prepare(
-    `UPDATE scenes
-     SET name = ?, version = ?, size_bytes = ?, updated_at = ?
-     WHERE id = ? AND owner = ?`
-  )
-    .bind(nextName, nextVersion, buf.byteLength, t, id, owner)
+  const db = getDb(env);
+  await db
+    .update(t.scenes)
+    .set({
+      name: nextName,
+      version: nextVersion,
+      size_bytes: buf.byteLength,
+      updated_at: ts,
+    })
+    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
     .run();
 
   const tags = await listTagsFor(env, "scene", id);
@@ -280,9 +292,9 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
     tags,
     version: nextVersion,
     sizeBytes: buf.byteLength,
-    hasThumb: !!row.has_thumb,
+    hasThumb: row.has_thumb,
     createdAt: row.created_at,
-    updatedAt: t,
+    updatedAt: ts,
   } satisfies SceneMeta);
 }
 
@@ -306,21 +318,22 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
     if (!trimmed) return errorResponse(400, "name required");
     nextName = trimmed;
   }
+  const db = getDb(env);
   if (body.folderId !== undefined && body.folderId !== row.folder_id) {
-    const folder = await env.DB.prepare(
-      `SELECT id FROM folders WHERE id = ? AND owner = ?`
-    )
-      .bind(body.folderId, owner)
-      .first<{ id: string }>();
+    const folder = await db
+      .select({ id: t.folders.id })
+      .from(t.folders)
+      .where(and(eq(t.folders.id, body.folderId), eq(t.folders.owner, owner)))
+      .get();
     if (!folder) return errorResponse(404, "folder not found");
     nextFolder = body.folderId;
   }
 
-  const t = now();
-  await env.DB.prepare(
-    `UPDATE scenes SET name = ?, folder_id = ?, updated_at = ? WHERE id = ? AND owner = ?`
-  )
-    .bind(nextName, nextFolder, t, id, owner)
+  const ts = now();
+  await db
+    .update(t.scenes)
+    .set({ name: nextName, folder_id: nextFolder, updated_at: ts })
+    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
     .run();
 
   const tags = Array.isArray(body.tags)
@@ -328,7 +341,7 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
     : await listTagsFor(env, "scene", id);
 
   return jsonResponse(
-    rowToMeta({ ...row, name: nextName, folder_id: nextFolder, updated_at: t }, tags)
+    rowToMeta({ ...row, name: nextName, folder_id: nextFolder, updated_at: ts }, tags)
   );
 }
 
@@ -349,13 +362,14 @@ export async function putSceneTags(
   }
   const tags = await replaceTagsFor(env, owner, "scene", id, body.tags);
   // Bump updated_at so the dashboard re-renders the card.
-  const t = now();
-  await env.DB.prepare(
-    `UPDATE scenes SET updated_at = ? WHERE id = ? AND owner = ?`
-  )
-    .bind(t, id, owner)
+  const ts = now();
+  const db = getDb(env);
+  await db
+    .update(t.scenes)
+    .set({ updated_at: ts })
+    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
     .run();
-  return jsonResponse({ id, tags, updatedAt: t });
+  return jsonResponse({ id, tags, updatedAt: ts });
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────
@@ -363,13 +377,20 @@ export async function deleteScene(env: Env, owner: string, id: string): Promise<
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
   // Cascade explicitly: shares + taggings (D1 doesn't enforce FKs by default).
-  await env.DB.prepare(`DELETE FROM shares WHERE target_type = 'scene' AND target_id = ?`)
-    .bind(id)
-    .run();
-  await env.DB.prepare(`DELETE FROM taggings WHERE target_type = 'scene' AND target_id = ?`)
-    .bind(id)
-    .run();
-  await env.DB.prepare(`DELETE FROM scenes WHERE id = ? AND owner = ?`).bind(id, owner).run();
+  const db = getDb(env);
+  await db.batch([
+    db
+      .delete(t.shares)
+      .where(and(eq(t.shares.target_type, "scene"), eq(t.shares.target_id, id))),
+    db
+      .delete(t.taggings)
+      .where(
+        and(eq(t.taggings.target_type, "scene"), eq(t.taggings.target_id, id))
+      ),
+    db
+      .delete(t.scenes)
+      .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner))),
+  ]);
   // Best-effort R2 cleanup; swallow errors so a partial state still resolves.
   await Promise.allSettled([env.R2.delete(r2SceneKey(id)), env.R2.delete(r2ThumbKey(id))]);
   return jsonResponse({ ok: true });
@@ -388,8 +409,11 @@ export async function putThumb(req: Request, env: Env, owner: string, id: string
     httpMetadata: { contentType: "image/svg+xml" },
   });
   if (!row.has_thumb) {
-    await env.DB.prepare(`UPDATE scenes SET has_thumb = 1 WHERE id = ? AND owner = ?`)
-      .bind(id, owner)
+    const db = getDb(env);
+    await db
+      .update(t.scenes)
+      .set({ has_thumb: true })
+      .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
       .run();
   }
   return jsonResponse({ ok: true });
@@ -428,18 +452,27 @@ export async function createSceneInFolder(
   name: string
 ): Promise<SceneMeta> {
   const id = newId();
-  const t = now();
+  const ts = now();
   const safe = (name || "Untitled").slice(0, 200);
   const seed: SceneBlob = { elements: [], appState: { name: safe }, files: {} };
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
   await env.R2.put(r2SceneKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
   });
-  await env.DB.prepare(
-    `INSERT INTO scenes (id, owner, folder_id, name, version, size_bytes, has_thumb, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, 0, ?, ?)`
-  )
-    .bind(id, owner, folderId, safe, seedBytes.byteLength, t, t)
+  const db = getDb(env);
+  await db
+    .insert(t.scenes)
+    .values({
+      id,
+      owner,
+      folder_id: folderId,
+      name: safe,
+      version: 1,
+      size_bytes: seedBytes.byteLength,
+      has_thumb: false,
+      created_at: ts,
+      updated_at: ts,
+    })
     .run();
   return {
     id,
@@ -449,7 +482,7 @@ export async function createSceneInFolder(
     version: 1,
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
-    createdAt: t,
-    updatedAt: t,
+    createdAt: ts,
+    updatedAt: ts,
   };
 }

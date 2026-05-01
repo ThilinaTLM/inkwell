@@ -3,8 +3,10 @@
 // Admin endpoints live under /api/admin/users/*. All require an authenticated
 // admin session (gated in worker/index.ts via `requireAdmin`).
 
-import type { AdminUserRow, Env, SceneRow, UserRow } from "./types";
+import { asc, eq, sql } from "drizzle-orm";
+import type { AdminUserRow, Env, UserRow } from "./types";
 import { rowToAdminUserPublic } from "./types";
+import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 import { getUserByEmail } from "./auth";
 import { hashPassword } from "./passwords";
@@ -35,18 +37,26 @@ export interface CreateUserInput {
 export async function createUser(env: Env, input: CreateUserInput): Promise<UserRow> {
   const email = input.email.trim().toLowerCase();
   const id = newId();
-  const t = now();
+  const ts = now();
   const hash = await hashPassword(input.password);
   const firstName = trimName(input.firstName);
   const lastName = trimName(input.lastName);
-  const isAdmin = input.isAdmin ? 1 : 0;
-  await env.DB.prepare(
-    `INSERT INTO users
-       (id, email, password_hash, first_name, last_name, is_admin, disabled,
-        created_at, updated_at, last_login_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NULL)`
-  )
-    .bind(id, email, hash, firstName, lastName, isAdmin, t, t)
+  const isAdmin = !!input.isAdmin;
+  const db = getDb(env);
+  await db
+    .insert(t.users)
+    .values({
+      id,
+      email,
+      password_hash: hash,
+      first_name: firstName,
+      last_name: lastName,
+      is_admin: isAdmin,
+      disabled: false,
+      created_at: ts,
+      updated_at: ts,
+      last_login_at: null,
+    })
     .run();
   return {
     id,
@@ -55,9 +65,9 @@ export async function createUser(env: Env, input: CreateUserInput): Promise<User
     first_name: firstName,
     last_name: lastName,
     is_admin: isAdmin,
-    disabled: 0,
-    created_at: t,
-    updated_at: t,
+    disabled: false,
+    created_at: ts,
+    updated_at: ts,
     last_login_at: null,
   };
 }
@@ -68,26 +78,26 @@ export async function createUser(env: Env, input: CreateUserInput): Promise<User
 // and invites they created. Best-effort on R2 — a partial failure leaves
 // orphan objects but D1 stays consistent.
 export async function deleteUserCascade(env: Env, userId: string): Promise<void> {
-  const { results } = await env.DB.prepare(
-    `SELECT id FROM scenes WHERE owner = ?`
-  )
-    .bind(userId)
-    .all<Pick<SceneRow, "id">>();
-
-  const sceneIds = (results || []).map((r) => r.id);
+  const db = getDb(env);
+  const sceneIdRows = await db
+    .select({ id: t.scenes.id })
+    .from(t.scenes)
+    .where(eq(t.scenes.owner, userId))
+    .all();
+  const sceneIds = sceneIdRows.map((r) => r.id);
 
   // Wipe owner-scoped rows from the organization tables. Order matters
   // only for FK-honoring engines; with `PRAGMA foreign_keys = ON` D1 will
   // cascade most of these, but we run them explicitly so behavior is the
   // same on a connection without the pragma.
-  await env.DB.prepare(`DELETE FROM shares   WHERE owner = ?`).bind(userId).run();
-  await env.DB.prepare(`DELETE FROM taggings WHERE owner = ?`).bind(userId).run();
-  await env.DB.prepare(`DELETE FROM tags     WHERE owner = ?`).bind(userId).run();
+  await db.batch([
+    db.delete(t.shares).where(eq(t.shares.owner, userId)),
+    db.delete(t.taggings).where(eq(t.taggings.owner, userId)),
+    db.delete(t.tags).where(eq(t.tags.owner, userId)),
+    db.delete(t.scenes).where(eq(t.scenes.owner, userId)),
+  ]);
 
   if (sceneIds.length > 0) {
-    // Wipe scene rows.
-    await env.DB.prepare(`DELETE FROM scenes WHERE owner = ?`).bind(userId).run();
-
     // Wipe R2 objects in parallel.
     const deletes: Promise<unknown>[] = [];
     for (const id of sceneIds) {
@@ -99,26 +109,37 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
 
   // Folders go after scenes (folders may be referenced by scenes via
   // ON DELETE SET NULL; with all the user's scenes gone it's a clean drop).
-  await env.DB.prepare(`DELETE FROM folders WHERE owner = ?`).bind(userId).run();
-
-  // Finally drop the user. Invites created by the user cascade automatically
-  // (the `created_by` FK uses ON DELETE CASCADE — declared in schema and
-  // enforced by us via the explicit DELETE here in case D1 hasn't honored
-  // the FK).
-  await env.DB.prepare(`DELETE FROM invites WHERE created_by = ?`).bind(userId).run();
-  await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(userId).run();
+  // Then invites created by the user, then the user row itself. Invites
+  // would cascade via FK on a connection with PRAGMA foreign_keys = ON,
+  // but we delete them explicitly so behavior is independent of the pragma.
+  await db.batch([
+    db.delete(t.folders).where(eq(t.folders.owner, userId)),
+    db.delete(t.invites).where(eq(t.invites.created_by, userId)),
+    db.delete(t.users).where(eq(t.users.id, userId)),
+  ]);
 }
 
 // ─── Admin: list ──────────────────────────────────────────────────────
 export async function listUsersAdmin(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name,
-            u.is_admin, u.disabled, u.created_at, u.updated_at, u.last_login_at,
-            COALESCE((SELECT COUNT(*) FROM scenes s WHERE s.owner = u.id), 0) AS scene_count
-     FROM users u
-     ORDER BY u.created_at ASC`
-  ).all<AdminUserRow>();
-  return jsonResponse({ users: (results || []).map(rowToAdminUserPublic) });
+  const db = getDb(env);
+  const rows = await db
+    .select({
+      id: t.users.id,
+      email: t.users.email,
+      password_hash: t.users.password_hash,
+      first_name: t.users.first_name,
+      last_name: t.users.last_name,
+      is_admin: t.users.is_admin,
+      disabled: t.users.disabled,
+      created_at: t.users.created_at,
+      updated_at: t.users.updated_at,
+      last_login_at: t.users.last_login_at,
+      scene_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.scenes} WHERE ${t.scenes.owner} = ${t.users.id}), 0)`,
+    })
+    .from(t.users)
+    .orderBy(asc(t.users.created_at))
+    .all();
+  return jsonResponse({ users: rows.map((r) => rowToAdminUserPublic(r as AdminUserRow)) });
 }
 
 // ─── Admin: patch (role / disabled / names) ───────────────────────────
@@ -143,55 +164,46 @@ export async function patchUserAdmin(
     return errorResponse(400, "invalid JSON");
   }
 
-  const target = await env.DB.prepare(
-    `SELECT id, email, password_hash, first_name, last_name, is_admin, disabled,
-            created_at, updated_at, last_login_at
-     FROM users WHERE id = ?`
-  )
-    .bind(targetId)
-    .first<UserRow>();
+  const db = getDb(env);
+  const target = await db
+    .select()
+    .from(t.users)
+    .where(eq(t.users.id, targetId))
+    .get();
   if (!target) return errorResponse(404, "user not found");
 
-  const sets: string[] = [];
-  const vals: unknown[] = [];
+  // Drizzle's `.set()` accepts a partial object; build it up from `body`
+  // so untouched fields are not rewritten.
+  const patch: Partial<UserRow> = {};
+  if (typeof body.isAdmin === "boolean") patch.is_admin = body.isAdmin;
+  if (typeof body.disabled === "boolean") patch.disabled = body.disabled;
+  if (typeof body.firstName === "string") patch.first_name = trimName(body.firstName);
+  if (typeof body.lastName === "string") patch.last_name = trimName(body.lastName);
+  if (Object.keys(patch).length === 0) return errorResponse(400, "no fields to update");
+  patch.updated_at = now();
 
-  if (typeof body.isAdmin === "boolean") {
-    sets.push("is_admin = ?");
-    vals.push(body.isAdmin ? 1 : 0);
-  }
-  if (typeof body.disabled === "boolean") {
-    sets.push("disabled = ?");
-    vals.push(body.disabled ? 1 : 0);
-  }
-  if (typeof body.firstName === "string") {
-    sets.push("first_name = ?");
-    vals.push(trimName(body.firstName));
-  }
-  if (typeof body.lastName === "string") {
-    sets.push("last_name = ?");
-    vals.push(trimName(body.lastName));
-  }
-  if (sets.length === 0) return errorResponse(400, "no fields to update");
-
-  sets.push("updated_at = ?");
-  vals.push(now());
-
-  vals.push(targetId);
-  await env.DB.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...vals)
-    .run();
+  await db.update(t.users).set(patch).where(eq(t.users.id, targetId)).run();
 
   // Re-read with scene count for the response, mirroring listUsersAdmin.
-  const updated = await env.DB.prepare(
-    `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name,
-            u.is_admin, u.disabled, u.created_at, u.updated_at, u.last_login_at,
-            COALESCE((SELECT COUNT(*) FROM scenes s WHERE s.owner = u.id), 0) AS scene_count
-     FROM users u WHERE u.id = ?`
-  )
-    .bind(targetId)
-    .first<AdminUserRow>();
+  const updated = await db
+    .select({
+      id: t.users.id,
+      email: t.users.email,
+      password_hash: t.users.password_hash,
+      first_name: t.users.first_name,
+      last_name: t.users.last_name,
+      is_admin: t.users.is_admin,
+      disabled: t.users.disabled,
+      created_at: t.users.created_at,
+      updated_at: t.users.updated_at,
+      last_login_at: t.users.last_login_at,
+      scene_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.scenes} WHERE ${t.scenes.owner} = ${t.users.id}), 0)`,
+    })
+    .from(t.users)
+    .where(eq(t.users.id, targetId))
+    .get();
   if (!updated) return errorResponse(404, "user not found");
-  return jsonResponse(rowToAdminUserPublic(updated));
+  return jsonResponse(rowToAdminUserPublic(updated as AdminUserRow));
 }
 
 // ─── Admin: delete ────────────────────────────────────────────────────
@@ -203,9 +215,12 @@ export async function deleteUserAdmin(
   if (targetId === selfId) {
     return errorResponse(400, "cannot delete yourself");
   }
-  const target = await env.DB.prepare(`SELECT id FROM users WHERE id = ?`)
-    .bind(targetId)
-    .first<{ id: string }>();
+  const db = getDb(env);
+  const target = await db
+    .select({ id: t.users.id })
+    .from(t.users)
+    .where(eq(t.users.id, targetId))
+    .get();
   if (!target) return errorResponse(404, "user not found");
   await deleteUserCascade(env, targetId);
   return jsonResponse({ ok: true });

@@ -320,7 +320,7 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
       email: result.user.email,
       firstName: result.user.first_name,
       lastName: result.user.last_name,
-      isAdmin: !!result.user.is_admin,
+      isAdmin: result.user.is_admin,
     }),
     {
       status: 200,
@@ -343,7 +343,7 @@ async function handleMe(_req: Request, env: Env, session: Session): Promise<Resp
     email: row.email,
     firstName: row.first_name,
     lastName: row.last_name,
-    isAdmin: !!row.is_admin,
+    isAdmin: row.is_admin,
     expiresAt: session.expiresAt,
   });
 }
