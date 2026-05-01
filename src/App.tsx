@@ -1,5 +1,14 @@
 import { ReactNode, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Loading03Icon } from "@hugeicons/core-free-icons";
+
 import { ApiError, MeResponse, User, auth } from "./api";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -8,6 +17,8 @@ import SharedEditor from "./pages/SharedEditor";
 import InviteAccept from "./pages/InviteAccept";
 import Admin from "./pages/Admin";
 import Account from "./pages/Account";
+import { Toaster } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 type AuthStatus = "unknown" | "authed" | "anon";
 
@@ -48,17 +59,13 @@ export default function App() {
   useEffect(() => {
     const p = location.pathname;
     const isPublic =
-      p === "/login" ||
-      p.startsWith("/share/") ||
-      p.startsWith("/invite/");
+      p === "/login" || p.startsWith("/share/") || p.startsWith("/invite/");
     if (status === "anon" && !isPublic) {
       navigate(`/login?next=${encodeURIComponent(p + location.search)}`, {
         replace: true,
       });
     }
   }, [status, location.pathname, location.search, navigate]);
-
-  if (status === "unknown") return <BootSplash />;
 
   function onAuthed(u: User) {
     setUser(u);
@@ -70,39 +77,52 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login onAuthed={onAuthed} />} />
-      <Route path="/invite/:token" element={<InviteAccept onAuthed={onAuthed} />} />
-      <Route
-        path="/"
-        element={
-          status === "authed" && user ? (
-            <Dashboard user={user} onLogout={onLogout} />
-          ) : null
-        }
-      />
-      <Route path="/s/:id" element={status === "authed" ? <Editor /> : null} />
-      <Route
-        path="/account"
-        element={
-          status === "authed" && user ? (
-            <Account user={user} onUserChange={setUser} />
-          ) : null
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          status === "authed" && user ? (
-            <RequireAdmin user={user}>
-              <Admin user={user} />
-            </RequireAdmin>
-          ) : null
-        }
-      />
-      <Route path="/share/:token" element={<SharedEditor />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <TooltipProvider>
+      {status === "unknown" ? (
+        <BootSplash />
+      ) : (
+        <Routes>
+          <Route path="/login" element={<Login onAuthed={onAuthed} />} />
+          <Route
+            path="/invite/:token"
+            element={<InviteAccept onAuthed={onAuthed} />}
+          />
+          <Route
+            path="/"
+            element={
+              status === "authed" && user ? (
+                <Dashboard user={user} onLogout={onLogout} />
+              ) : null
+            }
+          />
+          <Route
+            path="/s/:id"
+            element={status === "authed" ? <Editor /> : null}
+          />
+          <Route
+            path="/account"
+            element={
+              status === "authed" && user ? (
+                <Account user={user} onUserChange={setUser} />
+              ) : null
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              status === "authed" && user ? (
+                <RequireAdmin user={user}>
+                  <Admin user={user} />
+                </RequireAdmin>
+              ) : null
+            }
+          />
+          <Route path="/share/:token" element={<SharedEditor />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
+      <Toaster position="bottom-right" />
+    </TooltipProvider>
   );
 }
 
@@ -113,8 +133,17 @@ function RequireAdmin({ user, children }: { user: User; children: ReactNode }) {
 
 function BootSplash() {
   return (
-    <div className="boot">
-      <div className="boot-mark">inkwell</div>
+    <div className="grid min-h-dvh place-items-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <div className="font-heading text-base font-semibold tracking-tight text-foreground">
+          inkwell
+        </div>
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          strokeWidth={2}
+          className="size-4 animate-spin"
+        />
+      </div>
     </div>
   );
 }

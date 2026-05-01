@@ -1,6 +1,14 @@
 import { FormEvent, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ApiError, User, auth } from "../api";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Loading03Icon } from "@hugeicons/core-free-icons";
+
+import { ApiError, User, auth } from "@/api";
+import { AuthShell } from "@/components/AuthShell";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Login({ onAuthed }: { onAuthed: (u: User) => void }) {
   const [email, setEmail] = useState("");
@@ -20,43 +28,63 @@ export default function Login({ onAuthed }: { onAuthed: (u: User) => void }) {
       onAuthed(user);
       navigate(next, { replace: true });
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : "login failed";
-      setErr(msg);
+      setErr(e instanceof ApiError ? e.message : "login failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="login">
-      <form onSubmit={submit} className="login-card">
-        <div className="login-mark">inkwell</div>
-        <p className="login-blurb">A small place for your Excalidraw scenes.</p>
-        <input
-          type="email"
-          autoFocus
-          autoComplete="username"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={busy}
-        />
-        <input
-          type="password"
-          autoComplete="current-password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={busy}
-        />
-        {err && <div className="login-err">{err}</div>}
-        <button type="submit" disabled={busy || !email || !password}>
-          {busy ? "…" : "Enter"}
-        </button>
-        <p className="login-hint">
-          New here? You'll need an invite link from an admin.
-        </p>
+    <AuthShell
+      title="Sign in"
+      description="Enter your credentials to continue."
+      footer="New here? You'll need an invite link from an admin."
+    >
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoFocus
+            autoComplete="username"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={busy}
+            required
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+            required
+          />
+        </div>
+
+        {err && (
+          <Alert variant="destructive">
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button type="submit" disabled={busy || !email || !password} className="mt-1">
+          {busy && (
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              strokeWidth={2}
+              className="animate-spin"
+            />
+          )}
+          {busy ? "Signing in…" : "Sign in"}
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

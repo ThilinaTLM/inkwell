@@ -1,13 +1,29 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ApiError, User, invites } from "../api";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Alert02Icon,
+  Loading03Icon,
+  MailAdd02Icon,
+} from "@hugeicons/core-free-icons";
+
+import { ApiError, User, invites } from "@/api";
+import { AuthShell } from "@/components/AuthShell";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type PeekState =
   | { kind: "loading" }
   | { kind: "ok"; expiresAt: number | null }
   | { kind: "error"; status: number; message: string };
 
-export default function InviteAccept({ onAuthed }: { onAuthed: (u: User) => void }) {
+export default function InviteAccept({
+  onAuthed,
+}: {
+  onAuthed: (u: User) => void;
+}) {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
@@ -66,95 +82,142 @@ export default function InviteAccept({ onAuthed }: { onAuthed: (u: User) => void
     }
   }
 
+  if (peek.kind === "loading") {
+    return (
+      <AuthShell title="Checking invite" description="Just a moment…">
+        <div className="flex items-center justify-center py-6 text-muted-foreground">
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            strokeWidth={2}
+            className="size-4 animate-spin"
+          />
+        </div>
+      </AuthShell>
+    );
+  }
+
+  if (peek.kind === "error") {
+    return (
+      <AuthShell
+        title="Invite unavailable"
+        description="This link can't be used to create an account."
+      >
+        <Alert variant="destructive">
+          <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+          <AlertDescription>{peek.message}</AlertDescription>
+        </Alert>
+        <Button
+          variant="outline"
+          className="mt-3 w-full"
+          onClick={() => navigate("/login")}
+        >
+          Go to sign in
+        </Button>
+      </AuthShell>
+    );
+  }
+
   return (
-    <div className="login">
-      <div className="login-card">
-        <div className="login-mark">inkwell</div>
+    <AuthShell
+      title="Create your account"
+      description={
+        peek.expiresAt
+          ? `Invite expires ${new Date(peek.expiresAt).toLocaleString()}.`
+          : "Welcome to Inkwell."
+      }
+    >
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="firstName">First name</Label>
+            <Input
+              id="firstName"
+              type="text"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={busy}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="lastName">Last name</Label>
+            <Input
+              id="lastName"
+              type="text"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={busy}
+            />
+          </div>
+        </div>
 
-        {peek.kind === "loading" && <p className="login-blurb">Checking invite…</p>}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={busy}
+            required
+          />
+        </div>
 
-        {peek.kind === "error" && (
-          <>
-            <p className="login-blurb">This invite can't be used.</p>
-            <div className="login-err">{peek.message}</div>
-            <button type="button" onClick={() => navigate("/login")}>
-              Go to login
-            </button>
-          </>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+            required
+            minLength={8}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="confirm">Confirm password</Label>
+          <Input
+            id="confirm"
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            disabled={busy}
+            required
+            minLength={8}
+          />
+        </div>
+
+        {err && (
+          <Alert variant="destructive">
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
         )}
 
-        {peek.kind === "ok" && (
-          <>
-            <p className="login-blurb">
-              Create your account.
-              {peek.expiresAt && (
-                <>
-                  {" "}
-                  <span className="login-hint">
-                    (Invite expires {new Date(peek.expiresAt).toLocaleString()})
-                  </span>
-                </>
-              )}
-            </p>
-            <form onSubmit={submit} className="login-form">
-              <div className="login-row">
-                <input
-                  type="text"
-                  autoComplete="given-name"
-                  placeholder="First name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  disabled={busy}
-                />
-                <input
-                  type="text"
-                  autoComplete="family-name"
-                  placeholder="Last name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  disabled={busy}
-                />
-              </div>
-              <input
-                type="email"
-                autoComplete="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={busy}
-                required
-              />
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder="Password (min 8 chars)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={busy}
-                required
-                minLength={8}
-              />
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder="Confirm password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                disabled={busy}
-                required
-                minLength={8}
-              />
-              {err && <div className="login-err">{err}</div>}
-              <button
-                type="submit"
-                disabled={busy || !email || !password || password !== confirm}
-              >
-                {busy ? "…" : "Create account"}
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
+        <Button
+          type="submit"
+          disabled={busy || !email || !password || password !== confirm}
+          className="mt-1"
+        >
+          {busy ? (
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              strokeWidth={2}
+              className="animate-spin"
+            />
+          ) : (
+            <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
+          )}
+          {busy ? "Creating…" : "Create account"}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

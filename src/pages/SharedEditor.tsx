@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ApiError, LoadedScene, SceneBlob, shares } from "../api";
-import SceneEditor from "../components/SceneEditor";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { EyeIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
+
+import { ApiError, LoadedScene, SceneBlob, shares } from "@/api";
+import SceneEditor from "@/components/SceneEditor";
+import { Badge } from "@/components/ui/badge";
+import {
+  EditorErrorState,
+  EditorHeader,
+  EditorLoadingState,
+} from "./Editor";
 
 export default function SharedEditor() {
   const { token = "" } = useParams<{ token: string }>();
@@ -27,7 +36,15 @@ export default function SharedEditor() {
       const m = await shares.save(token, version, blob);
       setLoaded((prev) =>
         prev
-          ? { ...prev, meta: { ...prev.meta, name: m.name, version: m.version, updatedAt: m.updatedAt } }
+          ? {
+              ...prev,
+              meta: {
+                ...prev.meta,
+                name: m.name,
+                version: m.version,
+                updatedAt: m.updatedAt,
+              },
+            }
           : prev
       );
       return { version: m.version };
@@ -35,28 +52,40 @@ export default function SharedEditor() {
     [token]
   );
 
-  if (err) return <div className="editor-error"><p>{err}</p></div>;
-  if (!loaded) return <div className="editor-loading">Loading shared scene…</div>;
+  if (err) return <EditorErrorState message={err} />;
+  if (!loaded) return <EditorLoadingState label="Loading shared scene…" />;
 
   const writable = loaded.permission === "write";
 
   return (
-    <div className="editor-page">
-      <header className="editor-header">
-        <span className="editor-name editor-name-static" title={loaded.meta.name}>
-          {loaded.meta.name}
-        </span>
-        <span className={`editor-badge ${writable ? "editor-badge-edit" : "editor-badge-view"}`}>
-          {writable ? "Shared • can edit" : "Shared • view only"}
-        </span>
-      </header>
-      <SceneEditor
-        loaded={loaded}
-        save={writable ? save : (async () => ({ version: loaded.meta.version }))}
-        saveThumb={null}
-        reload={reload}
-        onReload={(ls) => setLoaded(ls)}
+    <div className="flex h-dvh flex-col bg-background text-foreground">
+      <EditorHeader
+        title={loaded.meta.name}
+        badge={
+          writable ? (
+            <Badge variant="secondary" className="ml-1 gap-1">
+              <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
+              Shared · can edit
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="ml-1 gap-1">
+              <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
+              Shared · view only
+            </Badge>
+          )
+        }
       />
+      <div className="flex-1 min-h-0">
+        <SceneEditor
+          loaded={loaded}
+          save={
+            writable ? save : async () => ({ version: loaded.meta.version })
+          }
+          saveThumb={null}
+          reload={reload}
+          onReload={(ls) => setLoaded(ls)}
+        />
+      </div>
     </div>
   );
 }

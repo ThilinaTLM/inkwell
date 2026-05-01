@@ -20,9 +20,19 @@ import type {
   BinaryFiles,
 } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import type { LoadedScene, SceneBlob } from "../api";
-import { ApiError } from "../api";
-import { useDebounced } from "../hooks/useDebounced";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Alert02Icon,
+  CheckmarkCircle02Icon,
+  EyeIcon,
+  Loading03Icon,
+  PencilEdit02Icon,
+} from "@hugeicons/core-free-icons";
+
+import type { LoadedScene, SceneBlob } from "@/api";
+import { ApiError } from "@/api";
+import { useDebounced } from "@/hooks/useDebounced";
+import { cn } from "@/lib/utils";
 
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -175,8 +185,8 @@ export default function SceneEditor({
   };
 
   return (
-    <div className="editor-root">
-      <div className="editor-canvas">
+    <div className="relative h-full w-full">
+      <div className="absolute inset-0">
         <Excalidraw
           excalidrawAPI={(a) => setApi(a)}
           initialData={initial}
@@ -255,36 +265,60 @@ function SaveBadge({
   message: string | null;
   readOnly: boolean;
 }) {
+  // The Excalidraw canvas has its own floating UI overlays; we sit on top of
+  // the canvas in the bottom-left so the badge stays out of the toolbar.
   let label = "";
-  let cls = "";
+  let icon = null;
+  let tone = "bg-popover text-popover-foreground";
+
   if (readOnly) {
     label = "Read-only";
-    cls = "save-readonly";
-  } else
+    icon = <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />;
+    tone = "bg-popover text-muted-foreground";
+  } else {
     switch (status) {
       case "idle":
         label = "Ready";
-        cls = "save-idle";
+        icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
+        tone = "bg-popover text-muted-foreground";
         break;
       case "dirty":
-        label = "Editing…";
-        cls = "save-dirty";
+        label = "Editing";
+        icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
+        tone = "bg-popover text-foreground";
         break;
       case "saving":
         label = "Saving…";
-        cls = "save-saving";
+        icon = (
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            strokeWidth={2}
+            className="animate-spin"
+          />
+        );
+        tone = "bg-popover text-foreground";
         break;
       case "saved":
         label = "Saved";
-        cls = "save-saved";
+        icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
+        tone = "bg-popover text-emerald-400";
         break;
       case "error":
         label = message || "Save failed";
-        cls = "save-error";
+        icon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
+        tone = "bg-destructive/15 text-destructive";
         break;
     }
+  }
   return (
-    <div className={`save-badge ${cls}`} title={message || undefined}>
+    <div
+      title={message || undefined}
+      className={cn(
+        "pointer-events-none absolute bottom-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] font-medium ring-1 ring-foreground/10 backdrop-blur supports-backdrop-filter:bg-popover/80",
+        tone
+      )}
+    >
+      <span className="[&_svg]:size-3">{icon}</span>
       {label}
     </div>
   );
