@@ -18,8 +18,8 @@ import type {
   ExcalidrawImperativeAPI,
   AppState,
   BinaryFiles,
-} from "@excalidraw/excalidraw/types/types";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+} from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { LoadedScene, SceneBlob } from "../api";
 import { ApiError } from "../api";
 import { useDebounced } from "../hooks/useDebounced";

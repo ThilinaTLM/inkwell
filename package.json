@@ -14,19 +14,19 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.17.6",
-    "hono": "^4.6.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2"
+    "@excalidraw/excalidraw": "^0.18.1",
+    "hono": "^4.12.16",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240909.0",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.4",
-    "vite": "^5.4.6",
-    "wrangler": "^3.78.0"
+    "@cloudflare/workers-types": "^4.20260501.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "wrangler": "^4.87.0"
   }
 }
