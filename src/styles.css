@@ -1,0 +1,341 @@
+/* Inkwell — minimal styling. Excalidraw owns its own canvas chrome; we only
+   style the shell pages around it. */
+
+:root {
+  --bg: #0f0f10;
+  --bg-2: #18181b;
+  --bg-3: #232327;
+  --fg: #e7e7ea;
+  --fg-dim: #9b9ba1;
+  --accent: #6cb6ff;
+  --danger: #f06d6d;
+  --ok: #6ed28a;
+  --border: #2a2a30;
+  --radius: 10px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); }
+button { font: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+/* ─── Boot splash ───────────────────────────────────────────────── */
+.boot {
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.boot-mark {
+  font-size: 1.5rem;
+  letter-spacing: 0.2em;
+  color: var(--fg-dim);
+}
+
+/* ─── Login ─────────────────────────────────────────────────────── */
+.login {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(1200px 600px at 50% -10%, #1a1a22 0%, #0f0f10 60%);
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(360px, 90vw);
+  padding: 28px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.login-mark {
+  font-size: 1.4rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+  color: var(--fg);
+}
+.login-blurb {
+  margin: -4px 0 8px;
+  font-size: 0.9rem;
+  color: var(--fg-dim);
+  text-align: center;
+}
+.login input {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+.login input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.login button {
+  background: var(--accent);
+  color: #0b1220;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+.login button:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-err {
+  color: var(--danger);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ─── Dashboard ─────────────────────────────────────────────────── */
+.dash {
+  min-height: 100%;
+  padding: 0 24px 64px;
+}
+.dash-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+  background: linear-gradient(var(--bg) 80%, transparent);
+}
+.dash-mark {
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+}
+.dash-search {
+  flex: 1;
+  max-width: 420px;
+  background: var(--bg-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+.dash-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.dash-actions { margin-left: auto; display: flex; gap: 8px; }
+.dash-new, .dash-logout {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+.dash-new { background: var(--accent); color: #0b1220; border-color: transparent; font-weight: 600; }
+.dash-err {
+  background: #2a1414;
+  color: var(--danger);
+  border: 1px solid #4a1f1f;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+.dash-empty {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 80px 0;
+  color: var(--fg-dim);
+  text-align: center;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.card:hover { border-color: var(--accent); }
+.card-thumb {
+  display: block;
+  aspect-ratio: 16 / 10;
+  background: #fff;
+  overflow: hidden;
+}
+.card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.card-thumb-empty {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #b8b8c0;
+  background: repeating-linear-gradient(
+    45deg, #f3f3f5, #f3f3f5 10px, #ececef 10px, #ececef 20px
+  );
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.card-meta { min-width: 0; flex: 1; }
+.card-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-sub { font-size: 0.78rem; color: var(--fg-dim); }
+.card-menu { display: flex; gap: 2px; opacity: 0.6; }
+.card-menu button {
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+.card-menu button:hover { background: var(--bg-3); }
+.card:hover .card-menu { opacity: 1; }
+
+/* ─── Editor shell ──────────────────────────────────────────────── */
+.editor-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.editor-back {
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--fg-dim);
+  font-size: 1.1rem;
+}
+.editor-back:hover { background: var(--bg-3); color: var(--fg); }
+.editor-name {
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: 50vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-name:hover { background: var(--bg-3); }
+.editor-name-static { cursor: default; }
+.editor-actions { margin-left: auto; display: flex; gap: 6px; }
+.editor-actions button {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+.editor-actions button:hover { border-color: var(--accent); }
+.editor-badge {
+  margin-left: auto;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+}
+.editor-badge-edit { color: var(--accent); border-color: var(--accent); }
+.editor-badge-view { color: var(--fg-dim); }
+
+.editor-canvas { flex: 1; min-height: 0; position: relative; }
+.editor-canvas .excalidraw { height: 100%; }
+
+.editor-loading, .editor-error {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-dim);
+  gap: 12px;
+}
+
+.editor-share-toast {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-2);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.editor-share-toast code {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+.editor-share-toast button {
+  background: transparent;
+  border: 0;
+  color: var(--fg-dim);
+  font-size: 1.1rem;
+}
+
+/* ─── Save badge ───────────────────────────────────────────────── */
+.save-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 20;
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(15, 15, 16, 0.7);
+  backdrop-filter: blur(8px);
+  color: var(--fg-dim);
+  pointer-events: none;
+}
+.save-saving { color: var(--accent); border-color: var(--accent); }
+.save-saved { color: var(--ok); border-color: var(--ok); }
+.save-dirty { color: var(--fg-dim); }
+.save-error { color: var(--danger); border-color: var(--danger); pointer-events: auto; }
+.save-readonly { color: var(--fg-dim); }
