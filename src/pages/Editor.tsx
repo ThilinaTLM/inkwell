@@ -4,16 +4,16 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Alert02Icon,
   ArrowLeft01Icon,
-  Copy01Icon,
+  Download01Icon,
   Edit02Icon,
-  Link01Icon,
   Loading03Icon,
   Share08Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import { ApiError, LoadedScene, SceneBlob, scenes, shares } from "@/api";
+import { ApiError, LoadedScene, SceneBlob, scenes } from "@/api";
 import SceneEditor from "@/components/SceneEditor";
+import { ShareDialog } from "@/components/ShareDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,17 +107,34 @@ export default function Editor() {
           </Tooltip>
         }
         actions={
-          <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-            <DialogTrigger
-              render={
-                <Button variant="outline" size="sm">
-                  <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
-                  Share
-                </Button>
-              }
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <a
+                    href={scenes.downloadUrl(id)}
+                    download
+                    aria-label="Download .excalidraw"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  />
+                }
+              >
+                <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>Download</TooltipContent>
+            </Tooltip>
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
+              Share
+            </Button>
+            <ShareDialog
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+              targetType="scene"
+              targetId={id}
+              targetName={loaded.meta.name}
             />
-            <ShareDialogContent sceneId={id} />
-          </Dialog>
+          </div>
         }
       />
 
@@ -278,135 +294,6 @@ function RenameDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ─── Share dialog content (per-Editor sceneId) ─────────────────────────
-
-function ShareDialogContent({ sceneId }: { sceneId: string }) {
-  const [perm, setPerm] = useState<"read" | "write">("read");
-  const [url, setUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function generate() {
-    setBusy(true);
-    try {
-      const t = await shares.create(sceneId, perm);
-      const next = `${location.origin}/share/${t.token}`;
-      setUrl(next);
-      try {
-        await navigator.clipboard.writeText(next);
-        toast.success("Share link created and copied.");
-      } catch {
-        toast.success("Share link created.");
-      }
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "share failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copy() {
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Copied.");
-    } catch {
-      toast.error("Could not copy.");
-    }
-  }
-
-  return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Share this scene</DialogTitle>
-        <DialogDescription>
-          Anyone with the link can {perm === "read" ? "view" : "edit"} this
-          scene.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label>Permission</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <PermOption
-              active={perm === "read"}
-              onClick={() => setPerm("read")}
-              title="View only"
-              subtitle="Read-only access."
-            />
-            <PermOption
-              active={perm === "write"}
-              onClick={() => setPerm("write")}
-              title="Can edit"
-              subtitle="Full editing access."
-            />
-          </div>
-        </div>
-
-        {url && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="share-link">Link</Label>
-            <div className="flex gap-1.5">
-              <Input
-                id="share-link"
-                readOnly
-                value={url}
-                onFocus={(e) => e.currentTarget.select()}
-                className="font-mono text-[0.6875rem]"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={copy}
-                aria-label="Copy"
-              >
-                <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-      <DialogFooter>
-        <Button onClick={generate} disabled={busy}>
-          {busy ? (
-            <HugeiconsIcon
-              icon={Loading03Icon}
-              strokeWidth={2}
-              className="animate-spin"
-            />
-          ) : (
-            <HugeiconsIcon icon={Link01Icon} strokeWidth={2} />
-          )}
-          {url ? "Create another" : "Create link"}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  );
-}
-
-function PermOption({
-  active,
-  onClick,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-active={active}
-      className="rounded-md border border-border bg-input/20 px-2.5 py-2 text-left text-xs/relaxed transition-colors hover:bg-input/40 data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
-    >
-      <div className="font-medium">{title}</div>
-      <div className="text-[0.6875rem] text-muted-foreground">{subtitle}</div>
-    </button>
   );
 }
 

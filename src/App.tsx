@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import SharedEditor from "./pages/SharedEditor";
+import SharedTokenLanding from "./pages/SharedTokenLanding";
 import InviteAccept from "./pages/InviteAccept";
 import Admin from "./pages/Admin";
 import Account from "./pages/Account";
@@ -117,7 +118,11 @@ export default function App() {
               ) : null
             }
           />
-          <Route path="/share/:token" element={<SharedEditor />} />
+          <Route path="/share/:token" element={<SharedTokenLanding />} />
+          <Route
+            path="/share/:token/scenes/:sceneId"
+            element={<SharedEditor />}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       )}

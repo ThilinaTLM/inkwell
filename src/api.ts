@@ -41,12 +41,33 @@ export interface Invite {
 
 export interface SceneMeta {
   id: string;
+  folderId: string;
   name: string;
+  tags: string[];
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface FolderMeta {
+  id: string;
+  parentId: string | null;
+  name: string;
+  isDefault: boolean;
+  tags: string[];
+  sceneCount: number;
+  subfolderCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  sceneCount: number;
+  folderCount: number;
 }
 
 export interface SceneBlob {
@@ -60,6 +81,36 @@ export interface LoadedScene {
   blob: SceneBlob;
   /** Permission when loaded via a share token. Owner-loaded scenes are 'write'. */
   permission: "read" | "write";
+  /** True if the share token allows downloading the .excalidraw file. */
+  allowDownload: boolean;
+}
+
+export type SharePermission = "read" | "write";
+export type ShareTargetType = "scene" | "folder";
+
+export interface Share {
+  token: string;
+  targetType: ShareTargetType;
+  targetId: string;
+  targetName?: string;
+  permission: SharePermission;
+  allowDownload: boolean;
+  label: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+  lastAccessedAt: number | null;
+}
+
+export interface FolderSharePayload {
+  share: {
+    token: string;
+    permission: SharePermission;
+    allowDownload: boolean;
+    label: string | null;
+  };
+  root: FolderMeta;
+  folders: FolderMeta[];
+  scenes: SceneMeta[];
 }
 
 export class ApiError extends Error {
@@ -98,6 +149,14 @@ function postJson<T>(path: string, body: unknown): Promise<T> {
 function patchJson<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {
     method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+function putJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body ?? {}),
   });
@@ -147,28 +206,81 @@ export const admin = {
     request<{ ok: true }>(`/api/admin/invites/${token}`, { method: "DELETE" }),
 };
 
+// ─── Folders ──────────────────────────────────────────────────────────
+export const folders = {
+  list: () =>
+    request<{ folders: FolderMeta[] }>("/api/folders").then((r) => r.folders),
+  create: (body: { name: string; parentId?: string | null; tags?: string[] }) =>
+    postJson<FolderMeta>("/api/folders", body),
+  update: (
+    id: string,
+    body: { name?: string; parentId?: string | null; tags?: string[] }
+  ) => patchJson<FolderMeta>(`/api/folders/${id}`, body),
+  delete: (id: string) =>
+    request<{ ok: true }>(`/api/folders/${id}`, { method: "DELETE" }),
+
+  listShares: (id: string) =>
+    request<{ tokens: Share[] }>(`/api/folders/${id}/shares`).then((r) => r.tokens),
+  createShare: (
+    id: string,
+    body: {
+      permission: SharePermission;
+      allowDownload?: boolean;
+      expiresAt?: number | null;
+      label?: string | null;
+    }
+  ) => postJson<Share>(`/api/folders/${id}/shares`, body),
+  revokeShare: (id: string, token: string) =>
+    request<{ ok: true }>(`/api/folders/${id}/shares/${token}`, { method: "DELETE" }),
+};
+
+// ─── Tags ─────────────────────────────────────────────────────────────
+export const tags = {
+  list: () => request<{ tags: Tag[] }>("/api/tags").then((r) => r.tags),
+  rename: (id: string, name: string) =>
+    patchJson<{ id: string; name: string }>(`/api/tags/${id}`, { name }),
+  delete: (id: string) =>
+    request<{ ok: true }>(`/api/tags/${id}`, { method: "DELETE" }),
+};
+
+// ─── Scene listing query ──────────────────────────────────────────────
+export interface ScenesQuery {
+  folderId?: string;
+  recursive?: boolean;
+  tags?: string[];
+  q?: string;
+}
+
+function buildScenesUrl(q: ScenesQuery): string {
+  const url = new URL("/api/scenes", location.origin);
+  if (q.folderId) url.searchParams.set("folderId", q.folderId);
+  if (q.recursive) url.searchParams.set("recursive", "1");
+  for (const t of q.tags || []) url.searchParams.append("tag", t);
+  if (q.q) url.searchParams.set("q", q.q);
+  return url.pathname + (url.search || "");
+}
+
 // ─── Scenes ───────────────────────────────────────────────────────────
 export const scenes = {
-  list: () => request<{ scenes: SceneMeta[] }>("/api/scenes").then((r) => r.scenes),
-  create: (name?: string) =>
-    request<SceneMeta>("/api/scenes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    }),
-  rename: (id: string, name: string) =>
-    request<SceneMeta>(`/api/scenes/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    }),
+  list: (query: ScenesQuery = {}) =>
+    request<{ scenes: SceneMeta[] }>(buildScenesUrl(query)).then((r) => r.scenes),
+  create: (body: { name?: string; folderId?: string; tags?: string[] } = {}) =>
+    postJson<SceneMeta>("/api/scenes", body),
+  rename: (id: string, name: string) => patchJson<SceneMeta>(`/api/scenes/${id}`, { name }),
+  move: (id: string, folderId: string) =>
+    patchJson<SceneMeta>(`/api/scenes/${id}`, { folderId }),
+  setTags: (id: string, tagList: string[]) =>
+    putJson<{ id: string; tags: string[]; updatedAt: number }>(
+      `/api/scenes/${id}/tags`,
+      { tags: tagList }
+    ),
   delete: (id: string) => request<{ ok: true }>(`/api/scenes/${id}`, { method: "DELETE" }),
 
   /** Loads a scene the current user owns. */
   async load(id: string): Promise<LoadedScene> {
     const resp = await fetch(`/api/scenes/${id}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
-    return readSceneResponse(resp, "write");
+    return readSceneResponse(resp, "write", true);
   },
 
   /** Saves a scene. Throws ApiError(409) on version conflict. */
@@ -206,33 +318,40 @@ export const scenes = {
 
   thumbUrl: (id: string, version?: number) =>
     `/api/scenes/${id}/thumb${version ? `?v=${version}` : ""}`,
+
+  /** Same-origin download URL that triggers a `Content-Disposition: attachment`. */
+  downloadUrl: (id: string) => `/api/scenes/${id}/download`,
+
+  /** Owner-side scene shares. */
+  listShares: (id: string) =>
+    request<{ tokens: Share[] }>(`/api/scenes/${id}/shares`).then((r) => r.tokens),
+  createShare: (
+    id: string,
+    body: {
+      permission: SharePermission;
+      allowDownload?: boolean;
+      expiresAt?: number | null;
+      label?: string | null;
+    }
+  ) => postJson<Share>(`/api/scenes/${id}/shares`, body),
+  revokeShare: (id: string, token: string) =>
+    request<{ ok: true }>(`/api/scenes/${id}/shares/${token}`, { method: "DELETE" }),
 };
 
-// ─── Share tokens ─────────────────────────────────────────────────────
-export interface ShareToken {
-  token: string;
-  permission: "read" | "write";
-  createdAt: number;
-  expiresAt: number | null;
-}
-
+// ─── Shares (cross-target) ────────────────────────────────────────────
 export const shares = {
-  list: (sceneId: string) =>
-    request<{ tokens: ShareToken[] }>(`/api/scenes/${sceneId}/shares`).then((r) => r.tokens),
-  create: (sceneId: string, permission: "read" | "write" = "read") =>
-    request<ShareToken>(`/api/scenes/${sceneId}/shares`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ permission }),
-    }),
-  revoke: (sceneId: string, token: string) =>
-    request<{ ok: true }>(`/api/scenes/${sceneId}/shares/${token}`, { method: "DELETE" }),
+  /** All of caller's active shares (scenes + folders), with target name. */
+  listAll: () => request<{ shares: Share[] }>("/api/shares").then((r) => r.shares),
+  revoke: (token: string) =>
+    request<{ ok: true }>(`/api/shares/${token}`, { method: "DELETE" }),
 
+  // ── Public token operations (scene shares) ────────────────────────
   async load(token: string): Promise<LoadedScene> {
     const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
     const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
-    return readSceneResponse(resp, perm);
+    const allowDownload = resp.headers.get("x-share-allow-download") === "1";
+    return readSceneResponse(resp, perm, allowDownload);
   },
 
   async save(token: string, version: number, blob: SceneBlob): Promise<SceneMeta> {
@@ -253,14 +372,90 @@ export const shares = {
     }
     return (await resp.json()) as SceneMeta;
   },
+
+  downloadUrl: (token: string) => `/api/share/${token}/download`,
+
+  /**
+   * Resolves a token without committing to scene/folder semantics. The
+   * `targetType` header from the worker tells us which page to render.
+   */
+  async peek(token: string): Promise<
+    | { type: "scene"; scene: LoadedScene }
+    | { type: "folder"; payload: FolderSharePayload }
+  > {
+    const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
+    if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
+    const targetType = resp.headers.get("x-share-target-type") || "scene";
+    if (targetType === "folder") {
+      const payload = (await resp.json()) as FolderSharePayload;
+      return { type: "folder", payload };
+    }
+    const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
+    const allowDownload = resp.headers.get("x-share-allow-download") === "1";
+    const scene = await readSceneResponse(resp, perm, allowDownload);
+    return { type: "scene", scene };
+  },
+
+  // ── Public token operations (folder shares) ───────────────────────
+  loadFolder: (token: string) =>
+    request<FolderSharePayload>(`/api/share/${token}`),
+
+  async loadFolderScene(token: string, sceneId: string): Promise<LoadedScene> {
+    const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
+      credentials: "include",
+    });
+    if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
+    const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
+    const allowDownload = resp.headers.get("x-share-allow-download") === "1";
+    return readSceneResponse(resp, perm, allowDownload);
+  },
+
+  async saveFolderScene(
+    token: string,
+    sceneId: string,
+    version: number,
+    blob: SceneBlob
+  ): Promise<SceneMeta> {
+    const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "content-type": "application/json", "if-match": `"${version}"` },
+      body: JSON.stringify(blob),
+    });
+    if (!resp.ok) {
+      let payload: any = null;
+      try {
+        payload = await resp.json();
+      } catch {
+        /* */
+      }
+      throw new ApiError(resp.status, payload?.error || `HTTP ${resp.status}`, payload);
+    }
+    return (await resp.json()) as SceneMeta;
+  },
+
+  folderSceneThumbUrl: (token: string, sceneId: string) =>
+    `/api/share/${token}/scenes/${sceneId}/thumb`,
+  folderSceneDownloadUrl: (token: string, sceneId: string) =>
+    `/api/share/${token}/scenes/${sceneId}/download`,
+  sceneThumbUrl: (token: string) => `/api/share/${token}/thumb`,
 };
 
 // ─── Internal helpers ─────────────────────────────────────────────────
-async function readSceneResponse(resp: Response, permission: "read" | "write"): Promise<LoadedScene> {
+async function readSceneResponse(
+  resp: Response,
+  permission: "read" | "write",
+  allowDownload: boolean
+): Promise<LoadedScene> {
   const id = resp.headers.get("x-scene-id") || "";
   const name = decodeURIComponent(resp.headers.get("x-scene-name") || "Untitled");
   const version = Number(resp.headers.get("x-scene-version") || "1");
   const updatedAt = Number(resp.headers.get("x-scene-updated-at") || "0");
   const blob = (await resp.json()) as SceneBlob;
-  return { meta: { id, name, version, updatedAt }, blob, permission };
+  return {
+    meta: { id, name, version, updatedAt },
+    blob,
+    permission,
+    allowDownload,
+  };
 }

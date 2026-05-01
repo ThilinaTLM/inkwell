@@ -130,11 +130,52 @@ export function rowToInvitePublic(
   return out;
 }
 
+// ─── Folders ──────────────────────────────────────────────────────────
+export interface FolderRow {
+  id: string;
+  owner: string;
+  parent_id: string | null;
+  name: string;
+  is_default: number;          // 0 | 1
+  created_at: number;
+  updated_at: number;
+}
+
+export interface FolderMeta {
+  id: string;
+  parentId: string | null;
+  name: string;
+  isDefault: boolean;
+  tags: string[];
+  sceneCount: number;          // direct children only
+  subfolderCount: number;      // direct children only
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function rowToFolderMeta(
+  r: FolderRow,
+  extras: { tags?: string[]; sceneCount?: number; subfolderCount?: number } = {}
+): FolderMeta {
+  return {
+    id: r.id,
+    parentId: r.parent_id,
+    name: r.name,
+    isDefault: !!r.is_default,
+    tags: extras.tags ?? [],
+    sceneCount: extras.sceneCount ?? 0,
+    subfolderCount: extras.subfolderCount ?? 0,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 // ─── Scenes ───────────────────────────────────────────────────────────
 // D1 row shape for the `scenes` table.
 export interface SceneRow {
   id: string;
   owner: string;               // users.id
+  folder_id: string | null;    // FK to folders.id; app keeps it non-null
   name: string;
   version: number;
   size_bytes: number;
@@ -146,7 +187,9 @@ export interface SceneRow {
 // API-facing metadata (omits internal fields).
 export interface SceneMeta {
   id: string;
+  folderId: string;
   name: string;
+  tags: string[];
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
@@ -154,16 +197,43 @@ export interface SceneMeta {
   updatedAt: number;
 }
 
-export function rowToMeta(r: SceneRow): SceneMeta {
+export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
   return {
     id: r.id,
+    folderId: r.folder_id ?? "",
     name: r.name,
+    tags,
     version: r.version,
     sizeBytes: r.size_bytes,
     hasThumb: !!r.has_thumb,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+// ─── Tags ─────────────────────────────────────────────────────────────
+export interface TagRow {
+  id: string;
+  owner: string;
+  name: string;
+  created_at: number;
+}
+
+export interface TagPublic {
+  id: string;
+  name: string;
+  sceneCount: number;
+  folderCount: number;
+}
+
+export type TagTargetType = "scene" | "folder";
+
+export interface TaggingRow {
+  tag_id: string;
+  target_type: TagTargetType;
+  target_id: string;
+  owner: string;
+  created_at: number;
 }
 
 // What the client PUTs as a scene blob. We don't validate the inner shape
@@ -175,13 +245,54 @@ export interface SceneBlob {
   files?: Record<string, unknown>;
 }
 
-// ─── Share tokens ─────────────────────────────────────────────────────
+// ─── Shares (polymorphic) ────────────────────────────────────────────
 export type SharePermission = "read" | "write";
+export type ShareTargetType = "scene" | "folder";
 
-export interface ShareTokenRow {
+export interface ShareRow {
   token: string;
-  scene_id: string;
+  owner: string;
+  target_type: ShareTargetType;
+  target_id: string;
   permission: SharePermission;
+  allow_download: number;        // 0 | 1
+  label: string | null;
   created_at: number;
   expires_at: number | null;
+  revoked_at: number | null;
+  last_accessed_at: number | null;
+}
+
+export interface SharePublic {
+  token: string;
+  targetType: ShareTargetType;
+  targetId: string;
+  targetName?: string;           // joined for listing
+  permission: SharePermission;
+  allowDownload: boolean;
+  label: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+  lastAccessedAt: number | null;
+}
+
+export function rowToSharePublic(r: ShareRow, targetName?: string): SharePublic {
+  return {
+    token: r.token,
+    targetType: r.target_type,
+    targetId: r.target_id,
+    targetName,
+    permission: r.permission,
+    allowDownload: !!r.allow_download,
+    label: r.label,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at,
+    lastAccessedAt: r.last_accessed_at,
+  };
+}
+
+export function isShareActive(r: ShareRow, nowMs: number): boolean {
+  if (r.revoked_at) return false;
+  if (r.expires_at !== null && r.expires_at <= nowMs) return false;
+  return true;
 }

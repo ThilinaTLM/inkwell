@@ -32,6 +32,19 @@ collaboration servers) or don't speak Cloudflare's storage primitives.
 Inkwell is the smallest thing that could possibly be: **"my Excalidraw, with
 many saved scenes, on Cloudflare."**
 
+### Organization features
+
+- **Folders** — every scene lives in a folder. Folders nest (up to 8 levels).
+  Each user has a non-deletable **Inbox** that's auto-created on first login.
+- **Tags** — per-user namespace, shared between scenes and folders. Filter
+  the dashboard by intersecting multiple tags + a folder + a name search.
+- **Sharing** — a single polymorphic `shares` table. Either a scene or a
+  whole folder subtree is shareable, at read or read-write permission, with
+  an optional `.excalidraw` download flag and optional expiry. Folder
+  shares grant edit access to any scene in the subtree (writers can create,
+  edit, delete scenes inside) but cannot rename or move the shared folder
+  itself.
+
 ## Architecture
 
 ```
@@ -39,10 +52,11 @@ Browser (React + @excalidraw/excalidraw)
    │
    │  fetch (HttpOnly cookie session)
    ▼
-Cloudflare Worker  ──►  R2  scenes/{owner}/{id}.json   (full blob: elements + appState + files)
-   │                ──►  R2  thumbs/{owner}/{id}.svg   (client-rendered SVG thumbnail)
-   │                ──►  D1  scenes(id, owner, name, version, size_bytes, has_thumb, ...)
-   │                ──►  D1  share_tokens(token, scene_id, permission, expires_at)
+Cloudflare Worker  ──►  R2  scenes/{id}.json     (full blob: elements + appState + files)
+   │                ──►  R2  thumbs/{id}.svg     (client-rendered SVG thumbnail)
+   │                ──►  D1  folders / scenes    (scenes live in a folder; nested per-user)
+   │                ──►  D1  tags / taggings     (per-user, polymorphic over scenes + folders)
+   │                ──►  D1  shares              (polymorphic; scene-share or folder-share)
 ```
 
 Key choices:
@@ -121,8 +135,16 @@ Copy the `database_id` printed by `d1 create` into `wrangler.toml` (replace
 ### 2. Apply the schema
 
 ```bash
-pnpm run db:init:remote   # production
-pnpm run db:init:local    # local dev (uses Miniflare's sqlite)
+pnpm run db:init:remote   # production (fresh install)
+pnpm run db:init:local    # local dev   (fresh install)
+```
+
+Upgrading an existing deployment to a newer schema runs the migration
+scripts under `migrations/` instead:
+
+```bash
+pnpm run db:migrate:remote
+pnpm run db:migrate:local
 ```
 
 ### 3. Set secrets
@@ -208,24 +230,75 @@ valid session cookie (admin routes additionally require `is_admin`).
 | POST   | `/api/admin/invites`                  | `{ expiresInHours? }` (null = never expire)             |
 | DELETE | `/api/admin/invites/:token`           | revoke                                                  |
 
-### Scenes & shares
+### Folders
 
-| Method | Path                                  | Notes                                   |
-| ------ | ------------------------------------- | --------------------------------------- |
-| GET    | `/api/scenes`                         | list (D1 query, no R2 hits)             |
-| POST   | `/api/scenes`                         | `{ name? }` → creates empty scene       |
-| GET    | `/api/scenes/:id`                     | scene blob; `ETag: "<version>"`         |
-| PUT    | `/api/scenes/:id`                     | full blob; supports `If-Match`          |
-| PATCH  | `/api/scenes/:id`                     | `{ name }` rename                       |
-| DELETE | `/api/scenes/:id`                     | also drops thumbnail and share tokens   |
-| GET    | `/api/scenes/:id/thumb`               | SVG                                     |
-| PUT    | `/api/scenes/:id/thumb`               | SVG (client-generated)                  |
-| GET    | `/api/scenes/:id/shares`              | list active share tokens                |
-| POST   | `/api/scenes/:id/shares`              | `{ permission: "read"\|"write" }`        |
-| DELETE | `/api/scenes/:id/shares/:token`       | revoke                                  |
-| GET    | `/api/share/:token`                   | scene blob via share link               |
-| PUT    | `/api/share/:token`                   | save via share link (write tokens only) |
-| GET    | `/api/share/:token/thumb`             | SVG via share link                      |
+Every scene belongs to exactly one folder. Each user has a non-deletable
+**Inbox** folder that's auto-created on first request.
+
+| Method | Path                                  | Notes                                                                  |
+| ------ | ------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/folders`                        | flat list with `parentId`, `tags`, `sceneCount`, `subfolderCount`      |
+| POST   | `/api/folders`                        | `{ name, parentId?, tags? }`                                           |
+| PATCH  | `/api/folders/:id`                    | `{ name?, parentId?, tags? }` — rename, move, retag (Inbox: tags only) |
+| DELETE | `/api/folders/:id`                    | moves children up; Inbox cannot be deleted                             |
+| GET    | `/api/folders/:id/shares`             | list share tokens for this folder                                      |
+| POST   | `/api/folders/:id/shares`             | `{ permission, allowDownload?, expiresAt?, label? }`                   |
+| DELETE | `/api/folders/:id/shares/:token`      | revoke                                                                 |
+
+### Tags
+
+Tags are per-user, normalized (`trim().toLowerCase()`, max 50 chars),
+and shared by scenes and folders.
+
+| Method | Path                | Notes                                                            |
+| ------ | ------------------- | ---------------------------------------------------------------- |
+| GET    | `/api/tags`         | `[{ id, name, sceneCount, folderCount }]`                        |
+| PATCH  | `/api/tags/:id`     | `{ name }` — rename everywhere; merges into an existing tag      |
+| DELETE | `/api/tags/:id`     | drop the tag (cascades through `taggings`)                       |
+
+### Scenes
+
+| Method | Path                                  | Notes                                                              |
+| ------ | ------------------------------------- | ------------------------------------------------------------------ |
+| GET    | `/api/scenes`                         | accepts `?folderId=&recursive=1&tag=&q=`; returns metadata + tags  |
+| POST   | `/api/scenes`                         | `{ name?, folderId?, tags? }` — defaults to Inbox                  |
+| GET    | `/api/scenes/:id`                     | scene blob; `ETag: "<version>"`                                    |
+| PUT    | `/api/scenes/:id`                     | full blob; supports `If-Match`                                     |
+| PATCH  | `/api/scenes/:id`                     | `{ name?, folderId?, tags? }` — rename, move, retag                |
+| DELETE | `/api/scenes/:id`                     | also drops thumbnail, taggings, and any shares                     |
+| GET    | `/api/scenes/:id/download`            | `.excalidraw` download with `Content-Disposition: attachment`      |
+| GET    | `/api/scenes/:id/thumb`               | SVG                                                                |
+| PUT    | `/api/scenes/:id/thumb`               | SVG (client-generated)                                             |
+| PUT    | `/api/scenes/:id/tags`                | `{ tags: string[] }` — replace tag set                             |
+| GET    | `/api/scenes/:id/shares`              | list active share tokens for this scene                            |
+| POST   | `/api/scenes/:id/shares`              | `{ permission, allowDownload?, expiresAt?, label? }`               |
+| DELETE | `/api/scenes/:id/shares/:token`       | revoke                                                             |
+
+### Shares (cross-target)
+
+| Method | Path                       | Notes                                                          |
+| ------ | -------------------------- | -------------------------------------------------------------- |
+| GET    | `/api/shares`              | every active share owned by the caller, with target name       |
+| DELETE | `/api/shares/:token`       | generic revoke (works for scene or folder shares)              |
+
+### Public share endpoints (no auth)
+
+The token IS the credential. A scene-share token resolves to a single
+scene; a folder-share token resolves to a folder subtree.
+
+| Method | Path                                              | Notes                                                                                             |
+| ------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| GET    | `/api/share/:token`                               | scene-share: blob (with `x-share-target-type: scene`). folder-share: subtree listing JSON.        |
+| GET    | `/api/share/:token/thumb`                         | scene-share thumbnail                                                                             |
+| GET    | `/api/share/:token/download`                      | scene-share `.excalidraw` (when `allowDownload`)                                                  |
+| PUT    | `/api/share/:token`                               | scene-share write (write tokens only)                                                             |
+| GET    | `/api/share/:token/folders`                       | folder-share: list of folders in the subtree                                                      |
+| GET    | `/api/share/:token/scenes/:sceneId`               | folder-share: scene blob (must be inside the shared subtree)                                      |
+| GET    | `/api/share/:token/scenes/:sceneId/thumb`         | folder-share scene thumbnail                                                                      |
+| GET    | `/api/share/:token/scenes/:sceneId/download`      | folder-share scene download                                                                       |
+| PUT    | `/api/share/:token/scenes/:sceneId`               | folder-share write: edit existing scene in the subtree                                            |
+| POST   | `/api/share/:token/scenes`                        | folder-share write: create a scene `{ name?, folderId? }` (folderId must be in the subtree)       |
+| DELETE | `/api/share/:token/scenes/:sceneId`               | folder-share write: delete a scene in the subtree                                                 |
 
 ## Costs
 

@@ -63,9 +63,10 @@ export async function createUser(env: Env, input: CreateUserInput): Promise<User
 }
 
 // ─── Cascade delete ───────────────────────────────────────────────────
-// Removes the user, all their scenes (D1 + R2 blobs + thumbnails), and the
-// share_tokens that hung off those scenes. Best-effort on R2 — a partial
-// failure leaves orphan objects but D1 stays consistent.
+// Removes the user and everything they own: scenes (D1 rows + R2 blobs +
+// thumbnails), folders, tags + taggings, shares (across both target types),
+// and invites they created. Best-effort on R2 — a partial failure leaves
+// orphan objects but D1 stays consistent.
 export async function deleteUserCascade(env: Env, userId: string): Promise<void> {
   const { results } = await env.DB.prepare(
     `SELECT id FROM scenes WHERE owner = ?`
@@ -75,15 +76,15 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
 
   const sceneIds = (results || []).map((r) => r.id);
 
-  if (sceneIds.length > 0) {
-    // Wipe share tokens first (FK to scenes).
-    const placeholders = sceneIds.map(() => "?").join(",");
-    await env.DB.prepare(
-      `DELETE FROM share_tokens WHERE scene_id IN (${placeholders})`
-    )
-      .bind(...sceneIds)
-      .run();
+  // Wipe owner-scoped rows from the organization tables. Order matters
+  // only for FK-honoring engines; with `PRAGMA foreign_keys = ON` D1 will
+  // cascade most of these, but we run them explicitly so behavior is the
+  // same on a connection without the pragma.
+  await env.DB.prepare(`DELETE FROM shares   WHERE owner = ?`).bind(userId).run();
+  await env.DB.prepare(`DELETE FROM taggings WHERE owner = ?`).bind(userId).run();
+  await env.DB.prepare(`DELETE FROM tags     WHERE owner = ?`).bind(userId).run();
 
+  if (sceneIds.length > 0) {
     // Wipe scene rows.
     await env.DB.prepare(`DELETE FROM scenes WHERE owner = ?`).bind(userId).run();
 
@@ -95,6 +96,10 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
     }
     await Promise.allSettled(deletes);
   }
+
+  // Folders go after scenes (folders may be referenced by scenes via
+  // ON DELETE SET NULL; with all the user's scenes gone it's a clean drop).
+  await env.DB.prepare(`DELETE FROM folders WHERE owner = ?`).bind(userId).run();
 
   // Finally drop the user. Invites created by the user cascade automatically
   // (the `created_by` FK uses ON DELETE CASCADE — declared in schema and

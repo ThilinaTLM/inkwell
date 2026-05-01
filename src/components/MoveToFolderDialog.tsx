@@ -1,0 +1,100 @@
+// Picks a destination folder. Used both for moving a scene and for
+// re-parenting a folder. Disables invalid targets when `forbidden` is set
+// (e.g. you can't move a folder into its own descendants).
+
+import { useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FolderAddIcon } from "@hugeicons/core-free-icons";
+
+import type { FolderMeta } from "@/api";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FolderTree } from "@/components/FolderTree";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folders: FolderMeta[];
+  /** Currently-selected folder id (initial highlight). */
+  initialId?: string | null;
+  /** Folder ids that cannot be selected (self + descendants when moving). */
+  forbiddenIds?: Set<string>;
+  /** Title shown in the dialog header. */
+  title: string;
+  description?: string;
+  onSubmit: (folderId: string) => Promise<void> | void;
+}
+
+export function MoveToFolderDialog({
+  open,
+  onOpenChange,
+  folders,
+  initialId,
+  forbiddenIds,
+  title,
+  description,
+  onSubmit,
+}: Props) {
+  const [selected, setSelected] = useState<string | null>(initialId ?? null);
+  const [busy, setBusy] = useState(false);
+
+  function close() {
+    if (busy) return;
+    onOpenChange(false);
+  }
+
+  async function submit() {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      await onSubmit(selected);
+      onOpenChange(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setSelected(initialId ?? null);
+        onOpenChange(v);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-1.5">
+            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} className="size-3.5" />
+            {title}
+          </DialogTitle>
+          {description ? <DialogDescription>{description}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border bg-input/10 p-1.5">
+          <FolderTree
+            folders={folders}
+            selectedId={selected}
+            onSelect={(id) => setSelected(id)}
+            disabledFor={(f) => !!forbiddenIds?.has(f.id)}
+            showCounts={false}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={close} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!selected || busy}>
+            {busy ? "Moving…" : "Move here"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
