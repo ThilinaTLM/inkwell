@@ -4,6 +4,41 @@
 // Errors are surfaced as `ApiError` so callers can branch on `status` (e.g.
 // 401 → redirect to /login, 409 → version conflict).
 
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isAdmin: boolean;
+}
+
+export interface MeResponse extends User {
+  expiresAt: number;
+}
+
+export interface AdminUser extends User {
+  disabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastLoginAt: number | null;
+  sceneCount: number;
+}
+
+export type InviteStatus = "pending" | "used" | "revoked" | "expired";
+
+export interface Invite {
+  token: string;
+  status: InviteStatus;
+  createdBy: string;
+  createdByEmail?: string;
+  createdAt: number;
+  expiresAt: number | null;
+  usedByUserId: string | null;
+  usedByEmail?: string | null;
+  usedAt: number | null;
+  revokedAt: number | null;
+}
+
 export interface SceneMeta {
   id: string;
   name: string;
@@ -48,21 +83,68 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(resp.status, msg, payload);
   }
-  // Handle 204 No Content gracefully.
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
 }
 
+function postJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────
 export const auth = {
-  login: (password: string) =>
-    request<{ ok: true }>("/api/auth/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password }),
-    }),
+  login: (email: string, password: string) =>
+    postJson<User>("/api/auth/login", { email, password }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
-  me: () => request<{ owner: string; expiresAt: number }>("/api/me"),
+  me: () => request<MeResponse>("/api/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    postJson<{ ok: true }>("/api/me/password", { currentPassword, newPassword }),
+};
+
+// ─── Invites (public side) ────────────────────────────────────────────
+export const invites = {
+  /** Validates an invite token before showing the signup form. */
+  peek: (token: string) =>
+    request<{ ok: true; expiresAt: number | null }>(`/api/invites/${token}`),
+  /** Accepts an invite and creates the user. Sets the session cookie on success. */
+  accept: (
+    token: string,
+    body: { email: string; password: string; firstName: string; lastName: string }
+  ) => postJson<User>(`/api/invites/${token}/accept`, body),
+};
+
+// ─── Admin ────────────────────────────────────────────────────────────
+export const admin = {
+  listUsers: () =>
+    request<{ users: AdminUser[] }>("/api/admin/users").then((r) => r.users),
+  updateUser: (
+    id: string,
+    patch: Partial<{ isAdmin: boolean; disabled: boolean; firstName: string; lastName: string }>
+  ) => patchJson<AdminUser>(`/api/admin/users/${id}`, patch),
+  deleteUser: (id: string) =>
+    request<{ ok: true }>(`/api/admin/users/${id}`, { method: "DELETE" }),
+
+  listInvites: () =>
+    request<{ invites: Invite[] }>("/api/admin/invites").then((r) => r.invites),
+  createInvite: (expiresInHours: number | null) =>
+    postJson<{ token: string; url: string; expiresAt: number | null; createdAt: number }>(
+      "/api/admin/invites",
+      { expiresInHours }
+    ),
+  revokeInvite: (token: string) =>
+    request<{ ok: true }>(`/api/admin/invites/${token}`, { method: "DELETE" }),
 };
 
 // ─── Scenes ───────────────────────────────────────────────────────────
@@ -146,7 +228,6 @@ export const shares = {
   revoke: (sceneId: string, token: string) =>
     request<{ ok: true }>(`/api/scenes/${sceneId}/shares/${token}`, { method: "DELETE" }),
 
-  /** Loads a scene via a share token. Permission is read from response headers. */
   async load(token: string): Promise<LoadedScene> {
     const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);

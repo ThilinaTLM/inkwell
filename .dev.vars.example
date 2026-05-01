@@ -1,0 +1,24 @@
+# Local-dev secrets for `wrangler dev`.
+#
+# Copy this file to `.dev.vars` (gitignored) and adjust as you like.
+# Wrangler picks it up automatically and exposes each key on `env`.
+#
+# In production, set the same keys via:
+#   wrangler secret put SUPER_ADMIN_EMAIL
+#   wrangler secret put SUPER_ADMIN_PASSWORD
+#   wrangler secret put SESSION_SECRET
+
+# Email used to claim the first admin account. The super-admin row is
+# created on the first login attempt that matches this email and supplies
+# the matching password (below).
+SUPER_ADMIN_EMAIL=admin@example.com
+
+# Initial password for the bootstrap super-admin. After bootstrap, the
+# admin can change their password from the UI; this env var stays as a
+# break-glass and is only consulted again if no row exists for the email.
+SUPER_ADMIN_PASSWORD=changeme
+
+# Random 32+ byte string used to HMAC session cookies. Generate with:
+#   openssl rand -hex 32
+# Changing this invalidates all existing sessions.
+SESSION_SECRET=devsecretdevsecretdevsecretdevsecretdevsecret

@@ -5,12 +5,15 @@
 // is handed off to the static assets binding (the built React SPA).
 
 import type { Env } from "./types";
-import { jsonResponse, errorResponse } from "./util";
+import { errorResponse, jsonResponse } from "./util";
 import {
-  checkPassword,
+  changeOwnPassword,
   clearSessionCookie,
   createSessionCookie,
+  getUserById,
+  loginWithPassword,
   validateSession,
+  type Session,
 } from "./auth";
 import {
   createScene,
@@ -30,6 +33,18 @@ import {
   putViaShareToken,
   revokeShareToken,
 } from "./share";
+import {
+  deleteUserAdmin,
+  listUsersAdmin,
+  patchUserAdmin,
+} from "./users";
+import {
+  acceptInvite,
+  createInviteAdmin,
+  listInvitesAdmin,
+  peekInvite,
+  revokeInviteAdmin,
+} from "./invites";
 
 export default {
   async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
@@ -43,7 +58,7 @@ export default {
     }
 
     if (path.startsWith("/api/")) {
-      const resp = await handleApi(req, env, path);
+      const resp = await handleApi(req, env, url, path);
       return withCors(resp, req, env);
     }
 
@@ -52,8 +67,8 @@ export default {
   },
 };
 
-async function handleApi(req: Request, env: Env, path: string): Promise<Response> {
-  // Public endpoints (no session required).
+async function handleApi(req: Request, env: Env, url: URL, path: string): Promise<Response> {
+  // ─── Public: auth ─────────────────────────────────────────────────
   if (path === "/api/auth/login" && req.method === "POST") {
     return handleLogin(req, env);
   }
@@ -64,7 +79,17 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
     });
   }
 
-  // Share-token endpoints — no session required, token is the credential.
+  // ─── Public: invites ──────────────────────────────────────────────
+  const inviteMatch = path.match(/^\/api\/invites\/([A-Za-z0-9_-]{16,})$/);
+  if (inviteMatch && req.method === "GET") {
+    return peekInvite(env, inviteMatch[1]);
+  }
+  const inviteAcceptMatch = path.match(/^\/api\/invites\/([A-Za-z0-9_-]{16,})\/accept$/);
+  if (inviteAcceptMatch && req.method === "POST") {
+    return acceptInvite(req, env, inviteAcceptMatch[1]);
+  }
+
+  // ─── Public: share tokens ─────────────────────────────────────────
   const shareMatch = path.match(/^\/api\/share\/([A-Za-z0-9_-]{16,})$/);
   if (shareMatch) {
     const token = shareMatch[1];
@@ -77,42 +102,52 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
     return getThumbViaShareToken(env, shareThumbMatch[1]);
   }
 
-  // Everything below requires a valid session cookie.
+  // ─── Authenticated below this line ───────────────────────────────
   const session = await validateSession(req, env);
   if (!session) return errorResponse(401, "not authenticated");
-  const owner = session.owner;
+  const userId = session.userId;
 
-  if (path === "/api/me" && req.method === "GET") {
-    return jsonResponse({ owner, expiresAt: session.expiresAt });
+  if (path === "/api/me") {
+    if (req.method === "GET") return handleMe(req, env, session);
+    return errorResponse(405, "method not allowed");
+  }
+  if (path === "/api/me/password" && req.method === "POST") {
+    return handleChangePassword(req, env, session);
   }
 
+  // Admin-only endpoints.
+  if (path.startsWith("/api/admin/")) {
+    if (!session.isAdmin) return errorResponse(403, "forbidden");
+    return handleAdmin(req, env, url, path, session);
+  }
+
+  // Scenes.
   if (path === "/api/scenes") {
-    if (req.method === "GET") return listScenes(env, owner);
-    if (req.method === "POST") return createScene(req, env, owner);
+    if (req.method === "GET") return listScenes(env, userId);
+    if (req.method === "POST") return createScene(req, env, userId);
     return errorResponse(405, "method not allowed");
   }
 
-  // /api/scenes/:id and sub-paths.
   const sceneMatch = path.match(/^\/api\/scenes\/([a-z0-9]{8,32})(\/[^/]+)?$/);
   if (sceneMatch) {
     const id = sceneMatch[1];
     const sub = sceneMatch[2];
 
     if (!sub) {
-      if (req.method === "GET") return getScene(env, owner, id);
-      if (req.method === "PUT") return putScene(req, env, owner, id);
-      if (req.method === "PATCH") return patchScene(req, env, owner, id);
-      if (req.method === "DELETE") return deleteScene(env, owner, id);
+      if (req.method === "GET") return getScene(env, userId, id);
+      if (req.method === "PUT") return putScene(req, env, userId, id);
+      if (req.method === "PATCH") return patchScene(req, env, userId, id);
+      if (req.method === "DELETE") return deleteScene(env, userId, id);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/thumb") {
-      if (req.method === "GET") return getThumb(env, owner, id);
-      if (req.method === "PUT") return putThumb(req, env, owner, id);
+      if (req.method === "GET") return getThumb(env, userId, id);
+      if (req.method === "PUT") return putThumb(req, env, userId, id);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/shares") {
-      if (req.method === "GET") return listShareTokens(env, owner, id);
-      if (req.method === "POST") return createShareToken(req, env, owner, id);
+      if (req.method === "GET") return listShareTokens(env, userId, id);
+      if (req.method === "POST") return createShareToken(req, env, userId, id);
       return errorResponse(405, "method not allowed");
     }
   }
@@ -122,30 +157,122 @@ async function handleApi(req: Request, env: Env, path: string): Promise<Response
     /^\/api\/scenes\/([a-z0-9]{8,32})\/shares\/([A-Za-z0-9_-]{16,})$/
   );
   if (shareRevokeMatch && req.method === "DELETE") {
-    return revokeShareToken(env, owner, shareRevokeMatch[1], shareRevokeMatch[2]);
+    return revokeShareToken(env, userId, shareRevokeMatch[1], shareRevokeMatch[2]);
   }
 
   return errorResponse(404, "not found");
 }
 
+// ─── Handlers ─────────────────────────────────────────────────────────
+
 async function handleLogin(req: Request, env: Env): Promise<Response> {
-  let body: { password?: string };
+  let body: { email?: string; password?: string };
   try {
-    body = (await req.json()) as { password?: string };
+    body = (await req.json()) as typeof body;
   } catch {
     return errorResponse(400, "invalid JSON");
   }
-  if (!body.password) return errorResponse(400, "password required");
-  const ok = await checkPassword(env, body.password);
-  if (!ok) return errorResponse(401, "wrong password");
-  const cookie = await createSessionCookie(env);
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "set-cookie": cookie,
-    },
+  const email = typeof body.email === "string" ? body.email : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!email || !password) return errorResponse(400, "email and password required");
+
+  const result = await loginWithPassword(env, email, password);
+  if (!result.ok) {
+    if (result.reason === "disabled") {
+      return errorResponse(403, "account disabled");
+    }
+    if (result.reason === "misconfigured") {
+      return errorResponse(500, "server misconfigured: SUPER_ADMIN_PASSWORD missing");
+    }
+    return errorResponse(401, "invalid email or password");
+  }
+
+  const cookie = await createSessionCookie(env, result.user.id);
+  return new Response(
+    JSON.stringify({
+      id: result.user.id,
+      email: result.user.email,
+      firstName: result.user.first_name,
+      lastName: result.user.last_name,
+      isAdmin: !!result.user.is_admin,
+    }),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "set-cookie": cookie,
+      },
+    }
+  );
+}
+
+async function handleMe(_req: Request, env: Env, session: Session): Promise<Response> {
+  // Re-read the user row so the SPA always sees up-to-date first/last names
+  // and admin flags after a profile change. validateSession already touched
+  // this row once for authz; the second read is a single primary-key lookup.
+  const row = await getUserById(env, session.userId);
+  if (!row) return errorResponse(401, "not authenticated");
+  return jsonResponse({
+    id: row.id,
+    email: row.email,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    isAdmin: !!row.is_admin,
+    expiresAt: session.expiresAt,
   });
+}
+
+async function handleChangePassword(req: Request, env: Env, session: Session): Promise<Response> {
+  let body: { currentPassword?: string; newPassword?: string };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return errorResponse(400, "invalid JSON");
+  }
+  const result = await changeOwnPassword(
+    env,
+    session.userId,
+    body.currentPassword || "",
+    body.newPassword || ""
+  );
+  if (result.ok) return jsonResponse({ ok: true });
+  if (result.reason === "weak") return errorResponse(400, "new password must be at least 8 characters");
+  if (result.reason === "invalid_current") return errorResponse(401, "current password incorrect");
+  return errorResponse(500, "could not change password");
+}
+
+async function handleAdmin(
+  req: Request,
+  env: Env,
+  url: URL,
+  path: string,
+  session: Session
+): Promise<Response> {
+  if (path === "/api/admin/users" && req.method === "GET") {
+    return listUsersAdmin(env);
+  }
+  const adminUserMatch = path.match(/^\/api\/admin\/users\/([a-z0-9]{8,32})$/);
+  if (adminUserMatch) {
+    const id = adminUserMatch[1];
+    if (req.method === "PATCH") return patchUserAdmin(req, env, session.userId, id);
+    if (req.method === "DELETE") return deleteUserAdmin(env, session.userId, id);
+    return errorResponse(405, "method not allowed");
+  }
+
+  if (path === "/api/admin/invites") {
+    if (req.method === "GET") return listInvitesAdmin(env);
+    if (req.method === "POST") {
+      const origin = url.origin || req.headers.get("origin") || null;
+      return createInviteAdmin(req, env, session.userId, origin);
+    }
+    return errorResponse(405, "method not allowed");
+  }
+  const adminInviteMatch = path.match(/^\/api\/admin\/invites\/([A-Za-z0-9_-]{16,})$/);
+  if (adminInviteMatch && req.method === "DELETE") {
+    return revokeInviteAdmin(env, adminInviteMatch[1]);
+  }
+
+  return errorResponse(404, "not found");
 }
 
 // ─── CORS ─────────────────────────────────────────────────────────────

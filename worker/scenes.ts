@@ -2,8 +2,11 @@
 // lives in R2; D1 holds only the metadata index.
 //
 // R2 layout:
-//   scenes/{owner}/{id}.json   -- the scene blob
-//   thumbs/{owner}/{id}.svg    -- optional SVG thumbnail
+//   scenes/{id}.json   -- the scene blob
+//   thumbs/{id}.svg    -- optional SVG thumbnail
+//
+// Ownership is tracked in D1 (`scenes.owner` → `users.id`); R2 paths are
+// flat by id so future ownership changes are metadata-only.
 //
 // Versioning: every successful PUT bumps `version` in D1. Clients should
 // send `If-Match: <version>`; mismatch returns 409 with the current row so
@@ -16,11 +19,11 @@ import { errorResponse, jsonResponse, newId, now } from "./util";
 const MAX_SCENE_BYTES = 25 * 1024 * 1024; // 25 MB; embedded images live in `files`
 const MAX_THUMB_BYTES = 1 * 1024 * 1024; // 1 MB SVG ceiling
 
-function r2SceneKey(owner: string, id: string) {
-  return `scenes/${owner}/${id}.json`;
+function r2SceneKey(id: string) {
+  return `scenes/${id}.json`;
 }
-function r2ThumbKey(owner: string, id: string) {
-  return `thumbs/${owner}/${id}.svg`;
+function r2ThumbKey(id: string) {
+  return `thumbs/${id}.svg`;
 }
 
 // ─── List ─────────────────────────────────────────────────────────────
@@ -50,7 +53,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
   // Seed an empty scene so subsequent GETs return something predictable.
   const seed: SceneBlob = { elements: [], appState: { name }, files: {} };
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
-  await env.R2.put(r2SceneKey(owner, id), seedBytes, {
+  await env.R2.put(r2SceneKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
   });
 
@@ -99,7 +102,7 @@ export async function getScene(env: Env, owner: string, id: string): Promise<Res
 }
 
 export async function streamSceneBody(env: Env, row: SceneRow): Promise<Response> {
-  const obj = await env.R2.get(r2SceneKey(row.owner, row.id));
+  const obj = await env.R2.get(r2SceneKey(row.id));
   if (!obj) return errorResponse(404, "scene blob missing in R2");
   return new Response(obj.body, {
     headers: {
@@ -151,7 +154,7 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
   const nextName =
     (typeof parsed.appState?.name === "string" && parsed.appState.name.slice(0, 200)) || row.name;
 
-  await env.R2.put(r2SceneKey(owner, id), buf, {
+  await env.R2.put(r2SceneKey(id), buf, {
     httpMetadata: { contentType: "application/json" },
   });
 
@@ -200,12 +203,14 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
 export async function deleteScene(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
-  // ON DELETE CASCADE in schema cleans up share_tokens.
+  // share_tokens are removed via the FK declaration; D1 doesn't enforce FKs
+  // automatically, so we cascade explicitly to be safe.
+  await env.DB.prepare(`DELETE FROM share_tokens WHERE scene_id = ?`).bind(id).run();
   await env.DB.prepare(`DELETE FROM scenes WHERE id = ? AND owner = ?`).bind(id, owner).run();
   // Best-effort R2 cleanup; swallow errors so a partial state still resolves.
   await Promise.allSettled([
-    env.R2.delete(r2SceneKey(owner, id)),
-    env.R2.delete(r2ThumbKey(owner, id)),
+    env.R2.delete(r2SceneKey(id)),
+    env.R2.delete(r2ThumbKey(id)),
   ]);
   return jsonResponse({ ok: true });
 }
@@ -219,7 +224,7 @@ export async function putThumb(req: Request, env: Env, owner: string, id: string
   if (buf.byteLength === 0) return errorResponse(400, "empty body");
   if (buf.byteLength > MAX_THUMB_BYTES) return errorResponse(413, "thumbnail too large");
 
-  await env.R2.put(r2ThumbKey(owner, id), buf, {
+  await env.R2.put(r2ThumbKey(id), buf, {
     httpMetadata: { contentType: "image/svg+xml" },
   });
   if (!row.has_thumb) {
@@ -230,8 +235,8 @@ export async function putThumb(req: Request, env: Env, owner: string, id: string
   return jsonResponse({ ok: true });
 }
 
-export async function getThumb(env: Env, owner: string, id: string): Promise<Response> {
-  const obj = await env.R2.get(r2ThumbKey(owner, id));
+export async function getThumb(env: Env, _owner: string, id: string): Promise<Response> {
+  const obj = await env.R2.get(r2ThumbKey(id));
   if (!obj) return errorResponse(404, "no thumbnail");
   return new Response(obj.body, {
     headers: {
@@ -243,6 +248,11 @@ export async function getThumb(env: Env, owner: string, id: string): Promise<Res
 
 // Exposed for share.ts so a token-authenticated request can read the same
 // thumbnail without re-implementing the R2 fetch.
-export function thumbKey(owner: string, id: string) {
-  return r2ThumbKey(owner, id);
+export function thumbKey(id: string) {
+  return r2ThumbKey(id);
+}
+
+// Exposed for the admin user-delete cascade.
+export function sceneKey(id: string) {
+  return r2SceneKey(id);
 }

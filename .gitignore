@@ -8,3 +8,4 @@ dist
 .DS_Store
 worker-configuration.d.ts
 *.tsbuildinfo
+.zed/

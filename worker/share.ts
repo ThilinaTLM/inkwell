@@ -120,7 +120,7 @@ export async function getThumbViaShareToken(env: Env, token: string): Promise<Re
   if (!tk) return errorResponse(404, "invalid or expired token");
   const scene = await loadRowAnyOwner(env, tk.scene_id);
   if (!scene || !scene.has_thumb) return errorResponse(404, "no thumbnail");
-  const obj = await env.R2.get(thumbKey(scene.owner, scene.id));
+  const obj = await env.R2.get(thumbKey(scene.id));
   if (!obj) return errorResponse(404, "no thumbnail");
   return new Response(obj.body, {
     headers: {

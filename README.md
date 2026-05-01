@@ -54,8 +54,10 @@ Key choices:
   `If-Match: "<version>"`; mismatch returns 409 and the client refreshes.
 - **Client-side SVG thumbnails.** `exportToSvg` runs on a 30s debounce after
   edits and writes a tiny SVG to R2. No server-side rendering required.
-- **HMAC-cookie sessions over a shared password.** Single-user by default;
-  the `owner` column is already there if you want to grow into multi-user.
+- **Email + password auth, HMAC-cookie sessions, invitation-only signup.**
+  A super-admin is bootstrapped from `SUPER_ADMIN_EMAIL` /
+  `SUPER_ADMIN_PASSWORD` env vars on first login. Further accounts are
+  created via single-use invite links generated from the admin dashboard.
 - **Static SPA served by the Worker via the [assets] binding.** One deploy
   unit, one URL.
 
@@ -78,12 +80,18 @@ inkwell/
 │   ├── components/SceneEditor.tsx   # the Excalidraw mount + autosave loop
 │   └── pages/
 │       ├── Login.tsx
+│       ├── InviteAccept.tsx        # /invite/:token landing
+│       ├── Account.tsx             # change-password page
+│       ├── Admin.tsx               # users + invites dashboard
 │       ├── Dashboard.tsx
 │       ├── Editor.tsx              # owner editor (auth)
 │       └── SharedEditor.tsx        # share-token editor
 └── worker/                 # Cloudflare Worker
     ├── index.ts            # routes + asset fallback + CORS
-    ├── auth.ts             # HMAC-cookie sessions
+    ├── auth.ts             # HMAC-cookie sessions + super-admin bootstrap
+    ├── passwords.ts        # PBKDF2-SHA-256 hash + verify
+    ├── users.ts            # admin user-management endpoints
+    ├── invites.ts          # invite token endpoints
     ├── scenes.ts           # CRUD + thumbnail
     ├── share.ts            # share tokens
     ├── types.ts
@@ -120,14 +128,22 @@ npm run db:init:local    # local dev (uses Miniflare's sqlite)
 ### 3. Set secrets
 
 ```bash
-wrangler secret put AUTH_PASSWORD     # the password you'll log in with
-wrangler secret put SESSION_SECRET    # 32+ random bytes; e.g. `openssl rand -hex 32`
+wrangler secret put SUPER_ADMIN_EMAIL     # email used to claim the first admin account
+wrangler secret put SUPER_ADMIN_PASSWORD  # initial password for the super-admin
+wrangler secret put SESSION_SECRET        # 32+ random bytes; e.g. `openssl rand -hex 32`
 ```
+
+The super-admin row is created lazily on the first login attempt that
+matches `SUPER_ADMIN_EMAIL` and supplies the matching password. After
+that, the admin manages their password from the UI; the env vars stay as
+break-glass and are only consulted again if no row exists for that
+email.
 
 For local dev, put the same values in a `.dev.vars` file:
 
 ```
-AUTH_PASSWORD=letmein
+SUPER_ADMIN_EMAIL=admin@example.com
+SUPER_ADMIN_PASSWORD=changeme
 SESSION_SECRET=devsecretdevsecretdevsecretdevse
 ```
 
@@ -140,7 +156,14 @@ npm run dev:worker   # wrangler dev → :8787
 npm run dev          # vite          → :5173 (proxies /api to :8787)
 ```
 
-Open <http://localhost:5173>. Log in with `AUTH_PASSWORD`, click **+ New scene**.
+Open <http://localhost:5173>. Log in with `SUPER_ADMIN_EMAIL` and
+`SUPER_ADMIN_PASSWORD`, click **+ New scene**.
+
+To invite another user: click the avatar in the top-right → **Admin** →
+**Invites** → **Create invite link**. Share the URL out of band; the
+recipient registers with any email + password they like. Invites are
+single-use, expire after the period you pick, and can be revoked at any
+time from the same panel.
 
 ### 5. Deploy
 
@@ -154,14 +177,41 @@ the API.
 
 ## API
 
-All endpoints below `/api/scenes/*` and `/api/me` require a valid session
-cookie. `/api/share/*` endpoints take only the token.
+Endpoints under `/api/scenes/*`, `/api/me*`, and `/api/admin/*` require a
+valid session cookie (admin routes additionally require `is_admin`).
+`/api/share/*` and `/api/invites/*` are public — the token is the credential.
+
+### Auth & profile
+
+| Method | Path                          | Notes                                                |
+| ------ | ----------------------------- | ---------------------------------------------------- |
+| POST   | `/api/auth/login`             | `{ email, password }` → sets cookie, returns user     |
+| POST   | `/api/auth/logout`            | clears cookie                                         |
+| GET    | `/api/me`                     | session probe; returns `{ id, email, firstName, … }` |
+| POST   | `/api/me/password`            | `{ currentPassword, newPassword }`                    |
+
+### Invites
+
+| Method | Path                                  | Notes                                                  |
+| ------ | ------------------------------------- | ------------------------------------------------------ |
+| GET    | `/api/invites/:token`                 | validate (200 ok / 404 / 410)                          |
+| POST   | `/api/invites/:token/accept`          | `{ email, password, firstName, lastName }` → sets cookie |
+
+### Admin (requires admin session)
+
+| Method | Path                                  | Notes                                                  |
+| ------ | ------------------------------------- | ------------------------------------------------------ |
+| GET    | `/api/admin/users`                    | list users with scene counts                           |
+| PATCH  | `/api/admin/users/:id`                | `{ isAdmin?, disabled?, firstName?, lastName? }`        |
+| DELETE | `/api/admin/users/:id`                | hard delete + cascade scenes/R2/share-tokens           |
+| GET    | `/api/admin/invites`                  | list all invites with status                           |
+| POST   | `/api/admin/invites`                  | `{ expiresInHours? }` (null = never expire)             |
+| DELETE | `/api/admin/invites/:token`           | revoke                                                  |
+
+### Scenes & shares
 
 | Method | Path                                  | Notes                                   |
 | ------ | ------------------------------------- | --------------------------------------- |
-| POST   | `/api/auth/login`                     | `{ password }` → sets cookie            |
-| POST   | `/api/auth/logout`                    | clears cookie                           |
-| GET    | `/api/me`                             | session probe                           |
 | GET    | `/api/scenes`                         | list (D1 query, no R2 hits)             |
 | POST   | `/api/scenes`                         | `{ name? }` → creates empty scene       |
 | GET    | `/api/scenes/:id`                     | scene blob; `ETag: "<version>"`         |
@@ -194,9 +244,9 @@ Egress on R2 is free, so even sharing scenes publicly doesn't add cost.
 
 - **No real-time collaboration.** Adding live multi-cursor would mean a
   Durable Object per scene + a CRDT or OT layer. Out of scope for v1.
-- **One password, one user.** Multi-user is structurally supported (every
-  row has `owner`) but no signup flow exists. Drop in OIDC later if you need
-  it.
+- **No password recovery flow.** If a user forgets their password, an
+  admin can disable the account and re-issue an invite (the new account
+  will be a fresh row; there's no email-bound reset).
 - **Last-write-wins across tabs.** The `version` column catches the common
   case (one tab saved while another was editing) and refreshes; it doesn't
   attempt to merge.

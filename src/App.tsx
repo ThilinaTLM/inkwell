@@ -1,56 +1,114 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { ApiError, auth } from "./api";
+import { ApiError, MeResponse, User, auth } from "./api";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import SharedEditor from "./pages/SharedEditor";
+import InviteAccept from "./pages/InviteAccept";
+import Admin from "./pages/Admin";
+import Account from "./pages/Account";
 
-type AuthState = "unknown" | "authed" | "anon";
+type AuthStatus = "unknown" | "authed" | "anon";
 
 export default function App() {
-  const [state, setState] = useState<AuthState>("unknown");
+  const [status, setStatus] = useState<AuthStatus>("unknown");
+  const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Probe session once on boot. Share routes don't need a session, so we
-  // don't redirect while on /share/*.
+  // Probe session once on boot. Public routes (login, invite, share) don't
+  // need a session and shouldn't bounce to /login.
   useEffect(() => {
     let alive = true;
     auth
       .me()
-      .then(() => alive && setState("authed"))
-      .catch((e: ApiError) => {
+      .then((me: MeResponse) => {
         if (!alive) return;
-        if (e.status === 401) setState("anon");
-        else setState("anon");
+        setUser({
+          id: me.id,
+          email: me.email,
+          firstName: me.firstName,
+          lastName: me.lastName,
+          isAdmin: me.isAdmin,
+        });
+        setStatus("authed");
+      })
+      .catch((_e: ApiError) => {
+        if (!alive) return;
+        setUser(null);
+        setStatus("anon");
       });
     return () => {
       alive = false;
     };
   }, []);
 
-  // When we transition to anon and we're on a protected page, kick to login.
+  // When we become anon and we're on a protected page, kick to login.
   useEffect(() => {
-    const onProtected = !["/login"].includes(location.pathname) && !location.pathname.startsWith("/share/");
-    if (state === "anon" && onProtected) {
-      navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, {
+    const p = location.pathname;
+    const isPublic =
+      p === "/login" ||
+      p.startsWith("/share/") ||
+      p.startsWith("/invite/");
+    if (status === "anon" && !isPublic) {
+      navigate(`/login?next=${encodeURIComponent(p + location.search)}`, {
         replace: true,
       });
     }
-  }, [state, location.pathname, location.search, navigate]);
+  }, [status, location.pathname, location.search, navigate]);
 
-  if (state === "unknown") return <BootSplash />;
+  if (status === "unknown") return <BootSplash />;
+
+  function onAuthed(u: User) {
+    setUser(u);
+    setStatus("authed");
+  }
+  function onLogout() {
+    setUser(null);
+    setStatus("anon");
+  }
 
   return (
     <Routes>
-      <Route path="/login" element={<Login onAuthed={() => setState("authed")} />} />
-      <Route path="/" element={state === "authed" ? <Dashboard onLogout={() => setState("anon")} /> : null} />
-      <Route path="/s/:id" element={state === "authed" ? <Editor /> : null} />
+      <Route path="/login" element={<Login onAuthed={onAuthed} />} />
+      <Route path="/invite/:token" element={<InviteAccept onAuthed={onAuthed} />} />
+      <Route
+        path="/"
+        element={
+          status === "authed" && user ? (
+            <Dashboard user={user} onLogout={onLogout} />
+          ) : null
+        }
+      />
+      <Route path="/s/:id" element={status === "authed" ? <Editor /> : null} />
+      <Route
+        path="/account"
+        element={
+          status === "authed" && user ? (
+            <Account user={user} onUserChange={setUser} />
+          ) : null
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          status === "authed" && user ? (
+            <RequireAdmin user={user}>
+              <Admin user={user} />
+            </RequireAdmin>
+          ) : null
+        }
+      />
       <Route path="/share/:token" element={<SharedEditor />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+function RequireAdmin({ user, children }: { user: User; children: ReactNode }) {
+  if (!user.isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 function BootSplash() {

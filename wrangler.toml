@@ -32,7 +32,16 @@ database_id = "REPLACE_WITH_D1_DATABASE_ID"
 ALLOWED_ORIGINS = ""
 
 # Secrets to set via:
-#   wrangler secret put AUTH_PASSWORD
+#   wrangler secret put SUPER_ADMIN_EMAIL
+#   wrangler secret put SUPER_ADMIN_PASSWORD
 #   wrangler secret put SESSION_SECRET
-# AUTH_PASSWORD: shared password for /login (single-user mode).
-# SESSION_SECRET: random 32+ byte string used to HMAC session cookies.
+#
+# SUPER_ADMIN_EMAIL    : email used to bootstrap the first admin account.
+#                        On first login matching this email, if no row exists
+#                        in the `users` table, a super-admin is created with
+#                        SUPER_ADMIN_PASSWORD as the initial password. After
+#                        bootstrap, the admin manages their password from the
+#                        UI; the env vars remain as break-glass and are only
+#                        consulted again if no row exists for that email.
+# SUPER_ADMIN_PASSWORD : initial password for the bootstrap super-admin.
+# SESSION_SECRET       : random 32+ byte string used to HMAC session cookies.

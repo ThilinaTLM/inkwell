@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ApiError, SceneMeta, auth, scenes } from "../api";
+import { ApiError, SceneMeta, User, auth, scenes } from "../api";
 
-export default function Dashboard({ onLogout }: { onLogout: () => void }) {
+export default function Dashboard({
+  user,
+  onLogout,
+}: {
+  user: User;
+  onLogout: () => void;
+}) {
   const [items, setItems] = useState<SceneMeta[] | null>(null);
   const [search, setSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -78,7 +84,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         />
         <div className="dash-actions">
           <button className="dash-new" onClick={createNew}>+ New scene</button>
-          <button className="dash-logout" onClick={logout}>Sign out</button>
+          <UserMenu user={user} onLogout={logout} />
         </div>
       </header>
 
@@ -103,7 +109,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <li key={s.id} className="card">
               <Link to={`/s/${s.id}`} className="card-thumb" aria-label={`Open ${s.name}`}>
                 {s.hasThumb ? (
-                  // Cache-bust on version so renames/edits surface immediately.
                   <img src={`/api/scenes/${s.id}/thumb?v=${s.version}`} alt="" loading="lazy" />
                 ) : (
                   <div className="card-thumb-empty">empty</div>
@@ -122,6 +127,53 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function UserMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const label =
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const initials = (user.firstName?.[0] ?? user.email[0] ?? "?").toUpperCase();
+
+  return (
+    <div className="user-menu" ref={ref}>
+      <button className="user-btn" onClick={() => setOpen((v) => !v)} aria-label={label}>
+        <span className="avatar">{initials}</span>
+        <span className="user-name">{label}</span>
+      </button>
+      {open && (
+        <div className="user-pop">
+          <div className="user-pop-head">
+            <div className="user-pop-name">{label}</div>
+            <div className="user-pop-email">{user.email}</div>
+          </div>
+          <button onClick={() => { setOpen(false); navigate("/account"); }}>
+            Account settings
+          </button>
+          {user.isAdmin && (
+            <button onClick={() => { setOpen(false); navigate("/admin"); }}>
+              Admin
+            </button>
+          )}
+          <button onClick={() => { setOpen(false); onLogout(); }}>
+            Sign out
+          </button>
+        </div>
       )}
     </div>
   );
