@@ -8,7 +8,7 @@
     "dev:worker": "wrangler dev",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
     "db:init:local": "wrangler d1 execute excalidash --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute excalidash --remote --file=./schema.sql",
     "cf-typegen": "wrangler types"

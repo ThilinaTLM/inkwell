@@ -66,7 +66,7 @@ Key choices:
 ```
 inkwell/
 ├── wrangler.toml           # Worker config + R2/D1/assets bindings
-├── schema.sql              # D1 schema (run once via `npm run db:init:remote`)
+├── schema.sql              # D1 schema (run once via `pnpm run db:init:remote`)
 ├── package.json
 ├── vite.config.ts          # SPA build; dev-time proxy of /api → wrangler
 ├── tsconfig*.json
@@ -104,7 +104,7 @@ Prerequisites: Node 20+, a Cloudflare account, [wrangler](https://developers.clo
 
 ```bash
 cd inkwell
-npm install
+pnpm install
 wrangler login
 ```
 
@@ -121,8 +121,8 @@ Copy the `database_id` printed by `d1 create` into `wrangler.toml` (replace
 ### 2. Apply the schema
 
 ```bash
-npm run db:init:remote   # production
-npm run db:init:local    # local dev (uses Miniflare's sqlite)
+pnpm run db:init:remote   # production
+pnpm run db:init:local    # local dev (uses Miniflare's sqlite)
 ```
 
 ### 3. Set secrets
@@ -152,8 +152,8 @@ SESSION_SECRET=devsecretdevsecretdevsecretdevse
 In two terminals:
 
 ```bash
-npm run dev:worker   # wrangler dev → :8787
-npm run dev          # vite          → :5173 (proxies /api to :8787)
+pnpm run dev:worker   # wrangler dev → :8787
+pnpm run dev          # vite          → :5173 (proxies /api to :8787)
 ```
 
 Open <http://localhost:5173>. Log in with `SUPER_ADMIN_EMAIL` and
@@ -168,7 +168,7 @@ time from the same panel.
 ### 5. Deploy
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 This runs `vite build` then `wrangler deploy`. The Worker takes over from
