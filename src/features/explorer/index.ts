@@ -6,12 +6,18 @@
 // keyboard hotkey contract (`F2` rename, `Delete` delete, `Enter` open).
 
 export { ExplorerHeader } from "./ExplorerHeader";
-export { ViewSwitcher, type ExplorerView } from "./ViewSwitcher";
+export {
+  ViewSwitcher,
+  type ExplorerView,
+  type ExplorerLayout,
+} from "./ViewSwitcher";
 export { Breadcrumb } from "./Breadcrumb";
 export { BrowseView } from "./views/BrowseView";
 export { RecentView } from "./views/RecentView";
 export { SearchView } from "./views/SearchView";
 export { AddTile } from "./AddTile";
+export { AddTileRow } from "./AddTileRow";
+export { ListItemRow } from "./views/ListItemRow";
 export { ItemContextMenu } from "./ItemContextMenu";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";
 export { useExplorerHotkeys } from "./useExplorerHotkeys";

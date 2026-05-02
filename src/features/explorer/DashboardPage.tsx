@@ -31,6 +31,7 @@ import {
   ExplorerHeader,
   RecentView,
   SearchView,
+  type ExplorerLayout,
   type ExplorerView,
   type ItemMenuActions,
 } from "@/features/explorer";
@@ -55,6 +56,7 @@ export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const view = parseView(searchParams.get("view"));
+  const layout = parseLayout(searchParams.get("layout"));
   const folderId = searchParams.get("folder");
   const search = searchParams.get("q") || "";
   const activeTags = useMemo(() => searchParams.getAll("tag"), [searchParams]);
@@ -77,12 +79,15 @@ export default function DashboardPage() {
     setSearchParams(sp, { replace: true });
   }
   function setView(next: ExplorerView) {
-    setSearchParams(
-      next === "browse"
-        ? new URLSearchParams()
-        : new URLSearchParams({ view: next }),
-      { replace: true },
-    );
+    // Preserve `layout` when switching views; clear everything else so
+    // folder/tag/q state from one view doesn't leak into the next.
+    const sp = new URLSearchParams();
+    if (next !== "browse") sp.set("view", next);
+    if (layout !== "grid") sp.set("layout", layout);
+    setSearchParams(sp, { replace: true });
+  }
+  function setLayout(next: ExplorerLayout) {
+    patchParams({ layout: next === "grid" ? null : next });
   }
   function setFolder(id: string | null) {
     patchParams({ view: "browse", folder: id ?? null });
@@ -163,11 +168,11 @@ export default function DashboardPage() {
 
   return (
     <PaperSurface variant="page">
-      <ExplorerHeader user={me.data} view={view} onChangeView={setView} />
-
-      <div className="px-6">
-        <div className="border-t border-ink-soft/15" />
-      </div>
+      <ExplorerHeader
+        user={me.data}
+        view={view}
+        onChangeView={setView}
+      />
 
       <main className="pt-2">
         {view === "browse" && (
@@ -176,10 +181,17 @@ export default function DashboardPage() {
             onChangeFolder={setFolder}
             folders={folderList}
             actions={actions}
+            layout={layout}
+            onChangeLayout={setLayout}
           />
         )}
         {view === "recent" && (
-          <RecentView folders={folderList} actions={actions} />
+          <RecentView
+            folders={folderList}
+            actions={actions}
+            layout={layout}
+            onChangeLayout={setLayout}
+          />
         )}
         {view === "search" && (
           <SearchView
@@ -190,6 +202,8 @@ export default function DashboardPage() {
             tags={tagList}
             folders={folderList}
             actions={actions}
+            layout={layout}
+            onChangeLayout={setLayout}
           />
         )}
       </main>
@@ -309,4 +323,9 @@ export default function DashboardPage() {
 function parseView(raw: string | null): ExplorerView {
   if (raw === "recent" || raw === "search") return raw;
   return "browse";
+}
+
+function parseLayout(raw: string | null): ExplorerLayout {
+  if (raw === "list") return raw;
+  return "grid";
 }

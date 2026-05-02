@@ -45,7 +45,7 @@ export function EditorLoadingState({ label }: { label: string }) {
       variant="page"
       className="grid place-items-center text-ink-soft"
     >
-      <div className="flex items-center gap-2 font-hand text-base">
+      <div className="flex items-center gap-2 text-sm">
         <HugeiconsIcon
           icon={Loading03Icon}
           strokeWidth={2}
@@ -71,7 +71,7 @@ export function EditorErrorState({ message }: { message: string }) {
         />
         <div className="space-y-1">
           <div className="font-heading text-lg">Couldn't load this scene</div>
-          <p className="font-hand text-base text-ink-soft">{message}</p>
+          <p className="text-sm text-ink-soft">{message}</p>
         </div>
         <Button variant="outline" size="sm" render={<Link to="/" />}>
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />

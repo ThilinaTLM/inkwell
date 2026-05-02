@@ -49,6 +49,7 @@
     --color-ink: var(--ink);
     --color-ink-soft: var(--ink-soft);
     --color-ink-muted: var(--ink-muted);
+    --color-stroke-card: var(--stroke-card);
     --color-manila: var(--manila);
     --color-manila-edge: var(--manila-edge);
     --color-manila-soft: var(--manila-soft);
@@ -108,6 +109,7 @@
     --ink: #1c1814;
     --ink-soft: #5b5044;
     --ink-muted: #8a7e6b;
+    --stroke-card: #5b5044; /* dedicated card-outline ink — same as ink-soft on paper, brighter on dark */
     --manila: #e8c77a;
     --manila-edge: #c9a659;
     --manila-soft: #f3e3b6;
@@ -165,6 +167,7 @@
     --ink: #efe9dc; /* chalk */
     --ink-soft: #b9b0a0;
     --ink-muted: #8a826f;
+    --stroke-card: #d8cdb8; /* brighter chalk-on-slate for card outlines */
     --manila: #d4b25c; /* manila reads warmer on slate */
     --manila-edge: #a88945;
     --manila-soft: #4a3f25;

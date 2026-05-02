@@ -30,7 +30,7 @@ export function EmptyDeskNote({
         <RoughBox
           shape="card"
           seed={seed}
-          stroke="var(--color-ink-soft)"
+          stroke="var(--color-stroke-card)"
           strokeWidth={1.4}
           fill="var(--color-paper-elev)"
           fillStyle="solid"

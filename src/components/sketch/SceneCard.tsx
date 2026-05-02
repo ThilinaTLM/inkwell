@@ -65,7 +65,7 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
     },
     ref
   ) {
-    const tilt = tiltFromId(`scene:${id}`, 0.7);
+    const tilt = tiltFromId(`scene:${id}`, 0.4);
 
     return (
       <div
@@ -97,8 +97,8 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
         <RoughBox
           shape="card"
           seed={`scene-card:${id}`}
-          stroke="var(--color-ink-soft)"
-          strokeWidth={1.4}
+          stroke="var(--color-stroke-card)"
+          strokeWidth={1.5}
           fill="var(--color-paper-elev)"
           fillStyle="solid"
           roughness={0.9}
@@ -110,7 +110,7 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
           aria-hidden
           className={cn(
             "pointer-events-none absolute inset-0 -z-10 rounded-md transition-opacity duration-200",
-            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)]",
+            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)] dark:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.55)]",
             "opacity-0 group-hover/scene:opacity-100",
             "group-data-[selected]/scene:opacity-100"
           )}
@@ -146,7 +146,7 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
             >
               {name}
             </span>
-            <div className="mt-0.5 flex items-center gap-1.5 font-hand text-sm text-ink-muted">
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-muted">
               {folderName && <span className="truncate">{folderName}</span>}
               {folderName && <span aria-hidden>·</span>}
               <span>{updatedAtLabel}</span>
@@ -157,7 +157,7 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
                   <TapeChip key={t} label={t} size="sm" asStatic active />
                 ))}
                 {tags.length > 3 && (
-                  <span className="font-hand text-xs text-ink-muted">
+                  <span className="text-xs text-ink-muted">
                     +{tags.length - 3}
                   </span>
                 )}

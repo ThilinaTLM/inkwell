@@ -65,7 +65,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
         }
       >
         <Avatar size="sm" className="size-7 ring-1 ring-ink-soft/30">
-          <AvatarFallback className="bg-manila text-ink text-[0.7rem] font-heading uppercase">
+          <AvatarFallback className="bg-manila text-ink text-[0.7rem] font-medium uppercase">
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -76,7 +76,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col gap-0.5">
-            <span className="truncate font-heading text-sm text-ink">
+            <span className="truncate text-sm font-medium text-ink">
               {fullName}
             </span>
             <span className="truncate font-sans text-[0.6875rem] text-ink-muted">

@@ -185,7 +185,7 @@ function FolderNode({
           />
           <span className="truncate">{folder.name}</span>
           {showCounts && folder.sceneCount > 0 ? (
-            <span className="ml-auto shrink-0 font-hand text-xs text-ink-muted">
+            <span className="ml-auto shrink-0 text-xs text-ink-muted">
               {folder.sceneCount}
             </span>
           ) : null}

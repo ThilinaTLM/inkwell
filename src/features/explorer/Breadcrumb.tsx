@@ -11,7 +11,7 @@
 // Home, we show `Home › … › parent › current` and stash every collapsed
 // segment in a `…` dropdown.
 
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowRight01Icon,
@@ -33,13 +33,16 @@ interface BreadcrumbProps {
   path: FolderMeta[];
   /** Called with the target folder id, or `null` to jump back to the root. */
   onJump: (id: string | null) => void;
+  /** Optional content rendered flush-right on the breadcrumb row
+   *  (e.g. a layout toggle). Pushed to the far edge with `ml-auto`. */
+  trailing?: ReactNode;
 }
 
 /** Maximum number of named segments shown after "Home" before the
  *  middle of the path is collapsed into a "…" dropdown. */
 const MAX_VISIBLE = 2;
 
-export function Breadcrumb({ path, onJump }: BreadcrumbProps) {
+export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
   // Always-visible: Home + last segment + (optionally) the parent of the
   // last segment. Anything between Home and that suffix collapses into "…".
   const atRoot = path.length === 0;
@@ -59,7 +62,7 @@ export function Breadcrumb({ path, onJump }: BreadcrumbProps) {
   return (
     <nav
       aria-label="Folder path"
-      className="flex items-center gap-1 px-6 py-2 font-hand text-base text-ink-soft"
+      className="flex items-center gap-1 px-6 py-2 text-sm text-ink-soft"
     >
       <button
         type="button"
@@ -134,6 +137,8 @@ export function Breadcrumb({ path, onJump }: BreadcrumbProps) {
           </Fragment>
         );
       })}
+
+      {trailing && <div className="ml-auto flex items-center">{trailing}</div>}
     </nav>
   );
 }

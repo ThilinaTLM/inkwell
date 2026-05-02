@@ -19,7 +19,7 @@ export function TagFilterStrip({ tags, active, onToggle }: TagFilterStripProps) 
     return (
       <div className="flex items-center gap-2 px-6 py-2 text-ink-muted">
         <HugeiconsIcon icon={HashtagIcon} strokeWidth={1.6} className="size-3.5" />
-        <span className="font-hand text-sm">loading tags…</span>
+        <span className="text-sm text-ink-muted">loading tags…</span>
       </div>
     );
   }

@@ -127,7 +127,7 @@ export default function SharedEditorPage({
                 the share-permission line, which has no other home. */}
             <MainMenu.ItemCustom>
               <div className="px-2 pb-2 pt-1">
-                <span className="flex items-center gap-1 font-hand text-xs text-ink-muted">
+                <span className="flex items-center gap-1 text-xs text-ink-muted">
                   {writable ? (
                     <>
                       <HugeiconsIcon

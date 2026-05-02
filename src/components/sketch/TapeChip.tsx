@@ -39,7 +39,7 @@ export function TapeChip({
   ...rest
 }: TapeChipProps) {
   const tape = color ?? pickFromPalette(label, TAPE_PALETTE);
-  const tilt = tiltFromId(label, 1.5);
+  const tilt = tiltFromId(label, 0.8);
 
   const inner = (
     <span
@@ -55,7 +55,7 @@ export function TapeChip({
       <RoughBox
         shape="rect"
         seed={`tape:${label}:${active ? "on" : "off"}`}
-        stroke={active ? "var(--color-ink)" : "var(--color-ink-soft)"}
+        stroke={active ? "var(--color-ink)" : "var(--color-stroke-card)"}
         strokeWidth={active ? 1.4 : 1}
         fill={active ? tape : "transparent"}
         fillStyle="solid"

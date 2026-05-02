@@ -1,14 +1,13 @@
 // AddTile — dashed `+ Folder` / `+ Scene` tile that ends the Browse grid.
 //
 // Same outer dimensions as `FolderCard` and `SceneCard` so it sits flush
-// in the grid. Drawn with a dashed `RoughBox` border so it reads as an
-// affordance rather than a real item, matching the wireframe.
+// in the grid. Uses a crisp dashed border (CSS) to read as an affordance
+// rather than a real artifact — RoughBox is reserved for content.
 
 import { type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon } from "@hugeicons/core-free-icons";
 
-import { RoughBox } from "@/components/rough";
 import { cn } from "@/lib/utils";
 
 interface AddTileProps {
@@ -25,30 +24,19 @@ export function AddTile({ label, icon, onClick, className }: AddTileProps) {
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "group/add relative isolate flex flex-col items-center justify-center overflow-hidden rounded-md text-ink-soft transition-all duration-200",
-        "min-h-[12rem] hover:-translate-y-1 hover:text-vermillion",
+        "group/add relative flex flex-col items-center justify-center rounded-md text-ink-soft transition-all duration-200",
+        "min-h-[12rem] border-2 border-dashed border-ink-soft/35",
+        "hover:-translate-y-1 hover:border-vermillion/60 hover:text-vermillion",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
         className
       )}
     >
-      <RoughBox
-        shape="card"
-        seed={`add-tile:${label}`}
-        stroke="var(--color-ink-soft)"
-        strokeWidth={1.2}
-        fill="transparent"
-        roughness={1.6}
-        bowing={2.5}
-        radius={10}
-        // Dashed feel — RoughBox doesn't take a dash array, so we lean
-        // on a higher roughness + bowing to communicate "draft" silhouette.
-      />
-      <span className="relative grid size-12 place-items-center text-ink-soft transition-colors group-hover/add:text-vermillion">
+      <span className="grid size-12 place-items-center text-ink-soft transition-colors group-hover/add:text-vermillion">
         {icon ?? (
           <HugeiconsIcon icon={PlusSignIcon} strokeWidth={1.8} className="size-7" />
         )}
       </span>
-      <span className="relative mt-2 font-heading text-sm">{label}</span>
+      <span className="mt-2 font-heading text-sm">{label}</span>
     </button>
   );
 }

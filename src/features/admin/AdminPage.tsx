@@ -32,7 +32,7 @@ export default function AdminPage() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl text-ink">Admin</h1>
-          <p className="mt-1 font-hand text-base text-ink-soft">
+          <p className="mt-1 text-sm text-ink-soft">
             Manage who can sign in and how they get there.
           </p>
         </header>

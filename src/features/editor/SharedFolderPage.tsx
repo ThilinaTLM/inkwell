@@ -126,7 +126,7 @@ export default function SharedFolderPage({
           {writable ? "Shared · can edit" : "Shared · view only"}
         </div>
         {payload.share.label ? (
-          <span className="font-hand text-base text-ink-muted">
+          <span className="text-sm text-ink-muted">
             "{payload.share.label}"
           </span>
         ) : null}
@@ -209,7 +209,7 @@ function Breadcrumb({
   return (
     <nav
       aria-label="Folder path"
-      className="flex items-center gap-1 px-6 py-2 font-hand text-base text-ink-soft"
+      className="flex items-center gap-1 px-6 py-2 text-sm text-ink-soft"
     >
       {breadcrumb.map((f, i) => (
         <span key={f.id} className="flex items-center gap-1">

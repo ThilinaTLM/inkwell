@@ -5,7 +5,6 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PaperSurface } from "@/components/PaperSurface";
-import { RoughBox } from "@/components/rough";
 
 interface AuthShellProps {
   title?: ReactNode;
@@ -30,38 +29,26 @@ export function AuthShell({
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-1 text-center">
           <div className="font-heading text-3xl text-ink">inkwell</div>
-          <p className="font-hand text-base text-ink-soft">
+          <p className="text-sm text-ink-soft">
             A small place for your Excalidraw scenes.
           </p>
         </div>
 
         <div
-          className={cn("relative isolate p-7", className)}
-          style={{ transform: "rotate(-0.4deg)" }}
+          className={cn(
+            "relative rounded-lg bg-paper-elev p-7 ring-1 ring-ink-soft/20",
+            "shadow-[0_8px_30px_-12px_rgba(28,24,20,0.18)] dark:shadow-[0_18px_40px_-14px_rgba(0,0,0,0.55)]",
+            className
+          )}
         >
-          <RoughBox
-            shape="card"
-            seed="auth-shell"
-            stroke="var(--color-ink-soft)"
-            strokeWidth={1.4}
-            fill="var(--color-paper-elev)"
-            fillStyle="solid"
-            roughness={1.2}
-            radius={6}
-          />
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10 rounded-md shadow-[0_18px_40px_-14px_rgba(28,24,20,0.35)]"
-          />
-
-          <div className="relative">
+          <div>
             {(title || description) && (
               <div className="mb-4 flex flex-col gap-1">
                 {title && (
                   <h2 className="font-heading text-2xl text-ink">{title}</h2>
                 )}
                 {description && (
-                  <p className="font-hand text-base text-ink-soft">
+                  <p className="text-sm text-ink-soft">
                     {description}
                   </p>
                 )}
@@ -72,7 +59,7 @@ export function AuthShell({
         </div>
 
         {footer && (
-          <div className="mt-5 text-center font-hand text-sm text-ink-muted">
+          <div className="mt-5 text-center text-sm text-ink-muted">
             {footer}
           </div>
         )}

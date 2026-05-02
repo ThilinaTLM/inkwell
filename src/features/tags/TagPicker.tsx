@@ -147,7 +147,7 @@ export function TagPicker({
           ))}
         </div>
       ) : null}
-      <div className="font-hand text-sm text-ink-muted">
+      <div className="text-xs text-ink-muted">
         Press Enter or comma to add. Up to {MAX_TAGS} tags.
       </div>
     </div>

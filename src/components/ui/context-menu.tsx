@@ -58,13 +58,16 @@ function ContextMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
 }
 
+// Plain <div> rather than MenuPrimitive.GroupLabel — mirrors the
+// dropdown-menu fix so labels can be used outside an enclosing
+// <Menu.Group> without tripping Base UI's required-context check.
 function ContextMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & { inset?: boolean }) {
+}: React.ComponentProps<"div"> & { inset?: boolean }) {
   return (
-    <ContextMenuPrimitive.GroupLabel
+    <div
       data-slot="context-menu-label"
       data-inset={inset}
       className={cn(
@@ -192,7 +195,7 @@ function ContextMenuShortcut({
     <span
       data-slot="context-menu-shortcut"
       className={cn(
-        "ml-auto font-hand text-xs text-ink-muted group-focus/context-menu-item:text-ink",
+        "ml-auto font-mono text-[0.6875rem] tracking-tight text-ink-muted group-focus/context-menu-item:text-ink",
         className
       )}
       {...props}

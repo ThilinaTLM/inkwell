@@ -124,7 +124,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-heading text-xl text-ink", className)}
+      className={cn("font-sans text-lg font-semibold tracking-tight text-ink", className)}
       {...props}
     />
   )
@@ -138,7 +138,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "font-hand text-base text-ink-soft *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-vermillion",
+        "text-sm text-ink-soft *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-vermillion",
         className
       )}
       {...props}

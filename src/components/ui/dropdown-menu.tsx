@@ -54,15 +54,21 @@ function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
+// Note: this is intentionally a plain styled <div> rather than
+// MenuPrimitive.GroupLabel — the latter requires a surrounding
+// <Menu.Group> context (Base UI throws "MenuGroupRootContext is
+// missing" otherwise). Most call sites use the label as a section
+// header for the whole popup (e.g. user info in UserMenu) without an
+// enclosing group, so we mirror the original Radix shadcn behavior.
 function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & {
+}: React.ComponentProps<"div"> & {
   inset?: boolean
 }) {
   return (
-    <MenuPrimitive.GroupLabel
+    <div
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
@@ -240,7 +246,7 @@ function DropdownMenuShortcut({
     <span
       data-slot="dropdown-menu-shortcut"
       className={cn(
-        "ml-auto font-hand text-xs text-ink-muted group-focus/dropdown-menu-item:text-ink",
+        "ml-auto font-mono text-[0.6875rem] tracking-tight text-ink-muted group-focus/dropdown-menu-item:text-ink",
         className
       )}
       {...props}

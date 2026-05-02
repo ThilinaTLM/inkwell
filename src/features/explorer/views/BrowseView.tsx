@@ -22,6 +22,7 @@ import {
 import type { FolderMeta } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { SkeletonList } from "@/components/SkeletonList";
 import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
 import { folderPath } from "@/features/folders/FolderTree";
 import { useScenes } from "@/features/explorer/hooks";
@@ -29,8 +30,11 @@ import { relTime } from "@/lib/format";
 
 import { Breadcrumb } from "../Breadcrumb";
 import { AddTile } from "../AddTile";
+import { AddTileRow } from "../AddTileRow";
+import { ListItemRow } from "./ListItemRow";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
+import { LayoutToggle, type ExplorerLayout } from "../ViewSwitcher";
 
 interface BrowseViewProps {
   /** Currently open folder, or `null` to browse the root. */
@@ -39,6 +43,8 @@ interface BrowseViewProps {
   /** Pre-loaded folder list (whole tree) from the dashboard. */
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
+  layout: ExplorerLayout;
+  onChangeLayout: (next: ExplorerLayout) => void;
 }
 
 export function BrowseView({
@@ -46,6 +52,8 @@ export function BrowseView({
   onChangeFolder,
   folders,
   actions,
+  layout,
+  onChangeLayout,
 }: BrowseViewProps) {
   const scenesQuery = useScenes({ folderId: folderId ?? "root" });
   const navigate = useNavigate();
@@ -98,16 +106,88 @@ export function BrowseView({
 
   return (
     <div ref={containerRef} className="flex flex-col" tabIndex={-1}>
-      <Breadcrumb path={breadcrumb} onJump={onChangeFolder} />
+      <Breadcrumb
+        path={breadcrumb}
+        onJump={onChangeFolder}
+        trailing={<LayoutToggle layout={layout} onChange={onChangeLayout} />}
+      />
 
       {isLoading ? (
-        <Skeleton />
+        <Loading layout={layout} />
       ) : subfolders.length === 0 && scenes!.length === 0 ? (
         <Empty
           folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
           onCreateScene={() => actions.createSceneIn(folderId)}
           onCreateFolder={() => actions.createFolderIn(folderId)}
         />
+      ) : layout === "list" ? (
+        <ItemContextMenu
+          target={{ kind: "empty", folderId }}
+          actions={actions}
+          className="block"
+        >
+          <div className="flex flex-col gap-1.5 px-6 pb-16 pt-2" role="list">
+            <div className="flex flex-col gap-1.5 sm:flex-row">
+              <AddTileRow
+                label="New folder"
+                icon={
+                  <HugeiconsIcon
+                    icon={FolderAddIcon}
+                    strokeWidth={1.7}
+                    className="size-5"
+                  />
+                }
+                onClick={() => actions.createFolderIn(folderId)}
+              />
+              <AddTileRow
+                label="New scene"
+                icon={
+                  <HugeiconsIcon
+                    icon={Image01Icon}
+                    strokeWidth={1.7}
+                    className="size-5"
+                  />
+                }
+                onClick={() => actions.createSceneIn(folderId)}
+              />
+            </div>
+            {subfolders.map((f) => (
+              <ItemContextMenu
+                key={f.id}
+                target={{ kind: "folder", folder: f }}
+                actions={actions}
+              >
+                <ListItemRow
+                  kind="folder"
+                  id={f.id}
+                  name={f.name}
+                  metaLabel={
+                    f.sceneCount === 1 ? "1 scene" : `${f.sceneCount} scenes`
+                  }
+                  onOpen={() => onChangeFolder(f.id)}
+                />
+              </ItemContextMenu>
+            ))}
+            {scenes!.map((s) => (
+              <ItemContextMenu
+                key={s.id}
+                target={{ kind: "scene", scene: s }}
+                actions={actions}
+              >
+                <ListItemRow
+                  kind="scene"
+                  id={s.id}
+                  name={s.name}
+                  hasThumb={s.hasThumb}
+                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
+                  metaLabel={relTime(s.updatedAt)}
+                  tags={s.tags}
+                  onOpen={() => navigate(`/s/${s.id}`)}
+                />
+              </ItemContextMenu>
+            ))}
+          </div>
+        </ItemContextMenu>
       ) : (
         <ItemContextMenu
           target={{ kind: "empty", folderId }}
@@ -115,7 +195,7 @@ export function BrowseView({
           className="block"
         >
           <div
-            className="grid grid-cols-2 gap-4 px-6 pb-16 pt-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+            className="grid grid-cols-2 gap-3 px-6 pb-16 pt-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
           >
             {subfolders.map((f) => (
               <ItemContextMenu
@@ -181,10 +261,10 @@ export function BrowseView({
   );
 }
 
-function Skeleton() {
+function Loading({ layout }: { layout: ExplorerLayout }) {
   return (
     <div className="px-6 pt-4">
-      <SkeletonGrid />
+      {layout === "list" ? <SkeletonList /> : <SkeletonGrid />}
     </div>
   );
 }

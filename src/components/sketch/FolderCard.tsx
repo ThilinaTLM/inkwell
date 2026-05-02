@@ -52,7 +52,7 @@ export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
     },
     ref
   ) {
-    const tilt = tiltFromId(`folder:${id}`, 0.7);
+    const tilt = tiltFromId(`folder:${id}`, 0.4);
     const countLabel =
       sceneCount == null
         ? "—"
@@ -90,8 +90,8 @@ export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
         <RoughBox
           shape="card"
           seed={`folder-card:${id}`}
-          stroke="var(--color-ink-soft)"
-          strokeWidth={1.4}
+          stroke="var(--color-stroke-card)"
+          strokeWidth={1.5}
           fill="var(--color-paper-elev)"
           fillStyle="solid"
           roughness={0.9}
@@ -103,7 +103,7 @@ export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
           aria-hidden
           className={cn(
             "pointer-events-none absolute inset-0 -z-10 rounded-md transition-opacity duration-200",
-            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)]",
+            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)] dark:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.55)]",
             "opacity-0 group-hover/folder:opacity-100",
             "group-data-[selected]/folder:opacity-100"
           )}
@@ -127,7 +127,7 @@ export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
             >
               {name}
             </span>
-            <div className="mt-0.5 font-hand text-sm text-ink-muted">
+            <div className="mt-0.5 text-xs text-ink-muted">
               {countLabel}
             </div>
           </div>
