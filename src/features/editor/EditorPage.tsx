@@ -10,7 +10,7 @@
 // autosave loop has its own dedup ref and 409-reload-and-reset
 // semantics that don't compose cleanly with a mutation lifecycle.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { MainMenu } from "@excalidraw/excalidraw";
@@ -70,9 +70,22 @@ export default function EditorPage() {
     if (sceneQuery.data) setLoaded(sceneQuery.data);
   }, [sceneQuery.data, loaded]);
 
-  // When navigating to a different scene, reset the working copy.
+  // When navigating to a *different* scene, reset the working copy so the
+  // seed effect above re-runs against the new query data.
+  //
+  // Gated on a real id transition via a ref: on the initial mount React
+  // would otherwise fire this effect alongside the seed effect in the same
+  // commit, and `setLoaded(null)` would clobber `setLoaded(data)` whenever
+  // the query cache is already warm (e.g. user opens a scene, goes back,
+  // opens it again). With a cold cache the original code worked by
+  // accident — `sceneQuery.data` was undefined on the initial commit so
+  // the seed effect was a no-op and only ran later when data arrived.
+  const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
-    setLoaded(null);
+    if (prevIdRef.current !== null && prevIdRef.current !== id) {
+      setLoaded(null);
+    }
+    prevIdRef.current = id;
   }, [id]);
 
   // Reload after a 409 conflict: bypass cache and force a fresh fetch.
