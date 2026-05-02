@@ -8,8 +8,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import { ApiError, User, auth } from "@/api";
+import { useChangePassword, useMe } from "@/features/auth/hooks";
 import { Topbar } from "@/components/Topbar";
+import { errorMessage } from "@/lib/errors";
+import { userDisplayName } from "@/lib/user";
 import { PaperSurface } from "@/components/PaperSurface";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,16 +27,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-interface AccountProps {
-  user: User;
-  onUserChange: (u: User) => void;
-}
-
-export default function Account({ user, onUserChange: _onUserChange }: AccountProps) {
+export default function AccountPage() {
+  const me = useMe();
+  const changePassword = useChangePassword();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
@@ -48,22 +46,24 @@ export default function Account({ user, onUserChange: _onUserChange }: AccountPr
       setErr("New password must be at least 8 characters.");
       return;
     }
-    setBusy(true);
     try {
-      await auth.changePassword(current, next);
+      await changePassword.mutateAsync({
+        currentPassword: current,
+        newPassword: next,
+      });
       toast.success("Password updated.");
       setCurrent("");
       setNext("");
       setConfirm("");
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "could not change password");
-    } finally {
-      setBusy(false);
+      setErr(errorMessage(e, "could not change password"));
     }
   }
 
-  const fullName =
-    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const busy = changePassword.isPending;
+  const user = me.data;
+  if (!user) return null; // App-level boot splash covers this; safety net.
+  const fullName = userDisplayName(user);
 
   return (
     <PaperSurface variant="page" className="flex flex-col">

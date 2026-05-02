@@ -38,8 +38,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { scenes } from "@/api";
-import type { FolderMeta, SceneMeta } from "@/api";
+import { scenes } from "@/lib/api/client";
+import type { FolderMeta, SceneMeta } from "@/lib/api/client";
 
 export type ItemContextMenuTarget =
   | { kind: "scene"; scene: SceneMeta }

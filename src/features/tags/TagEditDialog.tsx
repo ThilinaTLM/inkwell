@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { ApiError } from "@/api";
+import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TagPicker } from "@/components/TagPicker";
+import { TagPicker } from "@/features/tags/TagPicker";
 
 interface Props {
   open: boolean;
@@ -54,7 +54,7 @@ export function TagEditDialog({
       onSaved?.(next);
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "could not update tags");
+      toast.error(errorMessage(e, "could not update tags"));
     } finally {
       setBusy(false);
     }

@@ -3,36 +3,35 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 
-import { ApiError, User, auth } from "@/api";
-import { AuthShell } from "@/components/AuthShell";
+import { AuthShell } from "@/features/auth/AuthShell";
+import { useLogin } from "@/features/auth/hooks";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 
-export default function Login({ onAuthed }: { onAuthed: (u: User) => void }) {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next") || "/";
+  const login = useLogin();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setErr(null);
     try {
-      const user = await auth.login(email.trim(), password);
-      onAuthed(user);
+      await login.mutateAsync({ email: email.trim(), password });
       navigate(next, { replace: true });
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "login failed");
-    } finally {
-      setBusy(false);
+      setErr(errorMessage(e, "login failed"));
     }
   }
+
+  const busy = login.isPending;
 
   return (
     <AuthShell
@@ -74,7 +73,11 @@ export default function Login({ onAuthed }: { onAuthed: (u: User) => void }) {
           </Alert>
         )}
 
-        <Button type="submit" disabled={busy || !email || !password} className="mt-1">
+        <Button
+          type="submit"
+          disabled={busy || !email || !password}
+          className="mt-1"
+        >
           {busy && (
             <HugeiconsIcon
               icon={Loading03Icon}

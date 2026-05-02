@@ -5,7 +5,7 @@
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { HashtagIcon } from "@hugeicons/core-free-icons";
-import type { Tag } from "@/api";
+import type { Tag } from "@/lib/api/client";
 import { TapeChip } from "./TapeChip";
 
 interface TagFilterStripProps {

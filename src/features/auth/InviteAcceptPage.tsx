@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Alert02Icon,
@@ -7,55 +8,49 @@ import {
   MailAdd02Icon,
 } from "@hugeicons/core-free-icons";
 
-import { ApiError, User, invites } from "@/api";
-import { AuthShell } from "@/components/AuthShell";
+import { invites, type ApiError, type MeResponse, type User } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
+import { AuthShell } from "@/features/auth/AuthShell";
+import { useInvitePeek } from "@/features/admin/hooks";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 
-type PeekState =
-  | { kind: "loading" }
-  | { kind: "ok"; expiresAt: number | null }
-  | { kind: "error"; status: number; message: string };
-
-export default function InviteAccept({
-  onAuthed,
-}: {
-  onAuthed: (u: User) => void;
-}) {
+export default function InviteAcceptPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
-  const [peek, setPeek] = useState<PeekState>({ kind: "loading" });
+  const peek = useInvitePeek(token);
+
+  const accept = useMutation<
+    User,
+    ApiError,
+    {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+    }
+  >({
+    mutationFn: (body) => invites.accept(token!, body),
+    onSuccess: (user) => {
+      qc.setQueryData<MeResponse>(keys.me, (prev) => ({
+        ...(prev ?? ({} as MeResponse)),
+        ...user,
+        expiresAt: prev?.expiresAt ?? Number.MAX_SAFE_INTEGER,
+      }));
+    },
+  });
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    if (!token) return;
-    invites
-      .peek(token)
-      .then((r) => {
-        if (alive) setPeek({ kind: "ok", expiresAt: r.expiresAt });
-      })
-      .catch((e: ApiError) => {
-        if (!alive) return;
-        setPeek({
-          kind: "error",
-          status: e.status,
-          message: e.message || "invite unavailable",
-        });
-      });
-    return () => {
-      alive = false;
-    };
-  }, [token]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -64,25 +59,23 @@ export default function InviteAccept({
       setErr("passwords do not match");
       return;
     }
-    setBusy(true);
     setErr(null);
     try {
-      const user = await invites.accept(token, {
+      await accept.mutateAsync({
         email: email.trim(),
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       });
-      onAuthed(user);
       navigate("/", { replace: true });
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "could not create account");
-    } finally {
-      setBusy(false);
+      setErr(errorMessage(e, "could not create account"));
     }
   }
 
-  if (peek.kind === "loading") {
+  const busy = accept.isPending;
+
+  if (peek.isPending) {
     return (
       <AuthShell title="Checking invite" description="Just a moment…">
         <div className="flex items-center justify-center py-6 text-muted-foreground">
@@ -96,7 +89,7 @@ export default function InviteAccept({
     );
   }
 
-  if (peek.kind === "error") {
+  if (peek.isError) {
     return (
       <AuthShell
         title="Invite unavailable"
@@ -104,7 +97,9 @@ export default function InviteAccept({
       >
         <Alert variant="destructive">
           <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-          <AlertDescription>{peek.message}</AlertDescription>
+          <AlertDescription>
+            {errorMessage(peek.error, "invite unavailable")}
+          </AlertDescription>
         </Alert>
         <Button
           variant="outline"
@@ -117,12 +112,14 @@ export default function InviteAccept({
     );
   }
 
+  const expiresAt = peek.data?.expiresAt ?? null;
+
   return (
     <AuthShell
       title="Create your account"
       description={
-        peek.expiresAt
-          ? `Invite expires ${new Date(peek.expiresAt).toLocaleString()}.`
+        expiresAt
+          ? `Invite expires ${new Date(expiresAt).toLocaleString()}.`
           : "Welcome to Inkwell."
       }
     >

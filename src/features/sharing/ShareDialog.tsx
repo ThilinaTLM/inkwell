@@ -2,9 +2,11 @@
 //
 // Lists existing active shares with revoke buttons, and lets the owner
 // create a new share with permission, allow-download, optional expiry,
-// and optional label. Copies the new URL to the clipboard.
+// and optional label. The previous internal scene/folder adapter pair
+// is gone; the sharing hooks pick the right endpoint from
+// `targetType`.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Copy01Icon,
@@ -16,14 +18,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import {
-  ApiError,
-  Share,
+import type {
   SharePermission,
   ShareTargetType,
-  folders,
-  scenes,
-} from "@/api";
+} from "@/lib/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +35,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useCreateShare,
+  useRevokeShare,
+  useShareList,
+} from "@/features/sharing/hooks";
+import { copyToClipboard } from "@/lib/clipboard";
+import { errorMessage } from "@/lib/errors";
+import { fmtDateTime } from "@/lib/format";
+import { shareUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
 
 interface ShareDialogProps {
@@ -61,86 +68,58 @@ export function ShareDialog({
   targetId,
   targetName,
 }: ShareDialogProps) {
+  const sharesQuery = useShareList(targetType, targetId, open);
+  const createShare = useCreateShare(targetType, targetId);
+  const revokeShare = useRevokeShare(targetType, targetId);
+
   const [perm, setPerm] = useState<SharePermission>("read");
   const [allowDownload, setAllowDownload] = useState(true);
   const [expiryIdx, setExpiryIdx] = useState(0);
   const [label, setLabel] = useState("");
-  const [items, setItems] = useState<Share[] | null>(null);
-  const [creating, setCreating] = useState(false);
 
-  const api = useMemo(
-    () => (targetType === "folder" ? folderApi : sceneApi),
-    [targetType]
-  );
-
-  async function refresh() {
-    try {
-      const tokens = await api.list(targetId);
-      setItems(tokens);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "could not load shares");
-    }
-  }
-
+  // Reset form whenever the dialog reopens or the target changes.
   useEffect(() => {
     if (!open) return;
-    setItems(null);
     setPerm("read");
     setAllowDownload(true);
     setExpiryIdx(0);
     setLabel("");
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, targetId, targetType]);
 
   async function create() {
-    setCreating(true);
+    const expiresMs = EXPIRY_OPTIONS[expiryIdx].ms;
+    const expiresAt = expiresMs === null ? null : Date.now() + expiresMs;
     try {
-      const expiresAt =
-        EXPIRY_OPTIONS[expiryIdx].ms === null
-          ? null
-          : Date.now() + EXPIRY_OPTIONS[expiryIdx].ms!;
-      const sh = await api.create(targetId, {
+      const sh = await createShare.mutateAsync({
         permission: perm,
         allowDownload: perm === "write" ? true : allowDownload,
         expiresAt,
         label: label.trim() || null,
       });
-      const url = `${location.origin}/share/${sh.token}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link created and copied.");
-      } catch {
-        toast.success("Link created.");
-      }
-      await refresh();
+      const copied = await copyToClipboard(shareUrl(sh.token));
+      toast.success(copied ? "Link created and copied." : "Link created.");
       setLabel("");
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "could not create share");
-    } finally {
-      setCreating(false);
+      toast.error(errorMessage(e, "could not create share"));
     }
   }
 
   async function revoke(token: string) {
     try {
-      await api.revoke(targetId, token);
-      setItems((prev) => (prev ? prev.filter((t) => t.token !== token) : prev));
+      await revokeShare.mutateAsync(token);
       toast.success("Revoked.");
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "could not revoke");
+      toast.error(errorMessage(e, "could not revoke"));
     }
   }
 
   async function copy(token: string) {
-    const url = `${location.origin}/share/${token}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Copied.");
-    } catch {
-      toast.error("Could not copy.");
-    }
+    const ok = await copyToClipboard(shareUrl(token));
+    if (ok) toast.success("Copied.");
+    else toast.error("Could not copy.");
   }
+
+  const items = sharesQuery.data ?? null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,19 +136,21 @@ export function ShareDialog({
           <DialogDescription>
             Anyone with the link can{" "}
             {perm === "write" ? "view and edit" : "view"}
-            {targetType === "folder" ? " everything inside this folder." : " this scene."}
+            {targetType === "folder"
+              ? " everything inside this folder."
+              : " this scene."}
           </DialogDescription>
         </DialogHeader>
 
         {/* Existing shares */}
         <div className="flex flex-col gap-2">
           <Label className="text-xs">Active links</Label>
-          {items === null ? (
+          {sharesQuery.isPending ? (
             <div className="flex flex-col gap-1.5">
               <Skeleton className="h-9 w-full" />
               <Skeleton className="h-9 w-full" />
             </div>
-          ) : items.length === 0 ? (
+          ) : !items || items.length === 0 ? (
             <p className="text-[0.6875rem] text-muted-foreground">
               No active links yet.
             </p>
@@ -180,9 +161,13 @@ export function ShareDialog({
                   key={sh.token}
                   className="flex items-center gap-2 rounded-md border border-border bg-input/10 px-2 py-1.5"
                 >
-                  <Badge variant={sh.permission === "write" ? "secondary" : "outline"}>
+                  <Badge
+                    variant={sh.permission === "write" ? "secondary" : "outline"}
+                  >
                     <HugeiconsIcon
-                      icon={sh.permission === "write" ? PencilEdit02Icon : EyeIcon}
+                      icon={
+                        sh.permission === "write" ? PencilEdit02Icon : EyeIcon
+                      }
                       strokeWidth={2}
                     />
                     {sh.permission === "write" ? "Edit" : "View"}
@@ -195,13 +180,15 @@ export function ShareDialog({
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[0.6875rem]/relaxed font-medium">
-                      {sh.label || `${location.origin}/share/${sh.token}`}
+                      {sh.label || shareUrl(sh.token)}
                     </div>
                     <div className="text-[0.625rem] text-muted-foreground">
-                      Created {fmt(sh.createdAt)}
-                      {sh.expiresAt ? ` · expires ${fmt(sh.expiresAt)}` : null}
+                      Created {fmtDateTime(sh.createdAt)}
+                      {sh.expiresAt
+                        ? ` · expires ${fmtDateTime(sh.expiresAt)}`
+                        : null}
                       {sh.lastAccessedAt
-                        ? ` · last opened ${fmt(sh.lastAccessedAt)}`
+                        ? ` · last opened ${fmtDateTime(sh.lastAccessedAt)}`
                         : null}
                     </div>
                   </div>
@@ -221,7 +208,11 @@ export function ShareDialog({
                     onClick={() => revoke(sh.token)}
                     aria-label="Revoke"
                   >
-                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="text-destructive" />
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      strokeWidth={2}
+                      className="text-destructive"
+                    />
                   </Button>
                 </li>
               ))}
@@ -249,7 +240,7 @@ export function ShareDialog({
           <label
             className={cn(
               "flex items-center gap-2 text-xs",
-              perm === "write" && "text-muted-foreground"
+              perm === "write" && "text-muted-foreground",
             )}
           >
             <input
@@ -291,9 +282,9 @@ export function ShareDialog({
               maxLength={200}
             />
           </div>
-          <Button onClick={create} disabled={creating}>
+          <Button onClick={create} disabled={createShare.isPending}>
             <HugeiconsIcon icon={Link01Icon} strokeWidth={2} />
-            {creating ? "Creating…" : "Create link"}
+            {createShare.isPending ? "Creating…" : "Create link"}
           </Button>
         </div>
 
@@ -330,22 +321,3 @@ function PermOption({
     </button>
   );
 }
-
-function fmt(ms: number): string {
-  return new Date(ms).toLocaleString();
-}
-
-// ─── Adapters so the dialog stays generic ──────────────────────────────
-const sceneApi = {
-  list: (id: string) => scenes.listShares(id),
-  create: (id: string, body: Parameters<typeof scenes.createShare>[1]) =>
-    scenes.createShare(id, body),
-  revoke: (id: string, token: string) => scenes.revokeShare(id, token),
-};
-
-const folderApi = {
-  list: (id: string) => folders.listShares(id),
-  create: (id: string, body: Parameters<typeof folders.createShare>[1]) =>
-    folders.createShare(id, body),
-  revoke: (id: string, token: string) => folders.revokeShare(id, token),
-};

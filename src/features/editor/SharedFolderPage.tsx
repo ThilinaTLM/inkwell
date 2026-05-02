@@ -18,20 +18,23 @@ import {
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 
-import {
-  ApiError,
+import type {
   FolderMeta,
   FolderSharePayload,
   SceneMeta,
-  shares,
-} from "@/api";
+} from "@/lib/api/client";
+import { shares } from "@/lib/api/client";
 import { PaperSurface } from "@/components/PaperSurface";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import {
   EmptyDeskNote,
   FolderCard,
   SceneCard,
 } from "@/components/sketch";
-import { folderPath } from "@/components/FolderTree";
+import { folderPath } from "@/features/folders/FolderTree";
+import { useSharedFolder } from "@/features/sharing/hooks";
+import { errorMessage } from "@/lib/errors";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface SharedFolderProps {
@@ -39,37 +42,23 @@ interface SharedFolderProps {
   preloaded?: FolderSharePayload;
 }
 
-export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
+export default function SharedFolderPage({
+  preloaded,
+}: SharedFolderProps = {}) {
   const { token = "" } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const [payload, setPayload] = useState<FolderSharePayload | null>(
-    preloaded ?? null
-  );
-  const [err, setErr] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    preloaded?.root.id ?? null
-  );
 
+  // Skip the network when the parent (SharedTokenLanding) already peeked.
+  const folderQuery = useSharedFolder(preloaded ? "" : token);
+  const payload = preloaded ?? folderQuery.data ?? null;
+
+  const [selectedId, setSelectedId] = useState<string | null>(
+    payload?.root.id ?? null,
+  );
+  // When the payload arrives (or changes), seed the selected folder.
   useEffect(() => {
-    if (preloaded) {
-      setPayload(preloaded);
-      setSelectedId(preloaded.root.id);
-      return;
-    }
-    setPayload(null);
-    setErr(null);
-    shares
-      .loadFolder(token)
-      .then((p) => {
-        setPayload(p);
-        setSelectedId(p.root.id);
-      })
-      .catch((e) =>
-        setErr(
-          e instanceof ApiError ? e.message : "could not load shared folder"
-        )
-      );
-  }, [token, preloaded]);
+    if (payload && !selectedId) setSelectedId(payload.root.id);
+  }, [payload, selectedId]);
 
   const writable = payload?.share.permission === "write";
   const allowDownload = payload?.share.allowDownload ?? false;
@@ -91,13 +80,13 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
     return folderPath(payload.folders, selectedId);
   }, [payload, selectedId]);
 
-  if (err) {
+  if (folderQuery.isError) {
     return (
       <PaperSurface variant="page" className="grid place-items-center px-4">
         <EmptyDeskNote
           seed="shared-folder-error"
           title="Couldn't load this folder"
-          body={err}
+          body={errorMessage(folderQuery.error, "could not load shared folder")}
         />
       </PaperSurface>
     );
@@ -108,14 +97,7 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
       <PaperSurface variant="page" className="px-6 py-6">
         <div className="space-y-4">
           <div className="h-10 w-2/3 max-w-sm animate-pulse rounded-md bg-paper-edge/60" />
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
-              />
-            ))}
-          </div>
+          <SkeletonGrid count={6} />
         </div>
       </PaperSurface>
     );
@@ -297,14 +279,3 @@ function SharedSceneCard({
   );
 }
 
-function relTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
-}

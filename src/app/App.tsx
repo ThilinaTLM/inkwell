@@ -1,139 +1,49 @@
-import { ReactNode, useEffect, useState } from "react";
-import {
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+// Auth-aware shell.
+//
+// `App` owns exactly two concerns:
+//   1) Probe the session (`useMe`) and render a boot splash until it
+//      resolves the first time.
+//   2) When the session resolves anonymous on a protected route, kick
+//      the user to /login with a `next=` redirect so they land back
+//      where they were after signing in.
+//
+// Route definitions and individual pages live in `./routes`.
+
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 
-import { ApiError, MeResponse, User, auth } from "./api";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Editor from "./pages/Editor";
-import SharedEditor from "./pages/SharedEditor";
-import SharedTokenLanding from "./pages/SharedTokenLanding";
-import InviteAccept from "./pages/InviteAccept";
-import Admin from "./pages/Admin";
-import Account from "./pages/Account";
-import { Toaster } from "./components/ui/sonner";
-import { TooltipProvider } from "./components/ui/tooltip";
+import { useMe } from "@/features/auth/hooks";
+import { AppRoutes } from "./routes";
 
-type AuthStatus = "unknown" | "authed" | "anon";
+const PUBLIC_PATHS = ["/login"] as const;
+const PUBLIC_PREFIXES = ["/share/", "/invite/"] as const;
+
+function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PATHS.includes(pathname as (typeof PUBLIC_PATHS)[number])) return true;
+  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+}
 
 export default function App() {
-  const [status, setStatus] = useState<AuthStatus>("unknown");
-  const [user, setUser] = useState<User | null>(null);
+  const me = useMe();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Probe session once on boot. Public routes (login, invite, share) don't
-  // need a session and shouldn't bounce to /login.
+  // When we know we're anonymous and we're on a protected page, redirect.
   useEffect(() => {
-    let alive = true;
-    auth
-      .me()
-      .then((me: MeResponse) => {
-        if (!alive) return;
-        setUser({
-          id: me.id,
-          email: me.email,
-          firstName: me.firstName,
-          lastName: me.lastName,
-          isAdmin: me.isAdmin,
-        });
-        setStatus("authed");
-      })
-      .catch((_e: ApiError) => {
-        if (!alive) return;
-        setUser(null);
-        setStatus("anon");
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+    if (!me.isError) return;
+    if (isPublicPath(location.pathname)) return;
+    navigate(
+      `/login?next=${encodeURIComponent(location.pathname + location.search)}`,
+      { replace: true },
+    );
+  }, [me.isError, location.pathname, location.search, navigate]);
 
-  // When we become anon and we're on a protected page, kick to login.
-  useEffect(() => {
-    const p = location.pathname;
-    const isPublic =
-      p === "/login" || p.startsWith("/share/") || p.startsWith("/invite/");
-    if (status === "anon" && !isPublic) {
-      navigate(`/login?next=${encodeURIComponent(p + location.search)}`, {
-        replace: true,
-      });
-    }
-  }, [status, location.pathname, location.search, navigate]);
+  // First boot: render splash while the session probe is in flight.
+  if (me.isPending) return <BootSplash />;
 
-  function onAuthed(u: User) {
-    setUser(u);
-    setStatus("authed");
-  }
-  function onLogout() {
-    setUser(null);
-    setStatus("anon");
-  }
-
-  return (
-    <TooltipProvider>
-      {status === "unknown" ? (
-        <BootSplash />
-      ) : (
-        <Routes>
-          <Route path="/login" element={<Login onAuthed={onAuthed} />} />
-          <Route
-            path="/invite/:token"
-            element={<InviteAccept onAuthed={onAuthed} />}
-          />
-          <Route
-            path="/"
-            element={
-              status === "authed" && user ? (
-                <Dashboard user={user} onLogout={onLogout} />
-              ) : null
-            }
-          />
-          <Route
-            path="/s/:id"
-            element={status === "authed" ? <Editor /> : null}
-          />
-          <Route
-            path="/account"
-            element={
-              status === "authed" && user ? (
-                <Account user={user} onUserChange={setUser} />
-              ) : null
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              status === "authed" && user ? (
-                <RequireAdmin user={user}>
-                  <Admin user={user} />
-                </RequireAdmin>
-              ) : null
-            }
-          />
-          <Route path="/share/:token" element={<SharedTokenLanding />} />
-          <Route
-            path="/share/:token/scenes/:sceneId"
-            element={<SharedEditor />}
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      )}
-      <Toaster position="bottom-right" />
-    </TooltipProvider>
-  );
-}
-
-function RequireAdmin({ user, children }: { user: User; children: ReactNode }) {
-  if (!user.isAdmin) return <Navigate to="/" replace />;
-  return <>{children}</>;
+  return <AppRoutes />;
 }
 
 function BootSplash() {

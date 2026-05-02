@@ -8,9 +8,9 @@
 export { ExplorerHeader } from "./ExplorerHeader";
 export { ViewSwitcher, type ExplorerView } from "./ViewSwitcher";
 export { Breadcrumb } from "./Breadcrumb";
-export { BrowseView } from "./BrowseView";
-export { RecentView } from "./RecentView";
-export { SearchView } from "./SearchView";
+export { BrowseView } from "./views/BrowseView";
+export { RecentView } from "./views/RecentView";
+export { SearchView } from "./views/SearchView";
 export { AddTile } from "./AddTile";
 export { ItemContextMenu } from "./ItemContextMenu";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";

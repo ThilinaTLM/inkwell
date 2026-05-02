@@ -18,7 +18,7 @@ import {
   FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
 
-import type { FolderMeta } from "@/api";
+import type { FolderMeta } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface TreeNode {

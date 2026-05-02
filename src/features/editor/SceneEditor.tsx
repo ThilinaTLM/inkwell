@@ -39,8 +39,9 @@ import {
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 
-import type { LoadedScene, SceneBlob } from "@/api";
-import { ApiError } from "@/api";
+import type { LoadedScene, SceneBlob } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
+import { errorMessage } from "@/lib/errors";
 import { useDebounced } from "@/hooks/useDebounced";
 import { cn } from "@/lib/utils";
 
@@ -227,7 +228,7 @@ export default function SceneEditor({
           }
         } else {
           setStatus("error");
-          setErrorMsg(e instanceof ApiError ? e.message : "save failed");
+          setErrorMsg(errorMessage(e, "save failed"));
         }
       } finally {
         inflightRef.current = false;

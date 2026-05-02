@@ -8,23 +8,20 @@
 // scenes) so users know where the scene actually lives. Right-click
 // shows the same scene actions as Browse.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
 
-import {
-  ApiError,
-  FolderMeta,
-  SceneMeta,
-  scenes as scenesApi,
-} from "@/api";
+import type { FolderMeta } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { EmptyDeskNote, SceneCard } from "@/components/sketch";
+import { useScenes } from "@/features/explorer/hooks";
+import { relTime } from "@/lib/format";
 
-import { ItemContextMenu, type ItemMenuActions } from "./ItemContextMenu";
-import { useExplorerHotkeys } from "./useExplorerHotkeys";
+import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
+import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 const RECENT_LIMIT = 50;
 
@@ -32,35 +29,15 @@ interface RecentViewProps {
   /** Owner's folder list, used to label each scene with its parent folder. */
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
-  refreshTick?: number;
 }
 
-export function RecentView({
-  folders,
-  actions,
-  refreshTick = 0,
-}: RecentViewProps) {
-  const [scenes, setScenes] = useState<SceneMeta[] | null>(null);
+export function RecentView({ folders, actions }: RecentViewProps) {
+  const scenesQuery = useScenes({});
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let alive = true;
-    setScenes(null);
-    scenesApi
-      .list({})
-      .then((rows) => {
-        if (alive) setScenes(rows.slice(0, RECENT_LIMIT));
-      })
-      .catch((e: ApiError) => {
-        if (alive) {
-          toast.error(e.message || "could not load scenes");
-          setScenes([]);
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [refreshTick]);
+  const scenes = useMemo(
+    () => scenesQuery.data?.slice(0, RECENT_LIMIT) ?? null,
+    [scenesQuery.data],
+  );
 
   const folderById = useMemo(() => {
     return new Map((folders ?? []).map((f) => [f.id, f]));
@@ -134,25 +111,8 @@ export function RecentView({
 
 function Skeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 px-6 pt-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div
-          key={i}
-          className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
-        />
-      ))}
+    <div className="px-6 pt-4">
+      <SkeletonGrid />
     </div>
   );
-}
-
-function relTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
 }

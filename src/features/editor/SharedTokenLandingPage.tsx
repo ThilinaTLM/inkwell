@@ -1,65 +1,52 @@
-// Dispatcher for /share/:token. The same URL serves both scene shares
-// (renders SharedEditor with the blob already in hand) and folder
-// shares (renders SharedFolder with the subtree listing). We peek the
-// token once via `shares.peek()` and pick the right view.
+// Dispatcher for /share/:token.
 //
-// Mounting SharedEditor with `presetScene` short-circuits its own fetch
-// so we don't double-load the blob.
+// The same URL serves both scene shares and folder shares; we peek the
+// token once and pick the right view. The peek result is fed to the
+// child as `preloaded` so neither child re-fetches.
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 
-import { ApiError, FolderSharePayload, LoadedScene, shares } from "@/api";
+import { shares } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
 import { PaperSurface } from "@/components/PaperSurface";
 import { EmptyDeskNote } from "@/components/sketch";
-import SharedFolder from "./SharedFolder";
-import SharedEditor from "./SharedEditor";
+import { errorMessage } from "@/lib/errors";
 
-type Resolved =
-  | { kind: "scene"; scene: LoadedScene }
-  | { kind: "folder"; payload: FolderSharePayload };
+import SharedEditorPage from "./SharedEditorPage";
+import SharedFolderPage from "./SharedFolderPage";
 
-export default function SharedTokenLanding() {
+export default function SharedTokenLandingPage() {
   const { token = "" } = useParams<{ token: string }>();
-  const [state, setState] = useState<
-    | { phase: "loading" }
-    | { phase: "ready"; data: Resolved }
-    | { phase: "error"; message: string }
-  >({ phase: "loading" });
 
-  useEffect(() => {
-    setState({ phase: "loading" });
-    shares
-      .peek(token)
-      .then((r) => {
-        if (r.type === "scene") {
-          setState({ phase: "ready", data: { kind: "scene", scene: r.scene } });
-        } else {
-          setState({ phase: "ready", data: { kind: "folder", payload: r.payload } });
-        }
-      })
-      .catch((e) =>
-        setState({
-          phase: "error",
-          message: e instanceof ApiError ? e.message : "could not open this link",
-        })
-      );
-  }, [token]);
+  const peek = useQuery({
+    queryKey: keys.publicShare.token(token),
+    queryFn: () => shares.peek(token),
+    enabled: !!token,
+    retry: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
 
-  if (state.phase === "loading") return null; // SharedEditor/SharedFolder render their own skeletons after re-mount
-  if (state.phase === "error") {
+  // While loading, render nothing — the children show their own
+  // skeletons after re-mount, and a top-level skeleton would just flash.
+  if (peek.isPending) return null;
+
+  if (peek.isError) {
     return (
       <PaperSurface variant="page" className="grid place-items-center px-4">
         <EmptyDeskNote
           seed="shared-link-error"
           title="Couldn't open this link"
-          body={state.message}
+          body={errorMessage(peek.error, "could not open this link")}
         />
       </PaperSurface>
     );
   }
-  if (state.data.kind === "folder") {
-    return <SharedFolder preloaded={state.data.payload} />;
+
+  const data = peek.data!;
+  if (data.type === "folder") {
+    return <SharedFolderPage preloaded={data.payload} />;
   }
-  return <SharedEditor preloaded={state.data.scene} />;
+  return <SharedEditorPage preloaded={data.scene} />;
 }

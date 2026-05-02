@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { FolderMeta } from "@/api";
+import type { FolderMeta } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface BreadcrumbProps {

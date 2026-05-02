@@ -1,71 +1,94 @@
-// Editor — the canvas page. Zero outer chrome: the page is a full-viewport
-// Excalidraw canvas. The hamburger trigger (Excalidraw-owned, top-left) sits
-// next to a small overlay cluster mounted via SceneEditor's `topLeftChrome`
-// slot — a back-to-dashboard button, the scene name pill, and the save
-// status pill, all sized to match Excalidraw's --lg-button-size. Rename /
-// share / download / tags actions live inside the MainMenu dropdown.
-// Loading / error states are paper surfaces with a hand-written message.
+// Editor — the canvas page.
+//
+// The editor "owns" the working scene copy after first arrival:
+// `useScene(id)` is configured with `staleTime: Infinity` so it never
+// refetches and clobbers unsaved edits. We seed local state from the
+// query result on first arrival, then subsequent saves write back to
+// both the cache (`setQueryData`) and the local state.
+//
+// Save remains a plain closure (NOT `useMutation`): SceneEditor's
+// autosave loop has its own dedup ref and 409-reload-and-reset
+// semantics that don't compose cleanly with a mutation lifecycle.
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { MainMenu } from "@excalidraw/excalidraw";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Alert02Icon,
-  ArrowLeft01Icon,
   Download01Icon,
   Edit02Icon,
   HashtagIcon,
-  Loading03Icon,
-  PencilEdit02Icon,
   Share08Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import { ApiError, LoadedScene, SceneBlob, scenes, tags as tagsApi, Tag } from "@/api";
-import SceneEditor, { EditorSaveBadge } from "@/components/SceneEditor";
-import { ShareDialog } from "@/components/ShareDialog";
-import { TagEditDialog } from "@/components/TagEditDialog";
-import { PaperSurface } from "@/components/PaperSurface";
-import { SceneNameLabel } from "@/components/sketch";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  scenes,
+  type LoadedScene,
+  type SceneBlob,
+  type SceneMeta,
+} from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
+import { SceneNameLabel } from "@/components/sketch";
+import { useScene } from "@/features/editor/hooks";
+import {
+  useRenameScene,
+  useSetSceneTags,
+  useTags,
+} from "@/features/explorer/hooks";
+import { ShareDialog } from "@/features/sharing/ShareDialog";
+import { TagEditDialog } from "@/features/tags/TagEditDialog";
+import { errorMessage } from "@/lib/errors";
+import SceneEditor, { EditorSaveBadge } from "./SceneEditor";
+import {
+  BackToScenesButton,
+  EditorErrorState,
+  EditorLoadingState,
+} from "./EditorChrome";
+import { RenameSceneDialog } from "./RenameSceneDialog";
 
-export default function Editor() {
+export default function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
+  const qc = useQueryClient();
+
+  const sceneQuery = useScene(id);
+  const tagsQuery = useTags();
+  const renameMutation = useRenameScene();
+  const setTagsMutation = useSetSceneTags();
+
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [allTags, setAllTags] = useState<Tag[] | null>(null);
-  // We don't have scene tags in LoadedScene meta, so we fetch them lazily
-  // (only when the user opens the tags dialog).
-  const [sceneTags, setSceneTags] = useState<string[] | null>(null);
 
-  const reload = useCallback(async () => {
-    const ls = await scenes.load(id);
-    setLoaded(ls);
-    return ls;
-  }, [id]);
+  // Seed the working copy on first arrival. After that the editor owns
+  // it; we do NOT mirror further query updates here because that would
+  // overwrite unsaved edits.
+  useEffect(() => {
+    if (loaded) return;
+    if (sceneQuery.data) setLoaded(sceneQuery.data);
+  }, [sceneQuery.data, loaded]);
 
+  // When navigating to a different scene, reset the working copy.
   useEffect(() => {
     setLoaded(null);
-    setErr(null);
-    reload().catch((e) =>
-      setErr(e instanceof ApiError ? e.message : "load failed")
-    );
-  }, [reload]);
+  }, [id]);
 
+  // Reload after a 409 conflict: bypass cache and force a fresh fetch.
+  const reload = useCallback(async () => {
+    const ls = await qc.fetchQuery({
+      queryKey: keys.scenes.detail(id),
+      queryFn: () => scenes.load(id),
+      staleTime: 0,
+    });
+    setLoaded(ls);
+    return ls;
+  }, [qc, id]);
+
+  // Save: throws ApiError(409) on version conflict so SceneEditor's
+  // autosave loop can react. On success update both local state and the
+  // scene-list caches so the dashboard sees the new version/updatedAt.
   const save = useCallback(
     async (version: number, blob: SceneBlob) => {
       const m = await scenes.save(id, version, blob);
@@ -80,41 +103,35 @@ export default function Editor() {
                 updatedAt: m.updatedAt,
               },
             }
-          : prev
+          : prev,
       );
+      // Update cached scene-list rows so explorer views show fresh data.
+      qc.invalidateQueries({ queryKey: keys.scenes.all });
       return { version: m.version };
     },
-    [id]
+    [id, qc],
   );
 
-  const saveThumb = useCallback((svg: string) => scenes.putThumb(id, svg), [id]);
+  const saveThumb = useCallback(
+    (svg: string) => scenes.putThumb(id, svg),
+    [id],
+  );
 
-  // Lazy-load scene tags + tag suggestions when the tags dialog is opened.
-  useEffect(() => {
-    if (!tagsOpen || sceneTags !== null) return;
-    void (async () => {
-      try {
-        const [scene, all] = await Promise.all([
-          scenes.list({ q: undefined }).then((rows) =>
-            rows.find((r) => r.id === id)
-          ),
-          tagsApi.list(),
-        ]);
-        setSceneTags(scene?.tags ?? []);
-        setAllTags(all);
-      } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "could not load tags");
-        setTagsOpen(false);
-      }
-    })();
-  }, [tagsOpen, id, sceneTags]);
+  // Lazy tag-set lookup: when the user opens "Edit tags" we need this
+  // scene's current tags. The LoadedScene meta doesn't include them, so
+  // we read out of any cached scene-list result first; fall back to a
+  // one-shot list fetch if the cache is empty. Crucially: we never
+  // refetch the whole-account scene list per dialog-open.
+  const sceneTags = useSceneTagsLazy(id, tagsOpen);
 
-  if (err) {
-    return <EditorErrorState message={err} />;
+  if (sceneQuery.isError) {
+    return (
+      <EditorErrorState
+        message={errorMessage(sceneQuery.error, "load failed")}
+      />
+    );
   }
-  if (!loaded) {
-    return <EditorLoadingState label="Loading scene…" />;
-  }
+  if (!loaded) return <EditorLoadingState label="Loading scene…" />;
 
   return (
     <div className="h-dvh w-dvw bg-paper">
@@ -133,10 +150,10 @@ export default function Editor() {
         topRightChrome={<EditorSaveBadge />}
         chrome={
           <MainMenu>
-            {/* Excalidraw owns the actual MainMenu trigger (a hamburger icon
-                at top-left) and ignores any custom <MainMenu.Trigger>. The
-                scene name lives in `topLeftChrome` next to the trigger, so
-                we don't duplicate it here. */}
+            {/* Excalidraw owns the actual MainMenu trigger (a hamburger
+                icon at top-left) and ignores any custom <MainMenu.Trigger>.
+                The scene name lives in `topLeftChrome` next to the trigger,
+                so we don't duplicate it here. */}
             <MainMenu.Item
               icon={<HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />}
               onSelect={() => setRenameOpen(true)}
@@ -151,9 +168,7 @@ export default function Editor() {
             </MainMenu.Item>
             <MainMenu.ItemLink
               href={scenes.downloadUrl(id)}
-              icon={
-                <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-              }
+              icon={<HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />}
             >
               Download .excalidraw
             </MainMenu.ItemLink>
@@ -172,20 +187,20 @@ export default function Editor() {
         }
       />
 
-      <RenameDialog
+      <RenameSceneDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
         currentName={loaded.meta.name}
         onRename={async (next) => {
           try {
-            const m = await scenes.rename(id, next);
+            const m = await renameMutation.mutateAsync({ id, name: next });
             setLoaded((prev) =>
-              prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev
+              prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev,
             );
             toast.success(`Renamed to "${m.name}".`);
             setRenameOpen(false);
           } catch (e) {
-            toast.error(e instanceof ApiError ? e.message : "rename failed");
+            toast.error(errorMessage(e, "rename failed"));
           }
         }}
       />
@@ -198,21 +213,24 @@ export default function Editor() {
         targetName={loaded.meta.name}
       />
 
-      {tagsOpen && sceneTags !== null && allTags !== null ? (
+      {tagsOpen && sceneTags.status === "ok" && tagsQuery.data ? (
         <TagEditDialog
           open
           onOpenChange={(o) => {
             if (!o) setTagsOpen(false);
           }}
-          initialTags={sceneTags}
-          suggestions={allTags.map((t) => t.name)}
+          initialTags={sceneTags.tags}
+          suggestions={tagsQuery.data.map((t) => t.name)}
           title={`Tags for "${loaded.meta.name}"`}
           onSave={async (next) => {
-            const result = await scenes.setTags(id, next);
+            const result = await setTagsMutation.mutateAsync({
+              id,
+              tags: next,
+            });
             return result.tags;
           }}
-          onSaved={async (next) => {
-            setSceneTags(next);
+          onSaved={(next) => {
+            sceneTags.write(next);
             toast.success("Tags updated.");
           }}
         />
@@ -221,151 +239,63 @@ export default function Editor() {
   );
 }
 
-// ─── Top-left chrome: back-to-dashboard button ───────────────────
-//
-// Square 36×36 paper-pill button that mirrors the hamburger's footprint
-// next to it, surfacing the most common navigation (back to the scene
-// list) without the user having to open the MainMenu first.
-
-function BackToScenesButton() {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      title="Back to scenes"
-      aria-label="Back to scenes"
-      onClick={() => navigate("/")}
-      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-md bg-paper-elev/90 text-ink-soft ring-1 ring-ink-soft/15 backdrop-blur transition hover:bg-paper-elev hover:text-ink"
-    >
-      <HugeiconsIcon
-        icon={ArrowLeft01Icon}
-        strokeWidth={1.8}
-        className="size-4"
-      />
-    </button>
-  );
-}
-
-// ─── Rename dialog ──────────────────────────────────────────────────────
-
-interface RenameDialogProps {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  currentName: string;
-  onRename: (next: string) => Promise<void>;
-}
-
-function RenameDialog({
-  open,
-  onOpenChange,
-  currentName,
-  onRename,
-}: RenameDialogProps) {
-  const [name, setName] = useState(currentName);
-  const [busy, setBusy] = useState(false);
+/**
+ * Read the current scene's tags without paying for a whole-account
+ * scene-list refetch. Three states:
+ *   - "idle"     dialog hasn't opened yet → don't fetch
+ *   - "loading"  dialog opened, no cache hit → one-shot list fetch in flight
+ *   - "ok"       tags are known
+ *
+ * `write` mirrors the latest tags so the dialog stays in sync after the
+ * user saves.
+ */
+function useSceneTagsLazy(
+  id: string,
+  enabled: boolean,
+): { status: "idle" } | { status: "loading" } | {
+  status: "ok";
+  tags: string[];
+  write: (next: string[]) => void;
+} {
+  const qc = useQueryClient();
+  const [tags, setTags] = useState<string[] | null>(null);
 
   useEffect(() => {
-    if (open) setName(currentName);
-  }, [open, currentName]);
+    if (!enabled || tags !== null) return;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const next = name.trim();
-    if (!next || next === currentName) {
-      onOpenChange(false);
-      return;
+    // 1) Check every cached scenes.list query for this id.
+    const lists = qc.getQueriesData<SceneMeta[]>({
+      queryKey: keys.scenes.all,
+    });
+    for (const [, rows] of lists) {
+      const hit = rows?.find((r) => r.id === id);
+      if (hit) {
+        setTags(hit.tags);
+        return;
+      }
     }
-    setBusy(true);
-    try {
-      await onRename(next);
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Rename scene</DialogTitle>
-          <DialogDescription>
-            This is what you'll see on the dashboard.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="rename-input">Name</Label>
-            <Input
-              id="rename-input"
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={busy}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={busy || !name.trim()}>
-              Save
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+    // 2) Cache miss. Do a one-shot list and cache it under the
+    //    canonical "all scenes" key so future opens hit the cache.
+    let alive = true;
+    qc.fetchQuery({
+      queryKey: keys.scenes.list({}),
+      queryFn: () => scenes.list({}),
+    })
+      .then((rows) => {
+        if (!alive) return;
+        const hit = rows.find((r) => r.id === id);
+        setTags(hit?.tags ?? []);
+      })
+      .catch(() => {
+        if (alive) setTags([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled, id, qc, tags]);
+
+  if (!enabled && tags === null) return { status: "idle" };
+  if (tags === null) return { status: "loading" };
+  return { status: "ok", tags, write: setTags };
 }
-
-// ─── Loading + error chrome (full-page paper surfaces) ─────────────────
-
-export function EditorLoadingState({ label }: { label: string }) {
-  return (
-    <PaperSurface
-      variant="page"
-      className="grid place-items-center text-ink-soft"
-    >
-      <div className="flex items-center gap-2 font-hand text-base">
-        <HugeiconsIcon
-          icon={Loading03Icon}
-          strokeWidth={2}
-          className="size-4 animate-spin"
-        />
-        {label}
-      </div>
-    </PaperSurface>
-  );
-}
-
-export function EditorErrorState({ message }: { message: string }) {
-  return (
-    <PaperSurface variant="page" className="grid place-items-center px-4">
-      <div
-        className="flex max-w-sm flex-col items-center gap-3 rounded-lg bg-paper-elev p-6 text-center text-ink ring-1 ring-ink-soft/15"
-        style={{ transform: "rotate(-0.6deg)" }}
-      >
-        <HugeiconsIcon
-          icon={Alert02Icon}
-          strokeWidth={2}
-          className="size-6 text-vermillion"
-        />
-        <div className="space-y-1">
-          <div className="font-heading text-lg">Couldn't load this scene</div>
-          <p className="font-hand text-base text-ink-soft">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" render={<Link to="/" />}>
-          <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-          Back to dashboard
-        </Button>
-      </div>
-    </PaperSurface>
-  );
-}
-
-// Re-export so SharedEditor can keep using these without importing PaperSurface.
-export const EditorPencilIcon = PencilEdit02Icon;

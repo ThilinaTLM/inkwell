@@ -6,7 +6,7 @@ import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderAddIcon } from "@hugeicons/core-free-icons";
 
-import type { FolderMeta } from "@/api";
+import type { FolderMeta } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FolderTree } from "@/components/FolderTree";
+import { FolderTree } from "@/features/folders/FolderTree";
 
 interface Props {
   open: boolean;

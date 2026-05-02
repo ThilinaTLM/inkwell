@@ -6,7 +6,7 @@
 // reload. Folder name search is out of scope for v1; the query matches
 // scene names only.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -14,20 +14,17 @@ import {
   HashtagIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
 
-import {
-  ApiError,
-  FolderMeta,
-  SceneMeta,
-  Tag,
-  scenes as scenesApi,
-} from "@/api";
+import type { FolderMeta, Tag } from "@/lib/api/client";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { SceneCard, TagFilterStrip } from "@/components/sketch";
+import { useScenes } from "@/features/explorer/hooks";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { ItemContextMenu, type ItemMenuActions } from "./ItemContextMenu";
-import { useExplorerHotkeys } from "./useExplorerHotkeys";
+import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
+import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface SearchViewProps {
   query: string;
@@ -37,7 +34,6 @@ interface SearchViewProps {
   tags: Tag[] | null;
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
-  refreshTick?: number;
 }
 
 export function SearchView({
@@ -48,11 +44,9 @@ export function SearchView({
   tags,
   folders,
   actions,
-  refreshTick = 0,
 }: SearchViewProps) {
   const navigate = useNavigate();
   const debouncedQ = useDebouncedValue(query, 200);
-  const [results, setResults] = useState<SceneMeta[] | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Autofocus when the view mounts so typing flows naturally.
@@ -60,27 +54,11 @@ export function SearchView({
     inputRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    setResults(null);
-    scenesApi
-      .list({
-        q: debouncedQ || undefined,
-        tags: activeTags.length ? activeTags : undefined,
-      })
-      .then((rows) => {
-        if (alive) setResults(rows);
-      })
-      .catch((e: ApiError) => {
-        if (alive) {
-          toast.error(e.message || "search failed");
-          setResults([]);
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [debouncedQ, activeTags, refreshTick]);
+  const resultsQuery = useScenes({
+    q: debouncedQ || undefined,
+    tags: activeTags.length ? activeTags : undefined,
+  });
+  const results = resultsQuery.data ?? null;
 
   const folderById = useMemo(
     () => new Map((folders ?? []).map((f) => [f.id, f])),
@@ -215,34 +193,8 @@ export function SearchView({
 
 function Skeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 px-6 pt-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
-        />
-      ))}
+    <div className="px-6 pt-4">
+      <SkeletonGrid count={8} />
     </div>
   );
-}
-
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(value), delay);
-    return () => window.clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
-}
-
-function relTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
 }

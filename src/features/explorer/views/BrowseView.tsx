@@ -10,7 +10,7 @@
 // context menu (New scene / New folder). Right-click on a card opens
 // the matching item context menu.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -18,22 +18,19 @@ import {
   Image01Icon,
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
 
-import {
-  ApiError,
-  FolderMeta,
-  SceneMeta,
-  scenes as scenesApi,
-} from "@/api";
+import type { FolderMeta } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
-import { folderPath } from "@/components/FolderTree";
+import { folderPath } from "@/features/folders/FolderTree";
+import { useScenes } from "@/features/explorer/hooks";
+import { relTime } from "@/lib/format";
 
-import { Breadcrumb } from "./Breadcrumb";
-import { AddTile } from "./AddTile";
-import { ItemContextMenu, type ItemMenuActions } from "./ItemContextMenu";
-import { useExplorerHotkeys } from "./useExplorerHotkeys";
+import { Breadcrumb } from "../Breadcrumb";
+import { AddTile } from "../AddTile";
+import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
+import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
   /** Currently open folder, or `null` to browse the root. */
@@ -42,8 +39,6 @@ interface BrowseViewProps {
   /** Pre-loaded folder list (whole tree) from the dashboard. */
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
-  /** Re-trigger after a mutation invalidates the per-folder scene list. */
-  refreshTick?: number;
 }
 
 export function BrowseView({
@@ -51,30 +46,10 @@ export function BrowseView({
   onChangeFolder,
   folders,
   actions,
-  refreshTick = 0,
 }: BrowseViewProps) {
-  const [scenes, setScenes] = useState<SceneMeta[] | null>(null);
+  const scenesQuery = useScenes({ folderId: folderId ?? "root" });
   const navigate = useNavigate();
-
-  // Load scenes for the current scope.
-  useEffect(() => {
-    let alive = true;
-    setScenes(null);
-    scenesApi
-      .list({ folderId: folderId ?? "root" })
-      .then((rows) => {
-        if (alive) setScenes(rows);
-      })
-      .catch((e: ApiError) => {
-        if (alive) {
-          toast.error(e.message || "could not load scenes");
-          setScenes([]);
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [folderId, refreshTick]);
+  const scenes = scenesQuery.data ?? null;
 
   const subfolders = useMemo(() => {
     if (!folders) return [];
@@ -208,13 +183,8 @@ export function BrowseView({
 
 function Skeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 px-6 pt-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div
-          key={i}
-          className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
-        />
-      ))}
+    <div className="px-6 pt-4">
+      <SkeletonGrid />
     </div>
   );
 }
@@ -249,14 +219,3 @@ function Empty({
   );
 }
 
-function relTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
-}

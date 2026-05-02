@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { MainMenu } from "@excalidraw/excalidraw";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -24,46 +25,54 @@ import {
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 
-import type { LoadedScene, SceneBlob } from "@/api";
-import { ApiError, shares } from "@/api";
-import SceneEditor, { EditorSaveBadge } from "@/components/SceneEditor";
+import type { LoadedScene, SceneBlob } from "@/lib/api/client";
+import { shares } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
+import SceneEditor, { EditorSaveBadge } from "@/features/editor/SceneEditor";
 import { SceneNameLabel } from "@/components/sketch";
-import { EditorErrorState, EditorLoadingState } from "./Editor";
+import { useSharedScene } from "@/features/editor/hooks";
+import { errorMessage } from "@/lib/errors";
+import {
+  EditorErrorState,
+  EditorLoadingState,
+} from "./EditorChrome";
 
 interface SharedEditorProps {
   /** Optional preloaded scene; used by SharedTokenLanding to avoid a double fetch. */
   preloaded?: LoadedScene;
 }
 
-export default function SharedEditor({ preloaded }: SharedEditorProps = {}) {
+export default function SharedEditorPage({
+  preloaded,
+}: SharedEditorProps = {}) {
   const params = useParams<{ token: string; sceneId?: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const token = params.token || "";
   const sceneId = params.sceneId; // present only on folder-share routes
 
-  const [loaded, setLoaded] = useState<LoadedScene | null>(preloaded ?? null);
-  const [err, setErr] = useState<string | null>(null);
+  // Skip the network when the parent page already resolved the scene.
+  const sceneQuery = useSharedScene(preloaded ? "" : token, sceneId);
 
+  const [loaded, setLoaded] = useState<LoadedScene | null>(preloaded ?? null);
+
+  // Seed working copy on first arrival; thereafter the editor owns it.
+  useEffect(() => {
+    if (loaded) return;
+    if (sceneQuery.data) setLoaded(sceneQuery.data);
+  }, [sceneQuery.data, loaded]);
+
+  // Force-fresh reload after a 409 conflict.
   const reload = useCallback(async () => {
-    const ls = sceneId
-      ? await shares.loadFolderScene(token, sceneId)
-      : await shares.load(token);
+    const ls = await qc.fetchQuery({
+      queryKey: keys.publicShare.token(token, sceneId),
+      queryFn: () =>
+        sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token),
+      staleTime: 0,
+    });
     setLoaded(ls);
     return ls;
-  }, [token, sceneId]);
-
-  useEffect(() => {
-    if (preloaded) {
-      setLoaded(preloaded);
-      return;
-    }
-    setLoaded(null);
-    setErr(null);
-    reload().catch((e) =>
-      setErr(e instanceof ApiError ? e.message : "could not load shared scene")
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reload, preloaded]);
+  }, [qc, token, sceneId]);
 
   const save = useCallback(
     async (version: number, blob: SceneBlob) => {
@@ -88,7 +97,13 @@ export default function SharedEditor({ preloaded }: SharedEditorProps = {}) {
     [token, sceneId]
   );
 
-  if (err) return <EditorErrorState message={err} />;
+  if (sceneQuery.isError) {
+    return (
+      <EditorErrorState
+        message={errorMessage(sceneQuery.error, "could not load shared scene")}
+      />
+    );
+  }
   if (!loaded) return <EditorLoadingState label="Loading shared scene…" />;
 
   const writable = loaded.permission === "write";
