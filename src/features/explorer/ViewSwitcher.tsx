@@ -18,7 +18,6 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { RoughBox } from "@/components/rough";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type ExplorerView = "browse" | "recent" | "search";
@@ -50,46 +49,40 @@ export function ViewSwitcher({ active, onChange }: ViewSwitcherProps) {
       {BUTTONS.map((b) => {
         const isActive = b.view === active;
         return (
-          <Tooltip key={b.view}>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => onChange(b.view)}
-                  className={cn(
-                    "relative grid size-8 place-items-center rounded text-ink-soft transition-colors hover:text-ink",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                    isActive && "text-ink"
-                  )}
+          <button
+            key={b.view}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(b.view)}
+            className={cn(
+              "relative inline-flex h-8 items-center gap-1.5 rounded px-2.5 font-sans text-xs text-ink-soft transition-colors hover:text-ink",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              isActive && "text-ink"
+            )}
+          >
+            {isActive && (
+              <span aria-hidden className="pointer-events-none absolute inset-0">
+                <RoughBox
+                  shape="rect"
+                  seed={`view-${b.view}-active`}
+                  stroke="var(--color-ink-soft)"
+                  strokeWidth={1.2}
+                  fill="var(--color-paper-elev)"
+                  fillStyle="solid"
+                  roughness={1.1}
+                  bowing={2}
+                  radius={6}
                 />
-              }
-            >
-              {isActive && (
-                <span aria-hidden className="pointer-events-none absolute inset-0">
-                  <RoughBox
-                    shape="rect"
-                    seed={`view-${b.view}-active`}
-                    stroke="var(--color-ink-soft)"
-                    strokeWidth={1.2}
-                    fill="var(--color-paper-elev)"
-                    fillStyle="solid"
-                    roughness={1.1}
-                    bowing={2}
-                    radius={6}
-                  />
-                </span>
-              )}
-              <HugeiconsIcon
-                icon={b.icon}
-                strokeWidth={1.7}
-                className="relative size-4"
-              />
-              <span className="sr-only">{b.label}</span>
-            </TooltipTrigger>
-            <TooltipContent>{b.label}</TooltipContent>
-          </Tooltip>
+              </span>
+            )}
+            <HugeiconsIcon
+              icon={b.icon}
+              strokeWidth={1.7}
+              className="relative size-4"
+            />
+            <span className="relative">{b.label}</span>
+          </button>
         );
       })}
     </div>

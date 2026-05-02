@@ -80,9 +80,9 @@ export function ExplorerHeader({
           inkwell
         </Link>
 
-        <div className="ml-auto flex items-center gap-2">
-          <ViewSwitcher active={view} onChange={onChangeView} />
+        <ViewSwitcher active={view} onChange={onChangeView} />
 
+        <div className="ml-auto flex items-center gap-2">
           {user.isAdmin && (
             <Tooltip>
               <TooltipTrigger
