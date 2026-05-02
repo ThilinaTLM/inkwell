@@ -1,12 +1,14 @@
 // Editor — the canvas page. Zero outer chrome: the page is a full-viewport
-// Excalidraw canvas. The scene name and every Inkwell action live inside
-// Excalidraw's own MainMenu (top-left); the save status pill lives in
-// Excalidraw's Footer (bottom-center). Loading / error states are paper
-// surfaces with a hand-written message.
+// Excalidraw canvas. The hamburger trigger (Excalidraw-owned, top-left) sits
+// next to a small overlay cluster mounted via SceneEditor's `topLeftChrome`
+// slot — a back-to-dashboard button, the scene name pill, and the save
+// status pill, all sized to match Excalidraw's --lg-button-size. Rename /
+// share / download / tags actions live inside the MainMenu dropdown.
+// Loading / error states are paper surfaces with a hand-written message.
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { MainMenu, Footer } from "@excalidraw/excalidraw";
+import { MainMenu } from "@excalidraw/excalidraw";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Alert02Icon,
@@ -40,7 +42,6 @@ import { Label } from "@/components/ui/label";
 
 export default function Editor() {
   const { id = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -123,76 +124,51 @@ export default function Editor() {
         saveThumb={saveThumb}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
-        chrome={
+        topLeftChrome={
           <>
-            <MainMenu>
-              {/* Excalidraw owns the actual MainMenu trigger (a hamburger
-                  icon at top-left) and ignores any custom <MainMenu.Trigger>.
-                  We surface the scene name two ways instead:
-                    1. as a non-interactive header inside the menu (here)
-                    2. as a paper pill in <Footer> alongside the save status
-                  so the user always sees what document they're editing. */}
-              <MainMenu.ItemCustom>
-                <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1">
-                  <span className="font-hand text-xs text-ink-muted">
-                    Editing
-                  </span>
-                  <span
-                    className="truncate font-heading text-base text-ink"
-                    title={loaded.meta.name}
-                  >
-                    {loaded.meta.name}
-                  </span>
-                </div>
-              </MainMenu.ItemCustom>
-              <MainMenu.Separator />
-
-              <MainMenu.Item
-                icon={
-                  <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />
-                }
-                onSelect={() => navigate("/")}
-              >
-                Back to scenes
-              </MainMenu.Item>
-              <MainMenu.Item
-                icon={<HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />}
-                onSelect={() => setRenameOpen(true)}
-              >
-                Rename…
-              </MainMenu.Item>
-              <MainMenu.Item
-                icon={<HugeiconsIcon icon={Share08Icon} strokeWidth={1.8} />}
-                onSelect={() => setShareOpen(true)}
-              >
-                Share…
-              </MainMenu.Item>
-              <MainMenu.ItemLink
-                href={scenes.downloadUrl(id)}
-                icon={
-                  <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-                }
-              >
-                Download .excalidraw
-              </MainMenu.ItemLink>
-              <MainMenu.Item
-                icon={<HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />}
-                onSelect={() => setTagsOpen(true)}
-              >
-                Edit tags…
-              </MainMenu.Item>
-              <MainMenu.Separator />
-              <MainMenu.DefaultItems.ToggleTheme />
-              <MainMenu.DefaultItems.SaveAsImage />
-              <MainMenu.DefaultItems.ClearCanvas />
-              <MainMenu.DefaultItems.Help />
-            </MainMenu>
-
-            <Footer>
-              <SceneNameLabel name={loaded.meta.name} />
-              <EditorSaveBadge />
-            </Footer>
+            <BackToScenesButton />
+            <SceneNameLabel name={loaded.meta.name} />
           </>
+        }
+        topRightChrome={<EditorSaveBadge />}
+        chrome={
+          <MainMenu>
+            {/* Excalidraw owns the actual MainMenu trigger (a hamburger icon
+                at top-left) and ignores any custom <MainMenu.Trigger>. The
+                scene name lives in `topLeftChrome` next to the trigger, so
+                we don't duplicate it here. */}
+            <MainMenu.Item
+              icon={<HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />}
+              onSelect={() => setRenameOpen(true)}
+            >
+              Rename…
+            </MainMenu.Item>
+            <MainMenu.Item
+              icon={<HugeiconsIcon icon={Share08Icon} strokeWidth={1.8} />}
+              onSelect={() => setShareOpen(true)}
+            >
+              Share…
+            </MainMenu.Item>
+            <MainMenu.ItemLink
+              href={scenes.downloadUrl(id)}
+              icon={
+                <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
+              }
+            >
+              Download .excalidraw
+            </MainMenu.ItemLink>
+            <MainMenu.Item
+              icon={<HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />}
+              onSelect={() => setTagsOpen(true)}
+            >
+              Edit tags…
+            </MainMenu.Item>
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.DefaultItems.Help />
+          </MainMenu>
         }
       />
 
@@ -242,6 +218,31 @@ export default function Editor() {
         />
       ) : null}
     </div>
+  );
+}
+
+// ─── Top-left chrome: back-to-dashboard button ───────────────────
+//
+// Square 36×36 paper-pill button that mirrors the hamburger's footprint
+// next to it, surfacing the most common navigation (back to the scene
+// list) without the user having to open the MainMenu first.
+
+function BackToScenesButton() {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      title="Back to scenes"
+      aria-label="Back to scenes"
+      onClick={() => navigate("/")}
+      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-md bg-paper-elev/90 text-ink-soft ring-1 ring-ink-soft/15 backdrop-blur transition hover:bg-paper-elev hover:text-ink"
+    >
+      <HugeiconsIcon
+        icon={ArrowLeft01Icon}
+        strokeWidth={1.8}
+        className="size-4"
+      />
+    </button>
   );
 }
 

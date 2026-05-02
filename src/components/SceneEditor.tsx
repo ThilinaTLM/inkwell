@@ -61,11 +61,26 @@ export interface SceneEditorProps {
   reload?: () => Promise<LoadedScene>;
   /**
    * Slot rendered as children of `<Excalidraw>` so consumers can mount native
-   * Excalidraw UI (MainMenu, Footer, Sidebar). Use the `<EditorSaveBadge>`
-   * exported below inside `<Footer>` to surface save status; it pulls from
-   * the internal context so the badge stays in sync without prop drilling.
+   * Excalidraw UI (MainMenu, Sidebar). Use the `<EditorSaveBadge>` exported
+   * below inside `topLeftChrome` to surface save status; it pulls from the
+   * internal context so the badge stays in sync without prop drilling.
    */
   chrome?: ReactNode;
+  /**
+   * Rendered as an absolutely-positioned overlay anchored at top-left,
+   * after Excalidraw's hamburger trigger. Use for scene-context pills
+   * (back button, name). The wrapper is `pointer-events-none`; each child
+   * should re-enable `pointer-events-auto` for itself so canvas
+   * interactions in the surrounding area still pass through.
+   */
+  topLeftChrome?: ReactNode;
+  /**
+   * Rendered as an absolutely-positioned overlay anchored at top-right,
+   * before Excalidraw's Library button. Use for scene-context pills that
+   * mirror the left cluster (e.g. save status). Same pointer-events
+   * contract as `topLeftChrome`.
+   */
+  topRightChrome?: ReactNode;
 }
 
 // ─── Internal context for status / readOnly so chrome consumers can subscribe
@@ -91,6 +106,8 @@ export default function SceneEditor({
   onReload,
   reload,
   chrome,
+  topLeftChrome,
+  topRightChrome,
 }: SceneEditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -322,16 +339,37 @@ export default function SceneEditor({
             {chrome}
           </Excalidraw>
         </div>
+        {topLeftChrome ? (
+          // Anchored at top: 1rem (matches --editor-container-padding) and
+          // left: 3.75rem (1rem padding + 2.25rem hamburger + 0.5rem gap),
+          // 2.25rem tall to match Excalidraw's --lg-button-size below 1921px
+          // viewports so the cluster reads as one row with the hamburger
+          // trigger. z-10 sits above --zIndex-layerUI (4) but below modals
+          // (1000) / popups (1001).
+          <div className="pointer-events-none absolute left-[3.75rem] top-4 z-10 flex h-9 items-center gap-2">
+            {topLeftChrome}
+          </div>
+        ) : null}
+        {topRightChrome ? (
+          // Anchored to clear Excalidraw's Library button (~5.5rem wide,
+          // flush against the right edge) plus a 0.5rem gap matching the
+          // left cluster's `gap-2`, so the right pills read as a tight
+          // continuation of the Library row.
+          <div className="pointer-events-none absolute right-[6.5rem] top-4 z-10 flex h-9 items-center gap-2">
+            {topRightChrome}
+          </div>
+        ) : null}
       </div>
     </SceneEditorContext.Provider>
   );
 }
 
-// ─── Save status badge — meant to be rendered inside Excalidraw's <Footer>
+// ─── Save status badge — meant to be rendered inside `topLeftChrome`
 //
 // Reads from SceneEditorContext so it stays in sync with the parent's save
-// state without prop drilling. Styled as a paper-pill that fits Excalidraw's
-// own UI language (small font, soft border, blends with the canvas chrome).
+// state without prop drilling. Styled as a paper-pill sized to match
+// Excalidraw's --lg-button-size (40px) so it lines up with the hamburger
+// trigger and the back/name pills next to it.
 // ────────────────────────────────────────────────────────────────────────────
 
 export function EditorSaveBadge() {
@@ -387,11 +425,11 @@ export function EditorSaveBadge() {
     <div
       title={errorMessage || undefined}
       className={cn(
-        "pointer-events-none inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] font-sans font-medium ring-1 ring-ink-soft/15 backdrop-blur",
+        "pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-sans font-medium ring-1 ring-ink-soft/15 backdrop-blur",
         tone
       )}
     >
-      <span className="[&_svg]:size-3">{icon}</span>
+      <span className="[&_svg]:size-4">{icon}</span>
       {label}
     </div>
   );
