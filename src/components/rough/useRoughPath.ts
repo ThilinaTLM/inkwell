@@ -10,6 +10,8 @@
 //   rounded      — rectangle with corner radius (path with arc commands)
 //   card         — same as rounded but defaults to a softer radius
 //   folder-tab   — manila-folder silhouette: notched tab top-left + body
+//   paper-sheet  — rectangle with the top-right corner cut diagonally
+//                  (paper with a folded corner)
 //
 // `seed` is a string (typically an entity id) hashed to a stable 32-bit int
 // so the wobble of a given folder/scene never reshuffles between renders.
@@ -20,7 +22,12 @@ import rough from "roughjs/bundled/rough.esm.js";
 import type { PathInfo, Options } from "roughjs/bin/core";
 import type { RoughGenerator } from "roughjs/bin/generator";
 
-export type RoughShape = "rect" | "rounded" | "card" | "folder-tab";
+export type RoughShape =
+  | "rect"
+  | "rounded"
+  | "card"
+  | "folder-tab"
+  | "paper-sheet";
 
 export interface RoughPathSpec {
   width: number;
@@ -35,6 +42,8 @@ export interface RoughPathSpec {
   tabHeight?: number;
   /** Folder tab slope (px) — diagonal between tab and body. Default 10. */
   tabSlope?: number;
+  /** `paper-sheet`: corner-fold size in pixels. Default 14. */
+  cornerFold?: number;
   /** Stroke color. */
   stroke: string;
   /** Stroke width in pixels. Default 1.6. */
@@ -86,6 +95,18 @@ function buildPathD(spec: RoughPathSpec): string {
     ].join(" ");
   }
 
+  if (shape === "paper-sheet") {
+    const c = Math.max(0, Math.min(spec.cornerFold ?? 14, w / 2, h / 2));
+    return [
+      `M0,0`,
+      `L${w - c},0`,
+      `L${w},${c}`,
+      `L${w},${h}`,
+      `L0,${h}`,
+      `Z`,
+    ].join(" ");
+  }
+
   // folder-tab
   const tw = (spec.tabWidth ?? 0.34) * w;
   const th = spec.tabHeight ?? 22;
@@ -122,6 +143,7 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
     tabWidth,
     tabHeight,
     tabSlope,
+    cornerFold,
     stroke,
     strokeWidth,
     fill,
@@ -158,6 +180,7 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
     tabWidth,
     tabHeight,
     tabSlope,
+    cornerFold,
     stroke,
     strokeWidth,
     fill,

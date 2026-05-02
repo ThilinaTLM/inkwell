@@ -8,16 +8,17 @@
 export { ExplorerHeader } from "./ExplorerHeader";
 export {
   ViewSwitcher,
+  LayoutToggle,
   type ExplorerView,
   type ExplorerLayout,
 } from "./ViewSwitcher";
 export { Breadcrumb } from "./Breadcrumb";
+export { ExplorerPageHeader } from "./ExplorerPageHeader";
+export { SectionHeading } from "./SectionHeading";
 export { BrowseView } from "./views/BrowseView";
+export { BrowseSplitLayout } from "./views/BrowseSplitLayout";
 export { RecentView } from "./views/RecentView";
 export { SearchView } from "./views/SearchView";
-export { AddTile } from "./AddTile";
-export { AddTileRow } from "./AddTileRow";
-export { ListItemRow } from "./views/ListItemRow";
 export { ItemContextMenu } from "./ItemContextMenu";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";
 export { useExplorerHotkeys } from "./useExplorerHotkeys";

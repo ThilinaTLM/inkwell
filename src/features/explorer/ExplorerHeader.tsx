@@ -9,8 +9,8 @@
 // and the admin shortcut into `actions`.
 //
 // Search and creation aren't part of the header — search is its own
-// view, scene/folder creation happens inline in Browse via `<AddTile>`
-// or the right-click context menu.
+// view, and scene/folder creation lives in the page-header buttons of
+// Browse / Recent (and the right-click context menu in any view).
 //
 // The admin "Users" icon button is a one-click jump to /admin and only
 // renders when `user.isAdmin` is true.

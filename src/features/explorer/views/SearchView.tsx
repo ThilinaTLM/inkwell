@@ -5,6 +5,9 @@
 // filters live in the URL so search results are linkable and survive
 // reload. Folder name search is out of scope for v1; the query matches
 // scene names only.
+//
+// The search input + tag strip *is* this view's page header; we don't
+// render an `<ExplorerPageHeader>` on top of them.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,7 +20,6 @@ import {
 
 import type { FolderMeta, Tag } from "@/lib/api/client";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import { SkeletonList } from "@/components/SkeletonList";
 import { SceneCard, TagFilterStrip } from "@/components/sketch";
 import { useScenes } from "@/features/explorer/hooks";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -26,8 +28,9 @@ import { cn } from "@/lib/utils";
 
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
-import { ListItemRow } from "./ListItemRow";
-import { LayoutToggle, type ExplorerLayout } from "../ViewSwitcher";
+
+const GRID_CLASSES =
+  "grid grid-cols-2 gap-3 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7";
 
 interface SearchViewProps {
   query: string;
@@ -37,8 +40,6 @@ interface SearchViewProps {
   tags: Tag[] | null;
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
-  layout: ExplorerLayout;
-  onChangeLayout: (next: ExplorerLayout) => void;
 }
 
 export function SearchView({
@@ -49,8 +50,6 @@ export function SearchView({
   tags,
   folders,
   actions,
-  onChangeLayout,
-  layout,
 }: SearchViewProps) {
   const navigate = useNavigate();
   const debouncedQ = useDebouncedValue(query, 200);
@@ -92,12 +91,11 @@ export function SearchView({
   });
 
   return (
-    <div ref={containerRef} className="flex flex-col" tabIndex={-1}>
-      {/* Toolbar — layout toggle aligned with the breadcrumb row in Browse. */}
-      <div className="flex items-center justify-end px-6 py-2">
-        <LayoutToggle layout={layout} onChange={onChangeLayout} />
-      </div>
-
+    <div
+      ref={containerRef}
+      className="flex flex-1 flex-col min-h-0"
+      tabIndex={-1}
+    >
       {/* Search input */}
       <div className="px-6 pb-2 pt-2">
         <div className="relative">
@@ -166,73 +164,54 @@ export function SearchView({
       )}
 
       {/* Results */}
-      {results === null ? (
-        <Loading layout={layout} />
-      ) : results.length === 0 ? (
-        <div className="px-6 py-16 text-center font-hand text-lg text-ink-muted">
-          {/* Long-form handwritten zero-state — kept per design rule. */}
-          {query || activeTags.length
-            ? `No scenes match${query ? ` "${query}"` : ""}.`
-            : "Start typing to search your scenes."}
+      <ItemContextMenu
+        target={{ kind: "empty", folderId: null }}
+        actions={actions}
+        className="flex flex-1 flex-col min-h-0"
+      >
+        <div className="flex flex-1 flex-col min-h-0 pb-16">
+          {results === null ? (
+            <div className="px-6 pt-4">
+              <SkeletonGrid count={8} />
+            </div>
+          ) : results.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center px-6 text-center font-hand text-lg text-ink-muted">
+              {query || activeTags.length
+                ? `No scenes match${query ? ` "${query}"` : ""}.`
+                : "Start typing to search your scenes."}
+            </div>
+          ) : (
+            <>
+              <div className={GRID_CLASSES}>
+                {results.map((s) => {
+                  const parent = s.folderId
+                    ? folderById.get(s.folderId)
+                    : null;
+                  return (
+                    <ItemContextMenu
+                      key={s.id}
+                      target={{ kind: "scene", scene: s }}
+                      actions={actions}
+                    >
+                      <SceneCard
+                        id={s.id}
+                        name={s.name}
+                        hasThumb={s.hasThumb}
+                        thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
+                        folderName={parent?.name ?? "Top level"}
+                        updatedAtLabel={relTime(s.updatedAt)}
+                        tags={s.tags}
+                        onOpen={() => navigate(`/s/${s.id}`)}
+                      />
+                    </ItemContextMenu>
+                  );
+                })}
+              </div>
+              <div className="flex-1" />
+            </>
+          )}
         </div>
-      ) : layout === "list" ? (
-        <div className="flex flex-col gap-1.5 px-6 pb-16 pt-2" role="list">
-          {results.map((s) => {
-            const parent = s.folderId ? folderById.get(s.folderId) : null;
-            return (
-              <ItemContextMenu
-                key={s.id}
-                target={{ kind: "scene", scene: s }}
-                actions={actions}
-              >
-                <ListItemRow
-                  kind="scene"
-                  id={s.id}
-                  name={s.name}
-                  hasThumb={s.hasThumb}
-                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
-                  folderName={parent?.name ?? "Top level"}
-                  metaLabel={relTime(s.updatedAt)}
-                  tags={s.tags}
-                  onOpen={() => navigate(`/s/${s.id}`)}
-                />
-              </ItemContextMenu>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 px-6 pb-16 pt-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-          {results.map((s) => {
-            const parent = s.folderId ? folderById.get(s.folderId) : null;
-            return (
-              <ItemContextMenu
-                key={s.id}
-                target={{ kind: "scene", scene: s }}
-                actions={actions}
-              >
-                <SceneCard
-                  id={s.id}
-                  name={s.name}
-                  hasThumb={s.hasThumb}
-                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
-                  folderName={parent?.name ?? "Top level"}
-                  updatedAtLabel={relTime(s.updatedAt)}
-                  tags={s.tags}
-                  onOpen={() => navigate(`/s/${s.id}`)}
-                />
-              </ItemContextMenu>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Loading({ layout }: { layout: ExplorerLayout }) {
-  return (
-    <div className="px-6 pt-4">
-      {layout === "list" ? <SkeletonList /> : <SkeletonGrid count={8} />}
+      </ItemContextMenu>
     </div>
   );
 }

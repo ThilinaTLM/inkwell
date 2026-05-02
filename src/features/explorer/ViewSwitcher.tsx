@@ -3,10 +3,9 @@
 // `<ViewSwitcher>` (Browse / Recent / Search) is the primary view
 // selector and lives in the header next to the wordmark.
 //
-// `<LayoutToggle>` (Grid / List) is the orthogonal display selector and
-// lives in each view's toolbar row (e.g. the breadcrumb row in Browse)
-// rather than the header — it's a per-view content control, not a
-// global navigation control.
+// `<LayoutToggle>` (Grid / Tree) is the orthogonal display selector
+// for Browse only — it lives in the page-header toolbar slot. Recent
+// and Search don't render the toggle (grid-only there).
 //
 // The "selected" affordance is a clean paper-elev pill — RoughBox is
 // reserved for content artifacts (cards, tape chips, empty-state notes).
@@ -15,15 +14,15 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Clock01Icon,
   Folder01Icon,
+  FolderLibraryIcon,
   Search01Icon,
   GridViewIcon,
-  LeftToRightListBulletIcon,
 } from "@hugeicons/core-free-icons";
 
 import { cn } from "@/lib/utils";
 
 export type ExplorerView = "browse" | "recent" | "search";
-export type ExplorerLayout = "grid" | "list";
+export type ExplorerLayout = "grid" | "tree";
 
 interface ViewSwitcherProps {
   active: ExplorerView;
@@ -55,7 +54,7 @@ const VIEW_BUTTONS: readonly ViewButton[] = [
 
 const LAYOUT_BUTTONS: readonly LayoutButton[] = [
   { layout: "grid", label: "Grid", icon: GridViewIcon },
-  { layout: "list", label: "List", icon: LeftToRightListBulletIcon },
+  { layout: "tree", label: "Tree", icon: FolderLibraryIcon },
 ];
 
 const PILL_ACTIVE =

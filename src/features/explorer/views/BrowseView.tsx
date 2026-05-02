@@ -3,12 +3,15 @@
 //   /                       → root (folders + scenes with `folder_id IS NULL`)
 //   /?folder=<id>           → that folder's direct children
 //
-// Renders a `<Breadcrumb>` followed by a single CSS grid of folder cards
-// + scene cards + two `<AddTile>`s (`+ Folder`, `+ Scene`) at the end.
-//
-// Right-click on the empty grid background opens the "empty area"
-// context menu (New scene / New folder). Right-click on a card opens
-// the matching item context menu.
+// Layout:
+//   - Page header: path strip (breadcrumb) + folder name title +
+//     "X folders · Y scenes" subtitle + grid/tree toggle + "New folder"
+//     and "New scene" buttons.
+//   - Body: two captioned sections ("Folders", "Scenes"), each its
+//     own responsive grid. The whole body is the empty-area
+//     `<ItemContextMenu>` target so right-click anywhere creates new.
+//   - When `layout === "tree"`, the body is paired with a sidebar
+//     folder tree on the left (`<BrowseSplitLayout>`).
 
 import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,19 +25,18 @@ import {
 import type { FolderMeta } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import { SkeletonList } from "@/components/SkeletonList";
 import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
 import { folderPath } from "@/features/folders/FolderTree";
 import { useScenes } from "@/features/explorer/hooks";
 import { relTime } from "@/lib/format";
 
 import { Breadcrumb } from "../Breadcrumb";
-import { AddTile } from "../AddTile";
-import { AddTileRow } from "../AddTileRow";
-import { ListItemRow } from "./ListItemRow";
+import { ExplorerPageHeader } from "../ExplorerPageHeader";
+import { SectionHeading } from "../SectionHeading";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 import { LayoutToggle, type ExplorerLayout } from "../ViewSwitcher";
+import { BrowseSplitLayout } from "./BrowseSplitLayout";
 
 interface BrowseViewProps {
   /** Currently open folder, or `null` to browse the root. */
@@ -46,6 +48,9 @@ interface BrowseViewProps {
   layout: ExplorerLayout;
   onChangeLayout: (next: ExplorerLayout) => void;
 }
+
+const GRID_CLASSES =
+  "grid grid-cols-2 gap-3 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7";
 
 export function BrowseView({
   folderId,
@@ -63,7 +68,9 @@ export function BrowseView({
     if (!folders) return [];
     return folders
       .filter((f) => (f.parentId ?? null) === folderId)
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+      );
   }, [folders, folderId]);
 
   const breadcrumb = useMemo(() => {
@@ -103,173 +110,151 @@ export function BrowseView({
   });
 
   const isLoading = scenes === null || folders === null;
+  const isEmpty =
+    !isLoading && subfolders.length === 0 && (scenes?.length ?? 0) === 0;
+
+  // Heading-variant breadcrumb doubles as the page title: at root it
+  // renders just "Home"; inside a folder it renders "Home › Parent ›
+  // Current" at title size, with ancestors clickable. This avoids the
+  // duplicate "breadcrumb on top, folder name below" stutter.
+  const titleNode = (
+    <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />
+  );
+  const subtitle = isLoading
+    ? undefined
+    : buildSubtitle(subfolders.length, scenes?.length ?? 0);
+
+  const body = (
+    <ItemContextMenu
+      target={{ kind: "empty", folderId }}
+      actions={actions}
+      className="flex flex-1 flex-col min-h-0"
+    >
+      <div className="flex flex-1 flex-col min-h-0 pb-16">
+        {isLoading ? (
+          <div className="px-6 pt-4">
+            <SkeletonGrid />
+          </div>
+        ) : isEmpty ? (
+          <CenteredEmpty
+            folderName={
+              breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null
+            }
+            onCreateScene={() => actions.createSceneIn(folderId)}
+            onCreateFolder={() => actions.createFolderIn(folderId)}
+          />
+        ) : (
+          <>
+            {subfolders.length > 0 && (
+              <>
+                <SectionHeading label="Folders" count={subfolders.length} />
+                <div className={GRID_CLASSES}>
+                  {subfolders.map((f) => (
+                    <ItemContextMenu
+                      key={f.id}
+                      target={{ kind: "folder", folder: f }}
+                      actions={actions}
+                    >
+                      <FolderCard
+                        id={f.id}
+                        name={f.name}
+                        sceneCount={f.sceneCount}
+                        onOpen={() => onChangeFolder(f.id)}
+                      />
+                    </ItemContextMenu>
+                  ))}
+                </div>
+              </>
+            )}
+            {(scenes?.length ?? 0) > 0 && (
+              <>
+                <SectionHeading label="Scenes" count={scenes!.length} />
+                <div className={GRID_CLASSES}>
+                  {scenes!.map((s) => (
+                    <ItemContextMenu
+                      key={s.id}
+                      target={{ kind: "scene", scene: s }}
+                      actions={actions}
+                    >
+                      <SceneCard
+                        id={s.id}
+                        name={s.name}
+                        hasThumb={s.hasThumb}
+                        thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
+                        folderName={null}
+                        updatedAtLabel={relTime(s.updatedAt)}
+                        tags={s.tags}
+                        onOpen={() => navigate(`/s/${s.id}`)}
+                      />
+                    </ItemContextMenu>
+                  ))}
+                </div>
+              </>
+            )}
+            {/* Spacer fills remaining height so right-click reaches
+             *  the bottom of the working area. */}
+            <div className="flex-1" />
+          </>
+        )}
+      </div>
+    </ItemContextMenu>
+  );
 
   return (
-    <div ref={containerRef} className="flex flex-col" tabIndex={-1}>
-      <Breadcrumb
-        path={breadcrumb}
-        onJump={onChangeFolder}
-        trailing={<LayoutToggle layout={layout} onChange={onChangeLayout} />}
+    <div
+      ref={containerRef}
+      className="flex flex-1 flex-col min-h-0"
+      tabIndex={-1}
+    >
+      <ExplorerPageHeader
+        title={titleNode}
+        subtitle={subtitle}
+        toolbar={<LayoutToggle layout={layout} onChange={onChangeLayout} />}
+        secondaryAction={
+          <Button
+            variant="outline"
+            onClick={() => actions.createFolderIn(folderId)}
+          >
+            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
+            New folder
+          </Button>
+        }
+        primaryAction={
+          <Button onClick={() => actions.createSceneIn(folderId)}>
+            <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
+            New scene
+          </Button>
+        }
       />
 
-      {isLoading ? (
-        <Loading layout={layout} />
-      ) : subfolders.length === 0 && scenes!.length === 0 ? (
-        <Empty
-          folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
-          onCreateScene={() => actions.createSceneIn(folderId)}
-          onCreateFolder={() => actions.createFolderIn(folderId)}
-        />
-      ) : layout === "list" ? (
-        <ItemContextMenu
-          target={{ kind: "empty", folderId }}
-          actions={actions}
-          className="block"
+      {layout === "tree" ? (
+        <BrowseSplitLayout
+          folders={folders ?? []}
+          activeId={folderId}
+          onSelect={onChangeFolder}
         >
-          <div className="flex flex-col gap-1.5 px-6 pb-16 pt-2" role="list">
-            <div className="flex flex-col gap-1.5 sm:flex-row">
-              <AddTileRow
-                label="New folder"
-                icon={
-                  <HugeiconsIcon
-                    icon={FolderAddIcon}
-                    strokeWidth={1.7}
-                    className="size-5"
-                  />
-                }
-                onClick={() => actions.createFolderIn(folderId)}
-              />
-              <AddTileRow
-                label="New scene"
-                icon={
-                  <HugeiconsIcon
-                    icon={Image01Icon}
-                    strokeWidth={1.7}
-                    className="size-5"
-                  />
-                }
-                onClick={() => actions.createSceneIn(folderId)}
-              />
-            </div>
-            {subfolders.map((f) => (
-              <ItemContextMenu
-                key={f.id}
-                target={{ kind: "folder", folder: f }}
-                actions={actions}
-              >
-                <ListItemRow
-                  kind="folder"
-                  id={f.id}
-                  name={f.name}
-                  metaLabel={
-                    f.sceneCount === 1 ? "1 scene" : `${f.sceneCount} scenes`
-                  }
-                  onOpen={() => onChangeFolder(f.id)}
-                />
-              </ItemContextMenu>
-            ))}
-            {scenes!.map((s) => (
-              <ItemContextMenu
-                key={s.id}
-                target={{ kind: "scene", scene: s }}
-                actions={actions}
-              >
-                <ListItemRow
-                  kind="scene"
-                  id={s.id}
-                  name={s.name}
-                  hasThumb={s.hasThumb}
-                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
-                  metaLabel={relTime(s.updatedAt)}
-                  tags={s.tags}
-                  onOpen={() => navigate(`/s/${s.id}`)}
-                />
-              </ItemContextMenu>
-            ))}
-          </div>
-        </ItemContextMenu>
+          {body}
+        </BrowseSplitLayout>
       ) : (
-        <ItemContextMenu
-          target={{ kind: "empty", folderId }}
-          actions={actions}
-          className="block"
-        >
-          <div
-            className="grid grid-cols-2 gap-3 px-6 pb-16 pt-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
-          >
-            {subfolders.map((f) => (
-              <ItemContextMenu
-                key={f.id}
-                target={{ kind: "folder", folder: f }}
-                actions={actions}
-              >
-                <FolderCard
-                  id={f.id}
-                  name={f.name}
-                  sceneCount={f.sceneCount}
-                  onSelect={() => {
-                    /* focus moves on click automatically */
-                  }}
-                  onOpen={() => onChangeFolder(f.id)}
-                />
-              </ItemContextMenu>
-            ))}
-            {scenes!.map((s) => (
-              <ItemContextMenu
-                key={s.id}
-                target={{ kind: "scene", scene: s }}
-                actions={actions}
-              >
-                <SceneCard
-                  id={s.id}
-                  name={s.name}
-                  hasThumb={s.hasThumb}
-                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
-                  folderName={null}
-                  updatedAtLabel={relTime(s.updatedAt)}
-                  tags={s.tags}
-                  onOpen={() => navigate(`/s/${s.id}`)}
-                />
-              </ItemContextMenu>
-            ))}
-            <AddTile
-              label="New folder"
-              icon={
-                <HugeiconsIcon
-                  icon={FolderAddIcon}
-                  strokeWidth={1.7}
-                  className="size-7"
-                />
-              }
-              onClick={() => actions.createFolderIn(folderId)}
-            />
-            <AddTile
-              label="New scene"
-              icon={
-                <HugeiconsIcon
-                  icon={Image01Icon}
-                  strokeWidth={1.7}
-                  className="size-7"
-                />
-              }
-              onClick={() => actions.createSceneIn(folderId)}
-            />
-          </div>
-        </ItemContextMenu>
+        body
       )}
     </div>
   );
 }
 
-function Loading({ layout }: { layout: ExplorerLayout }) {
-  return (
-    <div className="px-6 pt-4">
-      {layout === "list" ? <SkeletonList /> : <SkeletonGrid />}
-    </div>
-  );
+function buildSubtitle(folderCount: number, sceneCount: number): string {
+  if (folderCount === 0 && sceneCount === 0) return "Empty folder";
+  const parts: string[] = [];
+  if (folderCount > 0) {
+    parts.push(folderCount === 1 ? "1 folder" : `${folderCount} folders`);
+  }
+  if (sceneCount > 0) {
+    parts.push(sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`);
+  }
+  return parts.join(" · ");
 }
 
-function Empty({
+function CenteredEmpty({
   folderName,
   onCreateScene,
   onCreateFolder,
@@ -279,23 +264,24 @@ function Empty({
   onCreateFolder: () => void;
 }) {
   return (
-    <EmptyDeskNote
-      seed={`empty-${folderName ?? "root"}`}
-      title={folderName ? `"${folderName}" is empty` : "Nothing here yet"}
-      body="Start sketching — your first scene is one click away."
-      action={
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <Button onClick={onCreateScene} size="lg">
-            <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-            New scene
-          </Button>
-          <Button onClick={onCreateFolder} variant="outline" size="lg">
-            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
-            New folder
-          </Button>
-        </div>
-      }
-    />
+    <div className="flex flex-1 items-center justify-center px-6">
+      <EmptyDeskNote
+        seed={`empty-${folderName ?? "root"}`}
+        title={folderName ? `"${folderName}" is empty` : "Nothing here yet"}
+        body="Start sketching — your first scene is one click away."
+        action={
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button onClick={onCreateScene} size="lg">
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+              New scene
+            </Button>
+            <Button onClick={onCreateFolder} variant="outline" size="lg">
+              <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+              New folder
+            </Button>
+          </div>
+        }
+      />
+    </div>
   );
 }
-

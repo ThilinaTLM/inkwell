@@ -1,48 +1,45 @@
-// SceneCard — file-explorer tile for a scene. The thumbnail is the
-// "artwork", the name is in Excalifont, the meta line is in IBM Plex
-// Sans, and tags appear as TapeChips.
+// SceneCard — file-explorer tile for a scene.
+//
+// Visual: a paper-sheet silhouette with a folded top-right corner.
+// Thumbnail is clipped to fill the sheet body. Name + tags sit *below*
+// the sheet as plain labels — matches the new FolderCard layout and
+// native file-manager icon grids.
 //
 // Interaction model (parity with `FolderCard`):
-//   - single click  → focus / select
-//   - double click  → open
-//   - right click   → context menu (rendered by the consumer via the
-//                     `onContextMenu` prop wired up to `<ContextMenuTrigger>`)
+//   - single click  → opens the scene (`onOpen`)
+//   - right click   → context menu via the consumer's `<ContextMenuTrigger>`
 //   - keyboard      → Tab focuses the card; Enter / F2 / Delete are
 //                     consumed by `useExplorerHotkeys` based on which
 //                     card has focus.
-//
-// The card is a focusable `<div role="button">` so right-click and
-// keyboard focus behave the same way they do on real OS file explorers.
-// To preserve "open in new tab" affordances we expose `Open in new tab`
-// in the right-click menu.
 
 import { forwardRef } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Image01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
-import { cn } from "@/lib/utils";
+
 import { RoughBox } from "@/components/rough";
+import { cn } from "@/lib/utils";
+
 import { TapeChip } from "./TapeChip";
 import { tiltFromId } from "./tilt";
+
+const FOLD_PX = 14;
 
 export interface SceneCardProps {
   id: string;
   name: string;
   hasThumb: boolean;
   thumbUrl: string;
+  /** Parent folder name. Currently unused in the visual (Recent shows
+   *  it in the right-click menu) but kept on the prop for future use. */
   folderName?: string | null;
   updatedAtLabel: string;
   tags: string[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
-  /** Single click — moves focus / selects the card. */
-  onSelect?: () => void;
-  /** Double click — opens the scene. */
+  /** Single click — opens the scene. */
   onOpen?: () => void;
   /** Right click — open the context menu. */
   onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
-  /** True when this card is the explorer's "current" item. Visible focus
-   *  ring + shadow lift; also exposed as `data-selected` for hotkey code. */
-  selected?: boolean;
   className?: string;
 }
 
@@ -53,14 +50,11 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
       name,
       hasThumb,
       thumbUrl,
-      folderName,
       updatedAtLabel,
       tags,
       actions,
-      onSelect,
       onOpen,
       onContextMenu,
-      selected,
       className,
     },
     ref
@@ -73,111 +67,134 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
         role="button"
         tabIndex={0}
         aria-label={`Scene: ${name}`}
-        data-selected={selected || undefined}
         data-explorer-item="scene"
         data-explorer-id={id}
-        onClick={onSelect}
-        onDoubleClick={onOpen}
+        onClick={onOpen}
         onContextMenu={onContextMenu}
         onKeyDown={(e) => {
-          if (e.key === " ") {
+          if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
-            onSelect?.();
+            onOpen?.();
           }
         }}
+        title={updatedAtLabel ? `${name} · ${updatedAtLabel}` : name}
         className={cn(
-          "group/scene relative isolate flex flex-col overflow-hidden rounded-md transition-all duration-200",
-          "hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
-          "data-[selected]:ring-2 data-[selected]:ring-vermillion/70",
+          "group/scene relative flex flex-col items-center gap-2 rounded-md p-2 transition-shadow duration-150",
+          "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
           className
         )}
         style={{ transform: `rotate(${tilt}deg)` }}
       >
-        {/* Card silhouette */}
-        <RoughBox
-          shape="card"
-          seed={`scene-card:${id}`}
-          stroke="var(--color-stroke-card)"
-          strokeWidth={1.5}
-          fill="var(--color-paper-elev)"
-          fillStyle="solid"
-          roughness={0.9}
-          bowing={1}
-          radius={10}
-        />
-        {/* Hover / selected shadow */}
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0 -z-10 rounded-md transition-opacity duration-200",
-            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)] dark:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.55)]",
-            "opacity-0 group-hover/scene:opacity-100",
-            "group-data-[selected]/scene:opacity-100"
-          )}
-        />
+        <SceneGlyph id={id} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
-        {/* Thumbnail */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden">
-          {hasThumb ? (
-            <img
-              src={thumbUrl}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              className="h-full w-full object-contain transition-transform duration-300 group-hover/scene:scale-[1.02]"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-ink-muted/60">
-              <HugeiconsIcon
-                icon={Image01Icon}
-                strokeWidth={1.4}
-                className="size-12"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Meta */}
-        <div className="relative flex items-start gap-2 px-3 pb-3 pt-2">
-          <div className="min-w-0 flex-1">
-            <span
-              className="block w-full truncate text-left font-heading text-base text-ink"
-              title={name}
-            >
-              {name}
-            </span>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-muted">
-              {folderName && <span className="truncate">{folderName}</span>}
-              {folderName && <span aria-hidden>·</span>}
-              <span>{updatedAtLabel}</span>
-            </div>
-            {tags.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                {tags.slice(0, 3).map((t) => (
-                  <TapeChip key={t} label={t} size="sm" asStatic active />
-                ))}
-                {tags.length > 3 && (
-                  <span className="text-xs text-ink-muted">
-                    +{tags.length - 3}
-                  </span>
-                )}
-              </div>
-            )}
+        <div className="w-full min-w-0 text-center">
+          <div
+            className="truncate font-heading text-sm text-ink"
+            title={name}
+          >
+            {name}
           </div>
-          {actions && (
-            <div
-              className="shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-            >
-              {actions}
+          {tags.length > 0 ? (
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+              {tags.slice(0, 3).map((t) => (
+                <TapeChip key={t} label={t} size="sm" asStatic active />
+              ))}
+              {tags.length > 3 ? (
+                <span className="text-xs text-ink-muted">
+                  +{tags.length - 3}
+                </span>
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
+
+        {actions ? (
+          <div
+            className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
     );
   }
 );
+
+/** Paper-sheet silhouette with a folded top-right corner. */
+function SceneGlyph({
+  id,
+  hasThumb,
+  thumbUrl,
+}: {
+  id: string;
+  hasThumb: boolean;
+  thumbUrl: string;
+}) {
+  return (
+    <div
+      className="relative w-full"
+      style={{ aspectRatio: "4 / 3" }}
+      aria-hidden
+    >
+      {/* Sheet body */}
+      <RoughBox
+        shape="paper-sheet"
+        seed={`scene-sheet:${id}`}
+        stroke="var(--color-stroke-card)"
+        strokeWidth={1.4}
+        fill="var(--color-paper-elev)"
+        fillStyle="solid"
+        roughness={0.9}
+        bowing={1}
+        cornerFold={FOLD_PX}
+      />
+      {/* Thumbnail clipped to match the sheet path so it doesn't cover
+       *  the folded corner. */}
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{
+          clipPath: `polygon(0 0, calc(100% - ${FOLD_PX}px) 0, 100% ${FOLD_PX}px, 100% 100%, 0 100%)`,
+        }}
+      >
+        {hasThumb ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-ink-muted/50">
+            <HugeiconsIcon
+              icon={Image01Icon}
+              strokeWidth={1.4}
+              className="size-10"
+            />
+          </div>
+        )}
+      </div>
+      {/* Underside of the folded corner (small triangle, manila tone). */}
+      <svg
+        viewBox={`0 0 ${FOLD_PX} ${FOLD_PX}`}
+        width={FOLD_PX}
+        height={FOLD_PX}
+        className="absolute right-0 top-0"
+        aria-hidden
+      >
+        <path
+          d={`M0,0 L${FOLD_PX},${FOLD_PX} L0,${FOLD_PX} Z`}
+          fill="var(--color-manila-soft)"
+          stroke="var(--color-stroke-card)"
+          strokeWidth={1}
+        />
+      </svg>
+    </div>
+  );
+}
 
 /** Convenience icon for a "more actions" trigger. */
 export function SceneCardActionsIcon() {

@@ -167,14 +167,14 @@ export default function DashboardPage() {
   const tagList = tags.data ?? null;
 
   return (
-    <PaperSurface variant="page">
+    <PaperSurface variant="page" className="flex flex-col">
       <ExplorerHeader
         user={me.data}
         view={view}
         onChangeView={setView}
       />
 
-      <main className="pt-2">
+      <main className="flex flex-1 flex-col min-h-0">
         {view === "browse" && (
           <BrowseView
             folderId={folderId}
@@ -189,8 +189,6 @@ export default function DashboardPage() {
           <RecentView
             folders={folderList}
             actions={actions}
-            layout={layout}
-            onChangeLayout={setLayout}
           />
         )}
         {view === "search" && (
@@ -202,8 +200,6 @@ export default function DashboardPage() {
             tags={tagList}
             folders={folderList}
             actions={actions}
-            layout={layout}
-            onChangeLayout={setLayout}
           />
         )}
       </main>
@@ -326,6 +322,6 @@ function parseView(raw: string | null): ExplorerView {
 }
 
 function parseLayout(raw: string | null): ExplorerLayout {
-  if (raw === "list") return raw;
+  if (raw === "tree") return raw;
   return "grid";
 }

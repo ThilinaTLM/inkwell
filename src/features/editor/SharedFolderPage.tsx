@@ -164,7 +164,6 @@ export default function SharedFolderPage({
                       id={f.id}
                       name={f.name}
                       sceneCount={f.sceneCount}
-                      onSelect={() => setSelectedId(f.id)}
                       onOpen={() => setSelectedId(f.id)}
                     />
                   ))}
@@ -256,7 +255,6 @@ function SharedSceneCard({
       folderName={null}
       updatedAtLabel={relTime(s.updatedAt)}
       tags={s.tags}
-      onSelect={onOpen}
       onOpen={onOpen}
       actions={
         allowDownload ? (

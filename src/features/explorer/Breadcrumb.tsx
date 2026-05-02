@@ -10,8 +10,15 @@
 // Overflow rule: if the path has more than `MAX_VISIBLE` segments after
 // Home, we show `Home › … › parent › current` and stash every collapsed
 // segment in a `…` dropdown.
+//
+// Variants:
+//   - "default": standalone strip with its own `px-6 py-2` and `text-sm`.
+//   - "compact": flush + `text-xs`. For embedding inside another header.
+//   - "heading": page-title sized (`font-heading text-2xl`). Used as the
+//     page heading itself, replacing a separate `<h1>`. The current
+//     segment reads as the page title; ancestors are clickable links.
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowRight01Icon,
@@ -28,21 +35,26 @@ import {
 import type { FolderMeta } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
+export type BreadcrumbVariant = "default" | "compact" | "heading";
+
 interface BreadcrumbProps {
   /** Folder path from the root-most ancestor down to the current folder. */
   path: FolderMeta[];
   /** Called with the target folder id, or `null` to jump back to the root. */
   onJump: (id: string | null) => void;
-  /** Optional content rendered flush-right on the breadcrumb row
-   *  (e.g. a layout toggle). Pushed to the far edge with `ml-auto`. */
-  trailing?: ReactNode;
+  /** Visual variant. See file-level docs. Default `"default"`. */
+  variant?: BreadcrumbVariant;
 }
 
 /** Maximum number of named segments shown after "Home" before the
  *  middle of the path is collapsed into a "…" dropdown. */
 const MAX_VISIBLE = 2;
 
-export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
+export function Breadcrumb({
+  path,
+  onJump,
+  variant = "default",
+}: BreadcrumbProps) {
   // Always-visible: Home + last segment + (optionally) the parent of the
   // last segment. Anything between Home and that suffix collapses into "…".
   const atRoot = path.length === 0;
@@ -59,31 +71,43 @@ export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
     collapsed = head;
   }
 
+  const isHeading = variant === "heading";
+  const isCompact = variant === "compact";
+
   return (
     <nav
       aria-label="Folder path"
-      className="flex items-center gap-1 px-6 py-2 text-sm text-ink-soft"
+      className={cn(
+        "flex items-center text-ink-soft",
+        isHeading && "min-w-0 gap-1.5 font-heading text-2xl",
+        isCompact && "gap-1 text-xs",
+        !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm"
+      )}
     >
       <button
         type="button"
         onClick={() => onJump(null)}
         aria-current={atRoot ? "page" : undefined}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:text-ink",
+          "inline-flex items-center rounded transition-colors hover:text-ink",
+          isHeading ? "gap-2 px-0.5" : "gap-1.5 px-1 py-0.5",
           atRoot && "text-ink"
         )}
       >
         <HugeiconsIcon
           icon={Home01Icon}
           strokeWidth={1.6}
-          className="size-3.5 opacity-80"
+          className={cn(
+            "opacity-80",
+            isHeading ? "size-5" : "size-3.5"
+          )}
         />
         Home
       </button>
 
       {collapsed.length > 0 && (
         <Fragment>
-          <Separator />
+          <Separator heading={isHeading} />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -92,14 +116,17 @@ export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
                   aria-label={`Show ${collapsed.length} collapsed folder${
                     collapsed.length === 1 ? "" : "s"
                   }`}
-                  className="inline-flex size-6 items-center justify-center rounded text-ink-muted hover:bg-manila-soft/50 hover:text-ink"
+                  className={cn(
+                    "inline-flex items-center justify-center rounded text-ink-muted hover:bg-manila-soft/50 hover:text-ink",
+                    isHeading ? "size-8" : "size-6"
+                  )}
                 />
               }
             >
               <HugeiconsIcon
                 icon={MoreHorizontalIcon}
                 strokeWidth={2}
-                className="size-3.5"
+                className={isHeading ? "size-5" : "size-3.5"}
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={4}>
@@ -117,11 +144,15 @@ export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
         const isLast = i === visible.length - 1;
         return (
           <Fragment key={f.id}>
-            <Separator />
+            <Separator heading={isHeading} />
             {isLast ? (
               <span
                 aria-current="page"
-                className="rounded px-1 py-0.5 text-ink"
+                className={cn(
+                  "min-w-0 truncate rounded text-ink",
+                  isHeading ? "px-0.5" : "px-1 py-0.5"
+                )}
+                title={f.name}
               >
                 {f.name}
               </span>
@@ -129,7 +160,11 @@ export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
               <button
                 type="button"
                 onClick={() => onJump(f.id)}
-                className="rounded px-1 py-0.5 transition-colors hover:text-ink"
+                className={cn(
+                  "min-w-0 truncate rounded transition-colors hover:text-ink",
+                  isHeading ? "px-0.5" : "px-1 py-0.5"
+                )}
+                title={f.name}
               >
                 {f.name}
               </button>
@@ -137,18 +172,16 @@ export function Breadcrumb({ path, onJump, trailing }: BreadcrumbProps) {
           </Fragment>
         );
       })}
-
-      {trailing && <div className="ml-auto flex items-center">{trailing}</div>}
     </nav>
   );
 }
 
-function Separator() {
+function Separator({ heading }: { heading?: boolean }) {
   return (
     <HugeiconsIcon
       icon={ArrowRight01Icon}
       strokeWidth={1.5}
-      className="size-3 opacity-50"
+      className={cn("opacity-50", heading ? "size-5" : "size-3")}
       aria-hidden
     />
   );

@@ -1,23 +1,24 @@
-// FolderCard — file-explorer tile for a folder. Visual peer of
-// `SceneCard`: same `RoughBox shape="card"` shell, same 4:3 aspect
-// ratio, same hover lift, same `tiltFromId` per-id rotation. The body
-// shows a centred `Folder01Icon` instead of a thumbnail.
+// FolderCard — file-explorer tile for a folder.
 //
-// Replaces the old `FolderTab` component (which drew an angled manila
-// folder tab + body). Folders are no longer styled as literal manila
-// tabs — they're plain cards with a folder glyph, sitting on the same
-// `paper-elev` surface as scenes.
+// Visual: a Dolphin/Finder-style folder silhouette built from two
+// stacked `RoughBox`es — a back panel with a notched tab on the
+// top-left (the `folder-tab` shape) and a slightly-shorter front pocket
+// overlapping it. The folder name sits *below* the icon as a plain
+// label, matching native file managers.
 //
-// Interaction model is identical to `SceneCard`:
-//   - single click  → select / focus
-//   - double click  → open
-//   - right click   → context menu (consumer wires via `<ContextMenuTrigger>`)
+// Interaction model:
+//   - single click  → opens the folder (`onOpen`)
+//   - right click   → context menu (consumer wires via
+//                     `<ContextMenuTrigger>` / `<ItemContextMenu>`)
 //   - keyboard      → Tab focuses; Enter / F2 / Delete handled by
 //                     `useExplorerHotkeys` based on focused card.
+//
+// Hover is intentionally restrained: a soft paper shadow appears, no
+// scale, no translate — the silhouette itself is the affordance.
 
 import { forwardRef } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Folder01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 
 import { RoughBox } from "@/components/rough";
 import { cn } from "@/lib/utils";
@@ -30,32 +31,21 @@ export interface FolderCardProps {
   sceneCount?: number | null;
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
-  onSelect?: () => void;
+  /** Single click — opens the folder. */
   onOpen?: () => void;
   onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
-  selected?: boolean;
   className?: string;
 }
 
 export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
   function FolderCard(
-    {
-      id,
-      name,
-      sceneCount,
-      actions,
-      onSelect,
-      onOpen,
-      onContextMenu,
-      selected,
-      className,
-    },
+    { id, name, sceneCount, actions, onOpen, onContextMenu, className },
     ref
   ) {
     const tilt = tiltFromId(`folder:${id}`, 0.4);
     const countLabel =
       sceneCount == null
-        ? "—"
+        ? null
         : sceneCount === 1
           ? "1 scene"
           : `${sceneCount} scenes`;
@@ -66,85 +56,92 @@ export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
         role="button"
         tabIndex={0}
         aria-label={`Folder: ${name}`}
-        data-selected={selected || undefined}
         data-explorer-item="folder"
         data-explorer-id={id}
-        onClick={onSelect}
-        onDoubleClick={onOpen}
+        onClick={onOpen}
         onContextMenu={onContextMenu}
         onKeyDown={(e) => {
-          if (e.key === " ") {
+          if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
-            onSelect?.();
+            onOpen?.();
           }
         }}
         className={cn(
-          "group/folder relative isolate flex flex-col overflow-hidden rounded-md transition-all duration-200",
-          "hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
-          "data-[selected]:ring-2 data-[selected]:ring-vermillion/70",
+          "group/folder relative flex flex-col items-center gap-2 rounded-md p-2 transition-shadow duration-150",
+          "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
           className
         )}
         style={{ transform: `rotate(${tilt}deg)` }}
       >
-        {/* Card silhouette */}
-        <RoughBox
-          shape="card"
-          seed={`folder-card:${id}`}
-          stroke="var(--color-stroke-card)"
-          strokeWidth={1.5}
-          fill="var(--color-paper-elev)"
-          fillStyle="solid"
-          roughness={0.9}
-          bowing={1}
-          radius={10}
-        />
-        {/* Hover / selected shadow */}
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0 -z-10 rounded-md transition-opacity duration-200",
-            "shadow-[0_10px_30px_-10px_rgba(28,24,20,0.3)] dark:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.55)]",
-            "opacity-0 group-hover/folder:opacity-100",
-            "group-data-[selected]/folder:opacity-100"
-          )}
-        />
+        <FolderGlyph id={id} />
 
-        {/* Glyph "thumbnail" */}
-        <div className="relative grid aspect-[4/3] w-full place-items-center text-ink-soft">
-          <HugeiconsIcon
-            icon={Folder01Icon}
-            strokeWidth={1.5}
-            className="size-16 transition-transform duration-300 group-hover/folder:scale-[1.04]"
-          />
-        </div>
-
-        {/* Meta */}
-        <div className="relative flex items-start gap-2 px-3 pb-3 pt-2">
-          <div className="min-w-0 flex-1">
-            <span
-              className="block w-full truncate text-left font-heading text-base text-ink"
-              title={name}
-            >
-              {name}
-            </span>
-            <div className="mt-0.5 text-xs text-ink-muted">
-              {countLabel}
-            </div>
+        <div className="w-full min-w-0 text-center">
+          <div
+            className="truncate font-heading text-sm text-ink"
+            title={name}
+          >
+            {name}
           </div>
-          {actions && (
-            <div
-              className="shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-            >
-              {actions}
-            </div>
-          )}
+          {countLabel ? (
+            <div className="truncate text-xs text-ink-muted">{countLabel}</div>
+          ) : null}
         </div>
+
+        {actions ? (
+          <div
+            className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/folder:opacity-100 focus-within:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
     );
   }
 );
+
+/** Manila folder silhouette: notched-tab back panel + front pocket. */
+function FolderGlyph({ id }: { id: string }) {
+  return (
+    <div
+      className="relative w-full"
+      style={{ aspectRatio: "4 / 3" }}
+      aria-hidden
+    >
+      {/* Back panel: notched tab on the top-left, fills the full glyph. */}
+      <RoughBox
+        shape="folder-tab"
+        seed={`folder-back:${id}`}
+        stroke="var(--color-stroke-card)"
+        strokeWidth={1.4}
+        fill="var(--color-manila)"
+        fillStyle="solid"
+        roughness={0.9}
+        bowing={1}
+        tabWidth={0.34}
+        tabHeight={14}
+        tabSlope={8}
+      />
+      {/* Front pocket: shorter than the back panel so the tab peeks
+       *  above. Slightly inset on the sides. */}
+      <div className="absolute inset-x-1 bottom-0 top-[22%]">
+        <RoughBox
+          shape="rounded"
+          seed={`folder-front:${id}`}
+          stroke="var(--color-stroke-card)"
+          strokeWidth={1.4}
+          fill="var(--color-manila-soft)"
+          fillStyle="solid"
+          roughness={0.9}
+          bowing={1}
+          radius={4}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** Convenience icon for a "more actions" trigger. */
 export function FolderCardActionsIcon() {
