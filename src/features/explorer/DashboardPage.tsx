@@ -1,15 +1,15 @@
 // Dashboard — file-explorer shell.
 //
 // Owns:
-//   - URL state (`?view=`, `?folder=`, `?q=`, `?tag=`).
+//   - URL state (`?folder=`).
 //   - Dialog state (which scene/folder a rename / delete / move / share /
 //     edit-tags dialog is currently targeting).
-//   - The `actions` table handed to every view's right-click menu.
+//   - The `actions` table handed to the Browse view's right-click menu.
 //
-// Does NOT own data fetching: each view consumes the explorer query
-// hooks (`useFolders`, `useTags`, `useScenes`) directly. Mutations from
-// the dialog hooks invalidate those queries, so views refresh without
-// any manual `refreshTick` plumbing.
+// Does NOT own data fetching: `<BrowseView>` consumes the explorer
+// query hooks (`useFolders`, `useScenes`) directly. Mutations from
+// the dialog hooks invalidate those queries, so the view refreshes
+// without any manual `refreshTick` plumbing.
 
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -29,10 +29,6 @@ import { ShareDialog } from "@/features/sharing/ShareDialog";
 import {
   BrowseView,
   ExplorerHeader,
-  RecentView,
-  SearchView,
-  type ExplorerLayout,
-  type ExplorerView,
   type ItemMenuActions,
 } from "@/features/explorer";
 import { errorMessage } from "@/lib/errors";
@@ -55,11 +51,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const view = parseView(searchParams.get("view"));
-  const layout = parseLayout(searchParams.get("layout"));
   const folderId = searchParams.get("folder");
-  const search = searchParams.get("q") || "";
-  const activeTags = useMemo(() => searchParams.getAll("tag"), [searchParams]);
 
   const folders = useFolders();
   const tags = useTags();
@@ -68,38 +60,10 @@ export default function DashboardPage() {
   const updateFolder = useUpdateFolder();
 
   // ─── URL helpers ──────────────────────────────────────────────────
-  function patchParams(next: Record<string, string | string[] | null>) {
-    const sp = new URLSearchParams(searchParams);
-    for (const [k, v] of Object.entries(next)) {
-      sp.delete(k);
-      if (v === null) continue;
-      if (Array.isArray(v)) v.forEach((x) => sp.append(k, x));
-      else sp.set(k, v);
-    }
-    setSearchParams(sp, { replace: true });
-  }
-  function setView(next: ExplorerView) {
-    // Preserve `layout` when switching views; clear everything else so
-    // folder/tag/q state from one view doesn't leak into the next.
-    const sp = new URLSearchParams();
-    if (next !== "browse") sp.set("view", next);
-    if (layout !== "grid") sp.set("layout", layout);
-    setSearchParams(sp, { replace: true });
-  }
-  function setLayout(next: ExplorerLayout) {
-    patchParams({ layout: next === "grid" ? null : next });
-  }
   function setFolder(id: string | null) {
-    patchParams({ view: "browse", folder: id ?? null });
-  }
-  function setSearch(q: string) {
-    patchParams({ q: q || null });
-  }
-  function toggleTag(name: string) {
-    const next = activeTags.includes(name)
-      ? activeTags.filter((t) => t !== name)
-      : [...activeTags, name];
-    patchParams({ tag: next.length ? next : null });
+    const sp = new URLSearchParams();
+    if (id) sp.set("folder", id);
+    setSearchParams(sp, { replace: true });
   }
 
   // ─── Dialog state ─────────────────────────────────────────────────
@@ -164,44 +128,18 @@ export default function DashboardPage() {
   if (!me.data) return null;
 
   const folderList = folders.data ?? null;
-  const tagList = tags.data ?? null;
 
   return (
     <PaperSurface variant="page" className="flex flex-col">
-      <ExplorerHeader
-        user={me.data}
-        view={view}
-        onChangeView={setView}
-      />
+      <ExplorerHeader user={me.data} />
 
       <main className="flex flex-1 flex-col min-h-0">
-        {view === "browse" && (
-          <BrowseView
-            folderId={folderId}
-            onChangeFolder={setFolder}
-            folders={folderList}
-            actions={actions}
-            layout={layout}
-            onChangeLayout={setLayout}
-          />
-        )}
-        {view === "recent" && (
-          <RecentView
-            folders={folderList}
-            actions={actions}
-          />
-        )}
-        {view === "search" && (
-          <SearchView
-            query={search}
-            onQueryChange={setSearch}
-            activeTags={activeTags}
-            onToggleTag={toggleTag}
-            tags={tagList}
-            folders={folderList}
-            actions={actions}
-          />
-        )}
+        <BrowseView
+          folderId={folderId}
+          onChangeFolder={setFolder}
+          folders={folderList}
+          actions={actions}
+        />
       </main>
 
       {/* ─── Scene dialogs ─── */}
@@ -316,12 +254,3 @@ export default function DashboardPage() {
   );
 }
 
-function parseView(raw: string | null): ExplorerView {
-  if (raw === "recent" || raw === "search") return raw;
-  return "browse";
-}
-
-function parseLayout(raw: string | null): ExplorerLayout {
-  if (raw === "tree") return raw;
-  return "grid";
-}

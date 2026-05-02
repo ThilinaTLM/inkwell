@@ -1,24 +1,21 @@
 // ExplorerPageHeader — page-level header for explorer views.
 //
-// Sits below the global `<ExplorerHeader>` (logo + view switcher +
-// avatar) and above the content body. Renders, in order:
+// Sits below the global `<ExplorerHeader>` (logo + avatar) and above
+// the content body. Renders, in order:
 //
 //   [ title ]            [ toolbar ] [ secondary ] [ primary ]
 //   [ subtitle ]
 //
 // `title` accepts a `ReactNode` so callers can pass either a plain
-// string (Recent) or a richer node like a heading-variant breadcrumb
-// (Browse, where the breadcrumb itself is the page title).
-//
-// Browse + Recent use this; Search has its own search-input header so
-// it skips this component.
+// string or a richer node like a heading-variant breadcrumb (Browse,
+// where the breadcrumb itself is the page title).
 
 import { type ReactNode } from "react";
 
 interface ExplorerPageHeaderProps {
   title: ReactNode;
   subtitle?: string;
-  /** Tertiary controls (e.g. layout toggle). Rendered before action buttons. */
+  /** Tertiary controls. Rendered before action buttons. */
   toolbar?: ReactNode;
   /** Outline-style action button. Rendered to the left of `primaryAction`. */
   secondaryAction?: ReactNode;

@@ -1,24 +1,15 @@
-// Explorer view family — the file-explorer dashboard.
+// Explorer feature — the file-explorer dashboard.
 //
-// `Dashboard.tsx` picks one of three views (Browse / Recent / Search)
-// based on `?view=` and renders it inside the shared `<ExplorerHeader>`.
-// All three views share the per-card right-click context menu and the
-// keyboard hotkey contract (`F2` rename, `Delete` delete, `Enter` open).
+// `DashboardPage.tsx` renders the Browse view inside the shared
+// `<ExplorerHeader>`. The view shares its per-card right-click context
+// menu and the keyboard hotkey contract (`F2` rename, `Delete` delete,
+// `Enter` open) via the helpers re-exported here.
 
 export { ExplorerHeader } from "./ExplorerHeader";
-export {
-  ViewSwitcher,
-  LayoutToggle,
-  type ExplorerView,
-  type ExplorerLayout,
-} from "./ViewSwitcher";
 export { Breadcrumb } from "./Breadcrumb";
 export { ExplorerPageHeader } from "./ExplorerPageHeader";
 export { SectionHeading } from "./SectionHeading";
 export { BrowseView } from "./views/BrowseView";
-export { BrowseSplitLayout } from "./views/BrowseSplitLayout";
-export { RecentView } from "./views/RecentView";
-export { SearchView } from "./views/SearchView";
 export { ItemContextMenu } from "./ItemContextMenu";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";
 export { useExplorerHotkeys } from "./useExplorerHotkeys";

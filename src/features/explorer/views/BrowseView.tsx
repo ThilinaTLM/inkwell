@@ -5,13 +5,11 @@
 //
 // Layout:
 //   - Page header: path strip (breadcrumb) + folder name title +
-//     "X folders · Y scenes" subtitle + grid/tree toggle + "New folder"
-//     and "New scene" buttons.
+//     "X folders · Y scenes" subtitle + "New folder" and "New scene"
+//     buttons.
 //   - Body: two captioned sections ("Folders", "Scenes"), each its
 //     own responsive grid. The whole body is the empty-area
 //     `<ItemContextMenu>` target so right-click anywhere creates new.
-//   - When `layout === "tree"`, the body is paired with a sidebar
-//     folder tree on the left (`<BrowseSplitLayout>`).
 
 import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -35,8 +33,6 @@ import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { SectionHeading } from "../SectionHeading";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
-import { LayoutToggle, type ExplorerLayout } from "../ViewSwitcher";
-import { BrowseSplitLayout } from "./BrowseSplitLayout";
 
 interface BrowseViewProps {
   /** Currently open folder, or `null` to browse the root. */
@@ -45,8 +41,6 @@ interface BrowseViewProps {
   /** Pre-loaded folder list (whole tree) from the dashboard. */
   folders: FolderMeta[] | null;
   actions: ItemMenuActions;
-  layout: ExplorerLayout;
-  onChangeLayout: (next: ExplorerLayout) => void;
 }
 
 const GRID_CLASSES =
@@ -57,8 +51,6 @@ export function BrowseView({
   onChangeFolder,
   folders,
   actions,
-  layout,
-  onChangeLayout,
 }: BrowseViewProps) {
   const scenesQuery = useScenes({ folderId: folderId ?? "root" });
   const navigate = useNavigate();
@@ -209,7 +201,6 @@ export function BrowseView({
       <ExplorerPageHeader
         title={titleNode}
         subtitle={subtitle}
-        toolbar={<LayoutToggle layout={layout} onChange={onChangeLayout} />}
         secondaryAction={
           <Button
             variant="outline"
@@ -227,17 +218,7 @@ export function BrowseView({
         }
       />
 
-      {layout === "tree" ? (
-        <BrowseSplitLayout
-          folders={folders ?? []}
-          activeId={folderId}
-          onSelect={onChangeFolder}
-        >
-          {body}
-        </BrowseSplitLayout>
-      ) : (
-        body
-      )}
+      {body}
     </div>
   );
 }

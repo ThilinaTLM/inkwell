@@ -1,8 +1,8 @@
 // Date / time formatting helpers shared across the app.
 //
-// `relTime` was previously copy-pasted into BrowseView, RecentView,
-// SearchView, and SharedFolder. `fmtDateTime` was duplicated as `fmtDate`
-// in Admin.tsx and `fmt` in ShareDialog.tsx.
+// `relTime` was previously copy-pasted into BrowseView and SharedFolder.
+// `fmtDateTime` was duplicated as `fmtDate` in Admin.tsx and `fmt`
+// in ShareDialog.tsx.
 
 /**
  * Human-friendly relative time: "just now", "5m ago", "3h ago", "2d ago",

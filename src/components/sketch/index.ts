@@ -7,5 +7,4 @@ export type { TapeChipProps } from "./TapeChip";
 export { EmptyDeskNote } from "./EmptyDeskNote";
 export type { EmptyDeskNoteProps } from "./EmptyDeskNote";
 export { tiltFromId, pickFromPalette } from "./tilt";
-export { TagFilterStrip } from "./TagFilterStrip";
 export { SceneNameLabel } from "./SceneNameLabel";

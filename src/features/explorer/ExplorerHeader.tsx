@@ -1,16 +1,15 @@
 // ExplorerHeader — dashboard header.
 //
 // Layout:
-//   [ inkwell ] [ Browse | Recent | Search ]              [ Users? ] [ avatar ]
+//   [ inkwell ]                                          [ Users? ] [ avatar ]
 //
 // Composes the shared `<Topbar>` so the dashboard chrome matches the
 // rest of the authenticated app (Account, Admin) — same height, same
-// wordmark, same bottom border. The view switcher slots into `center`
-// and the admin shortcut into `actions`.
+// wordmark, same bottom border.
 //
-// Search and creation aren't part of the header — search is its own
-// view, and scene/folder creation lives in the page-header buttons of
-// Browse / Recent (and the right-click context menu in any view).
+// Search and creation aren't part of the header — scene/folder
+// creation lives in the page-header buttons (and the right-click
+// context menu in any view).
 //
 // The admin "Users" icon button is a one-click jump to /admin and only
 // renders when `user.isAdmin` is true.
@@ -28,22 +27,12 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { ViewSwitcher, type ExplorerView } from "./ViewSwitcher";
-
 interface ExplorerHeaderProps {
   user: User;
-  view: ExplorerView;
-  onChangeView: (next: ExplorerView) => void;
 }
 
-export function ExplorerHeader({
-  user,
-  view,
-  onChangeView,
-}: ExplorerHeaderProps) {
+export function ExplorerHeader({ user }: ExplorerHeaderProps) {
   const navigate = useNavigate();
-
-  const leading = <ViewSwitcher active={view} onChange={onChangeView} />;
 
   const actions = user.isAdmin ? (
     <Tooltip>
@@ -70,6 +59,5 @@ export function ExplorerHeader({
     </Tooltip>
   ) : null;
 
-  return <Topbar user={user} leading={leading} actions={actions} />;
+  return <Topbar user={user} actions={actions} />;
 }
-
