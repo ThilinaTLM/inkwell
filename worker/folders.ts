@@ -1,8 +1,7 @@
 // Folder CRUD + tree helpers.
 //
-// Every scene lives in exactly one folder. Each user has a single
-// `is_default = 1` folder ("Inbox") that is auto-created on first
-// authenticated request and refuses to rename/move/delete.
+// Folders and scenes are first-class peers. Either may live at the
+// literal root level (`parent_id IS NULL` / `folder_id IS NULL`).
 //
 // Constraints enforced at the application layer:
 //   * Folder name length 1..200 (also enforced by CHECK in schema).
@@ -11,10 +10,10 @@
 //   * Cross-owner isolation: every query is `WHERE owner = ?`.
 //
 // Cleanup: when a folder is deleted, its direct children (scenes and
-// subfolders) are moved up one level. The root case (deleting a folder
-// at parent_id = NULL) moves children into the owner's Inbox.
+// subfolders) are moved up one level. Deleting a folder at
+// `parent_id IS NULL` moves children to the root level.
 
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Env, FolderMeta, FolderRow, SceneRow } from "./types";
 import { rowToFolderMeta } from "./types";
 import { getDb, t } from "./db/client";
@@ -22,57 +21,6 @@ import { errorResponse, jsonResponse, newId, now } from "./util";
 import { listTagsFor, replaceTagsFor } from "./tags";
 
 export const MAX_DEPTH = 8;
-const INBOX_NAME = "Inbox";
-
-// ─── Inbox helper ──────────────────────────────────────────────────────
-// Idempotent: returns the user's existing default folder or creates one.
-// Also backfills any scene rows with NULL folder_id into the Inbox so a
-// scene is never effectively folderless after migration.
-export async function ensureInbox(env: Env, owner: string): Promise<FolderRow> {
-  const db = getDb(env);
-  const existing = await db
-    .select()
-    .from(t.folders)
-    .where(and(eq(t.folders.owner, owner), eq(t.folders.is_default, true)))
-    .get();
-  if (existing) {
-    await db
-      .update(t.scenes)
-      .set({ folder_id: existing.id })
-      .where(and(eq(t.scenes.owner, owner), isNull(t.scenes.folder_id)))
-      .run();
-    return existing;
-  }
-  const id = newId();
-  const ts = now();
-  await db
-    .insert(t.folders)
-    .values({
-      id,
-      owner,
-      parent_id: null,
-      name: INBOX_NAME,
-      is_default: true,
-      created_at: ts,
-      updated_at: ts,
-    })
-    .run();
-  // Backfill any orphan scenes for this owner.
-  await db
-    .update(t.scenes)
-    .set({ folder_id: id })
-    .where(and(eq(t.scenes.owner, owner), isNull(t.scenes.folder_id)))
-    .run();
-  return {
-    id,
-    owner,
-    parent_id: null,
-    name: INBOX_NAME,
-    is_default: true,
-    created_at: ts,
-    updated_at: ts,
-  };
-}
 
 // ─── Internals ─────────────────────────────────────────────────────────
 async function loadFolder(
@@ -163,14 +111,13 @@ async function maxSubtreeDepth(
 // ─── List ──────────────────────────────────────────────────────────────
 // Returns flat list with counts and tags. The client builds the tree.
 export async function listFolders(env: Env, owner: string): Promise<Response> {
-  await ensureInbox(env, owner);
   const db = getDb(env);
 
   const foldersP = db
     .select()
     .from(t.folders)
     .where(eq(t.folders.owner, owner))
-    .orderBy(desc(t.folders.is_default), sql`${t.folders.name} COLLATE NOCASE ASC`)
+    .orderBy(sql`${t.folders.name} COLLATE NOCASE ASC`)
     .all();
   const sceneCountsP = db
     .select({ id: t.scenes.folder_id, n: count() })
@@ -226,7 +173,6 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
 
 // ─── Create ────────────────────────────────────────────────────────────
 export async function createFolder(req: Request, env: Env, owner: string): Promise<Response> {
-  await ensureInbox(env, owner);
   let body: { name?: string; parentId?: string | null; tags?: string[] };
   try {
     body = (await req.json()) as typeof body;
@@ -252,7 +198,6 @@ export async function createFolder(req: Request, env: Env, owner: string): Promi
       owner,
       parent_id: parentId,
       name,
-      is_default: false,
       created_at: ts,
       updated_at: ts,
     })
@@ -268,7 +213,6 @@ export async function createFolder(req: Request, env: Env, owner: string): Promi
     owner,
     parent_id: parentId,
     name,
-    is_default: false,
     created_at: ts,
     updated_at: ts,
   };
@@ -296,14 +240,12 @@ export async function patchFolder(
   let nextParent: string | null = folder.parent_id;
 
   if (body.name !== undefined) {
-    if (folder.is_default) return errorResponse(400, "cannot rename Inbox");
     const trimmed = body.name.trim().slice(0, 200);
     if (!trimmed) return errorResponse(400, "name required");
     nextName = trimmed;
   }
 
   if (body.parentId !== undefined && body.parentId !== folder.parent_id) {
-    if (folder.is_default) return errorResponse(400, "cannot move Inbox");
     const newParent = body.parentId;
     if (newParent === id) return errorResponse(400, "cannot nest a folder under itself");
     if (newParent !== null) {
@@ -334,7 +276,6 @@ export async function patchFolder(
 
   let tags = await listTagsFor(env, "folder", id);
   if (Array.isArray(body.tags)) {
-    // Allow tagging the Inbox too — same code path either way.
     tags = await replaceTagsFor(env, owner, "folder", id, body.tags);
   }
 
@@ -365,14 +306,12 @@ export async function patchFolder(
 }
 
 // ─── Delete ────────────────────────────────────────────────────────────
-// Children (scenes + subfolders) move up one level. Inbox cannot be
-// deleted; if the deleted folder is at root, children move into Inbox.
+// Children (scenes + subfolders) move up one level. Deleting a folder at
+// the root level (`parent_id IS NULL`) leaves its children at the root.
 export async function deleteFolder(env: Env, owner: string, id: string): Promise<Response> {
   const folder = await loadFolder(env, owner, id);
   if (!folder) return errorResponse(404, "folder not found");
-  if (folder.is_default) return errorResponse(400, "cannot delete Inbox");
 
-  const targetParent = folder.parent_id ?? (await ensureInbox(env, owner)).id;
   const ts = now();
   const db = getDb(env);
   await db.batch([
@@ -381,10 +320,10 @@ export async function deleteFolder(env: Env, owner: string, id: string): Promise
       .update(t.folders)
       .set({ parent_id: folder.parent_id, updated_at: ts })
       .where(and(eq(t.folders.owner, owner), eq(t.folders.parent_id, id))),
-    // Move direct scenes up (root-deletions land in Inbox).
+    // Move direct scenes up.
     db
       .update(t.scenes)
-      .set({ folder_id: folder.parent_id ?? targetParent, updated_at: ts })
+      .set({ folder_id: folder.parent_id, updated_at: ts })
       .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, id))),
     // Remove taggings for this folder.
     db
@@ -455,8 +394,7 @@ export async function listSubtreeFolders(
 ): Promise<FolderRow[]> {
   const db = getDb(env);
   // Use a recursive CTE to compute the subtree id set, then reselect via
-  // Drizzle so the row mapping (especially the boolean is_default) goes
-  // through the schema codec.
+  // Drizzle so the row mapping goes through the schema codec.
   const idRows = await db.all<{ id: string }>(sql`
     WITH RECURSIVE down(id) AS (
       SELECT id FROM folders WHERE id = ${rootId} AND owner = ${owner}

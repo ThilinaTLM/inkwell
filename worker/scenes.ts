@@ -12,14 +12,13 @@
 // send `If-Match: <version>`; mismatch returns 409 with the current row so
 // the client can decide whether to retry or surface the conflict.
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
 import { rowToMeta } from "./types";
 import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 import {
   descendantFolderIds,
-  ensureInbox,
   loadScenesInFolders,
 } from "./folders";
 import {
@@ -40,12 +39,16 @@ function r2ThumbKey(id: string) {
 
 // ─── List ─────────────────────────────────────────────────────────────
 // Supports query params:
-//   folderId=<id>|inbox          — filter to direct children of one folder
-//   recursive=1                  — combine with folderId for whole subtree
+//   folderId=<id>               — filter to direct children of one folder
+//   folderId=root                — filter to scenes at the root level
+//                                  (`folder_id IS NULL`)
+//   recursive=1                  — combine with folderId=<id> for the whole
+//                                  subtree (ignored with folderId=root)
 //   tag=<name> (repeatable)      — AND-intersection by tag names
 //   q=<text>                     — case-insensitive name LIKE match
+// No `folderId` param at all returns every scene the caller owns; that
+// mode is used by the Recent and Search views.
 export async function listScenes(req: Request, env: Env, owner: string): Promise<Response> {
-  const inbox = await ensureInbox(env, owner);
   const url = new URL(req.url);
   const params = url.searchParams;
 
@@ -57,16 +60,23 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
   const db = getDb(env);
   let rows: SceneRow[];
 
-  if (folderParam) {
-    const folderId = folderParam === "inbox" ? inbox.id : folderParam;
+  if (folderParam === "root") {
+    rows = await db
+      .select()
+      .from(t.scenes)
+      .where(and(eq(t.scenes.owner, owner), isNull(t.scenes.folder_id)))
+      .orderBy(desc(t.scenes.updated_at))
+      .limit(1000)
+      .all();
+  } else if (folderParam) {
     if (recursive) {
-      const ids = await descendantFolderIds(env, owner, folderId);
+      const ids = await descendantFolderIds(env, owner, folderParam);
       rows = await loadScenesInFolders(env, owner, ids);
     } else {
       rows = await db
         .select()
         .from(t.scenes)
-        .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, folderId)))
+        .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, folderParam)))
         .orderBy(desc(t.scenes.updated_at))
         .limit(1000)
         .all();
@@ -108,16 +118,16 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
 
 // ─── Create ───────────────────────────────────────────────────────────
 export async function createScene(req: Request, env: Env, owner: string): Promise<Response> {
-  let body: { name?: string; folderId?: string; tags?: string[] } = {};
+  let body: { name?: string; folderId?: string | null; tags?: string[] } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
     /* ignore — empty body is fine */
   }
-  const inbox = await ensureInbox(env, owner);
   const db = getDb(env);
-  const folderId = body.folderId || inbox.id;
-  if (folderId !== inbox.id) {
+  // `folderId` is `null` (or absent) when creating a scene at the root.
+  const folderId: string | null = body.folderId ?? null;
+  if (folderId !== null) {
     const folder = await db
       .select({ id: t.folders.id })
       .from(t.folders)
@@ -287,7 +297,7 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
   const tags = await listTagsFor(env, "scene", id);
   return jsonResponse({
     id,
-    folderId: row.folder_id ?? "",
+    folderId: row.folder_id ?? null,
     name: nextName,
     tags,
     version: nextVersion,
@@ -303,7 +313,7 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
 
-  let body: { name?: string; folderId?: string; tags?: string[] };
+  let body: { name?: string; folderId?: string | null; tags?: string[] };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -311,7 +321,7 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
   }
 
   let nextName = row.name;
-  let nextFolder = row.folder_id;
+  let nextFolder: string | null = row.folder_id;
 
   if (body.name !== undefined) {
     const trimmed = body.name.trim().slice(0, 200);
@@ -320,13 +330,17 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
   }
   const db = getDb(env);
   if (body.folderId !== undefined && body.folderId !== row.folder_id) {
-    const folder = await db
-      .select({ id: t.folders.id })
-      .from(t.folders)
-      .where(and(eq(t.folders.id, body.folderId), eq(t.folders.owner, owner)))
-      .get();
-    if (!folder) return errorResponse(404, "folder not found");
-    nextFolder = body.folderId;
+    if (body.folderId === null) {
+      nextFolder = null;
+    } else {
+      const folder = await db
+        .select({ id: t.folders.id })
+        .from(t.folders)
+        .where(and(eq(t.folders.id, body.folderId), eq(t.folders.owner, owner)))
+        .get();
+      if (!folder) return errorResponse(404, "folder not found");
+      nextFolder = body.folderId;
+    }
   }
 
   const ts = now();

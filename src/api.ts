@@ -41,7 +41,8 @@ export interface Invite {
 
 export interface SceneMeta {
   id: string;
-  folderId: string;
+  /** `null` when the scene lives at the root level (no parent folder). */
+  folderId: string | null;
   name: string;
   tags: string[];
   version: number;
@@ -55,7 +56,6 @@ export interface FolderMeta {
   id: string;
   parentId: string | null;
   name: string;
-  isDefault: boolean;
   tags: string[];
   sceneCount: number;
   subfolderCount: number;
@@ -245,7 +245,14 @@ export const tags = {
 
 // ─── Scene listing query ──────────────────────────────────────────────
 export interface ScenesQuery {
-  folderId?: string;
+  /**
+   * Folder filter. A real folder id scopes the listing to that folder's
+   * direct children (combine with `recursive` for the whole subtree).
+   * The literal string `"root"` lists scenes that live at the top level
+   * (no parent folder). Omitting the field returns every scene the
+   * caller owns — used by the Recent and Search views.
+   */
+  folderId?: string | "root";
   recursive?: boolean;
   tags?: string[];
   q?: string;
@@ -264,10 +271,12 @@ function buildScenesUrl(q: ScenesQuery): string {
 export const scenes = {
   list: (query: ScenesQuery = {}) =>
     request<{ scenes: SceneMeta[] }>(buildScenesUrl(query)).then((r) => r.scenes),
-  create: (body: { name?: string; folderId?: string; tags?: string[] } = {}) =>
-    postJson<SceneMeta>("/api/scenes", body),
+  create: (
+    body: { name?: string; folderId?: string | null; tags?: string[] } = {}
+  ) => postJson<SceneMeta>("/api/scenes", body),
   rename: (id: string, name: string) => patchJson<SceneMeta>(`/api/scenes/${id}`, { name }),
-  move: (id: string, folderId: string) =>
+  /** Move a scene. `folderId === null` moves to the root level. */
+  move: (id: string, folderId: string | null) =>
     patchJson<SceneMeta>(`/api/scenes/${id}`, { folderId }),
   setTags: (id: string, tagList: string[]) =>
     putJson<{ id: string; tags: string[]; updatedAt: number }>(

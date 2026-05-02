@@ -80,7 +80,9 @@ export const invites = sqliteTable(
 
 // ─── folders ──────────────────────────────────────────────────────────
 // Per-user nested folders. Cycle prevention and depth limits are enforced
-// in app code; the self-loop CHECK is a last-resort guard.
+// in app code; the self-loop CHECK is a last-resort guard. Folders may
+// live at the literal root (`parent_id IS NULL`); there is no longer a
+// per-user "Inbox" folder.
 export const folders = sqliteTable(
   "folders",
   {
@@ -92,23 +94,13 @@ export const folders = sqliteTable(
       onDelete: "cascade",
     }),
     name: text("name").notNull(),
-    is_default: integer("is_default", { mode: "boolean" })
-      .notNull()
-      .default(false),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
   },
   (t) => [
     // Hot path: list children of a folder, list roots, sort by name.
     index("folders_owner_parent").on(t.owner, t.parent_id, t.name),
-    // Exactly one Inbox per user. Raw `sql` for the partial WHERE so the
-    // generated DDL is `WHERE is_default = 1` (storage form), not a
-    // parameterized placeholder.
-    uniqueIndex("folders_owner_default")
-      .on(t.owner)
-      .where(sql`is_default = 1`),
     check("folders_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
-    check("folders_is_default_bool", sql`${t.is_default} IN (0, 1)`),
     check(
       "folders_no_self_parent",
       sql`${t.parent_id} IS NULL OR ${t.parent_id} <> ${t.id}`
@@ -118,8 +110,8 @@ export const folders = sqliteTable(
 
 // ─── scenes ───────────────────────────────────────────────────────────
 // Metadata index for scene blobs in R2 (`scenes/{id}.json`). `folder_id` is
-// nominally nullable so the column can be added via ALTER on legacy DBs;
-// app code guarantees it's set on read via `ensureInbox`.
+// nullable: `NULL` means "lives at the root level" (a top-level scene with
+// no parent folder). Otherwise it points at a `folders.id`.
 export const scenes = sqliteTable(
   "scenes",
   {

@@ -22,14 +22,16 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   folders: FolderMeta[];
-  /** Currently-selected folder id (initial highlight). */
+  /** Currently-selected folder id (initial highlight). `null` selects
+   *  the virtual "Top level" row. */
   initialId?: string | null;
   /** Folder ids that cannot be selected (self + descendants when moving). */
   forbiddenIds?: Set<string>;
   /** Title shown in the dialog header. */
   title: string;
   description?: string;
-  onSubmit: (folderId: string) => Promise<void> | void;
+  /** Called with the chosen folder id, or `null` for the root level. */
+  onSubmit: (folderId: string | null) => Promise<void> | void;
 }
 
 export function MoveToFolderDialog({
@@ -42,7 +44,10 @@ export function MoveToFolderDialog({
   description,
   onSubmit,
 }: Props) {
+  // We need to distinguish "nothing chosen yet" from "chose Top level".
+  // Use a separate boolean so `null` can mean root.
   const [selected, setSelected] = useState<string | null>(initialId ?? null);
+  const [touched, setTouched] = useState(initialId !== undefined);
   const [busy, setBusy] = useState(false);
 
   function close() {
@@ -51,7 +56,7 @@ export function MoveToFolderDialog({
   }
 
   async function submit() {
-    if (!selected) return;
+    if (!touched) return;
     setBusy(true);
     try {
       await onSubmit(selected);
@@ -81,16 +86,20 @@ export function MoveToFolderDialog({
           <FolderTree
             folders={folders}
             selectedId={selected}
-            onSelect={(id) => setSelected(id)}
+            onSelect={(id) => {
+              setSelected(id);
+              setTouched(true);
+            }}
             disabledFor={(f) => !!forbiddenIds?.has(f.id)}
             showCounts={false}
+            rootLabel="Top level"
           />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!selected || busy}>
+          <Button onClick={submit} disabled={!touched || busy}>
             {busy ? "Moving…" : "Move here"}
           </Button>
         </DialogFooter>

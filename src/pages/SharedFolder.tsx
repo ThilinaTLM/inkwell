@@ -28,7 +28,7 @@ import {
 import { PaperSurface } from "@/components/PaperSurface";
 import {
   EmptyDeskNote,
-  FolderTab,
+  FolderCard,
   SceneCard,
 } from "@/components/sketch";
 import { folderPath } from "@/components/FolderTree";
@@ -177,15 +177,13 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
                 </h3>
                 <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {subfolders.map((f) => (
-                    <FolderTab
+                    <FolderCard
                       key={f.id}
                       id={f.id}
                       name={f.name}
-                      accent={f.isDefault ? "graphite" : "manila"}
-                      isInbox={f.isDefault}
-                      count={f.sceneCount}
-                      variant="grid"
-                      onClick={() => setSelectedId(f.id)}
+                      sceneCount={f.sceneCount}
+                      onSelect={() => setSelectedId(f.id)}
+                      onOpen={() => setSelectedId(f.id)}
                     />
                   ))}
                 </div>
@@ -197,7 +195,7 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
                 <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
                   Scenes
                 </h3>
-                <ul className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {visibleScenes.map((s) => (
                     <SharedSceneCard
                       key={s.id}
@@ -209,7 +207,7 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
                       }
                     />
                   ))}
-                </ul>
+                </div>
               </section>
             )}
           </div>
@@ -276,7 +274,7 @@ function SharedSceneCard({
       folderName={null}
       updatedAtLabel={relTime(s.updatedAt)}
       tags={s.tags}
-      href={`/share/${token}/scenes/${s.id}`}
+      onSelect={onOpen}
       onOpen={onOpen}
       actions={
         allowDownload ? (

@@ -125,7 +125,6 @@ export interface FolderMeta {
   id: string;
   parentId: string | null;
   name: string;
-  isDefault: boolean;
   tags: string[];
   sceneCount: number;          // direct children only
   subfolderCount: number;      // direct children only
@@ -141,7 +140,6 @@ export function rowToFolderMeta(
     id: r.id,
     parentId: r.parent_id,
     name: r.name,
-    isDefault: r.is_default,
     tags: extras.tags ?? [],
     sceneCount: extras.sceneCount ?? 0,
     subfolderCount: extras.subfolderCount ?? 0,
@@ -153,10 +151,11 @@ export function rowToFolderMeta(
 // ─── Scenes ───────────────────────────────────────────────────────────
 export type SceneRow = InferSelectModel<typeof t.scenes>;
 
-// API-facing metadata (omits internal fields).
+// API-facing metadata (omits internal fields). `folderId` is `null` when
+// the scene lives at the root level (no parent folder).
 export interface SceneMeta {
   id: string;
-  folderId: string;
+  folderId: string | null;
   name: string;
   tags: string[];
   version: number;
@@ -169,7 +168,7 @@ export interface SceneMeta {
 export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
   return {
     id: r.id,
-    folderId: r.folder_id ?? "",
+    folderId: r.folder_id ?? null,
     name: r.name,
     tags,
     version: r.version,

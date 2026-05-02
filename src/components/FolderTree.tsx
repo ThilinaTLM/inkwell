@@ -16,7 +16,6 @@ import {
   ArrowRight01Icon,
   FolderLibraryIcon,
   FolderOpenIcon,
-  InboxIcon,
 } from "@hugeicons/core-free-icons";
 
 import type { FolderMeta } from "@/api";
@@ -35,12 +34,9 @@ function buildTree(folders: FolderMeta[]): TreeNode[] {
     byParent.set(f.parentId, arr);
   }
   for (const arr of byParent.values()) {
-    arr.sort((a, b) => {
-      // Inbox always first, then alphabetical.
-      if (a.isDefault && !b.isDefault) return -1;
-      if (b.isDefault && !a.isDefault) return 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
+    arr.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
   }
   const visit = (parentId: string | null): TreeNode[] =>
     (byParent.get(parentId) || []).map((f) => ({
@@ -52,14 +48,21 @@ function buildTree(folders: FolderMeta[]): TreeNode[] {
 
 export interface FolderTreeProps {
   folders: FolderMeta[];
+  /** Currently-selected node. `null` highlights the virtual "Top level"
+   *  row when `rootLabel` is provided; otherwise nothing is selected. */
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  /** `id === null` means the user picked the virtual "Top level" row. */
+  onSelect: (id: string | null) => void;
   /** Optional render slot for a per-row action button (e.g. dropdown trigger). */
   renderAction?: (folder: FolderMeta) => ReactNode;
   /** Show the count badge at the right of each row. */
   showCounts?: boolean;
   /** Disable interactions on rows that fail the predicate (used by move-to). */
   disabledFor?: (folder: FolderMeta) => boolean;
+  /** When set, prepends a virtual "Top level" row whose id is `null`.
+   *  Used by the move-to dialog so users can move a scene/folder to
+   *  the literal root. */
+  rootLabel?: string;
   className?: string;
 }
 
@@ -70,11 +73,38 @@ export function FolderTree({
   renderAction,
   showCounts = true,
   disabledFor,
+  rootLabel,
   className,
 }: FolderTreeProps) {
   const tree = useMemo(() => buildTree(folders), [folders]);
   return (
     <ul className={cn("flex flex-col gap-0.5", className)}>
+      {rootLabel ? (
+        <li>
+          <div
+            data-active={selectedId === null}
+            className={cn(
+              "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
+              "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium"
+            )}
+            style={{ paddingLeft: "4px" }}
+          >
+            <span className="size-4" aria-hidden />
+            <button
+              type="button"
+              onClick={() => onSelect(null)}
+              className="flex min-w-0 flex-1 items-center gap-1.5 outline-none"
+            >
+              <HugeiconsIcon
+                icon={FolderLibraryIcon}
+                strokeWidth={1.7}
+                className="size-4 shrink-0 opacity-60"
+              />
+              <span className="truncate">{rootLabel}</span>
+            </button>
+          </div>
+        </li>
+      ) : null}
       {tree.map((node) => (
         <FolderNode
           key={node.folder.id}
@@ -95,7 +125,7 @@ interface FolderNodeProps {
   node: TreeNode;
   depth: number;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   renderAction?: (folder: FolderMeta) => ReactNode;
   showCounts: boolean;
   disabledFor?: (folder: FolderMeta) => boolean;
@@ -112,7 +142,7 @@ function FolderNode({
 }: FolderNodeProps) {
   const { folder, children } = node;
   const hasChildren = children.length > 0;
-  const [open, setOpen] = useState(depth < 1 || folder.isDefault);
+  const [open, setOpen] = useState<boolean>(depth < 1);
   const active = selectedId === folder.id;
   const disabled = disabledFor?.(folder) ?? false;
 
@@ -149,7 +179,7 @@ function FolderNode({
           className="flex min-w-0 flex-1 items-center gap-1.5 outline-none"
         >
           <HugeiconsIcon
-            icon={folder.isDefault ? InboxIcon : active ? FolderOpenIcon : FolderLibraryIcon}
+            icon={active ? FolderOpenIcon : FolderLibraryIcon}
             strokeWidth={1.7}
             className="size-4 shrink-0 opacity-80"
           />
