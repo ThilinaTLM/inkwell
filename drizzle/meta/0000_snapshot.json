@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0fafbc4c-e3ac-4724-9450-cad5fd1e55e8",
+  "id": "15debc0b-f01d-45f6-b7ba-df2219fdbb46",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "folders": {
@@ -35,14 +35,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "is_default": {
-          "name": "is_default",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -67,14 +59,6 @@
             "name"
           ],
           "isUnique": false
-        },
-        "folders_owner_default": {
-          "name": "folders_owner_default",
-          "columns": [
-            "owner"
-          ],
-          "isUnique": true,
-          "where": "is_default = 1"
         }
       },
       "foreignKeys": {
@@ -111,10 +95,6 @@
         "folders_name_len": {
           "name": "folders_name_len",
           "value": "length(\"folders\".\"name\") BETWEEN 1 AND 200"
-        },
-        "folders_is_default_bool": {
-          "name": "folders_is_default_bool",
-          "value": "\"folders\".\"is_default\" IN (0, 1)"
         },
         "folders_no_self_parent": {
           "name": "folders_no_self_parent",

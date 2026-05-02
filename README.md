@@ -125,8 +125,8 @@ wrangler login
 ### 1. Create the R2 bucket and D1 database
 
 ```bash
-wrangler r2 bucket create excalidash
-wrangler d1 create excalidash
+wrangler r2 bucket create inkwell
+wrangler d1 create inkwell
 ```
 
 Copy the `database_id` printed by `d1 create` into `wrangler.toml` (replace

@@ -3,18 +3,15 @@ CREATE TABLE `folders` (
 	`owner` text NOT NULL,
 	`parent_id` text,
 	`name` text NOT NULL,
-	`is_default` integer DEFAULT false NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`owner`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`parent_id`) REFERENCES `folders`(`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "folders_name_len" CHECK(length("folders"."name") BETWEEN 1 AND 200),
-	CONSTRAINT "folders_is_default_bool" CHECK("folders"."is_default" IN (0, 1)),
 	CONSTRAINT "folders_no_self_parent" CHECK("folders"."parent_id" IS NULL OR "folders"."parent_id" <> "folders"."id")
 );
 --> statement-breakpoint
 CREATE INDEX `folders_owner_parent` ON `folders` (`owner`,`parent_id`,`name`);--> statement-breakpoint
-CREATE UNIQUE INDEX `folders_owner_default` ON `folders` (`owner`) WHERE is_default = 1;--> statement-breakpoint
 CREATE TABLE `invites` (
 	`token` text PRIMARY KEY NOT NULL,
 	`created_by` text NOT NULL,
