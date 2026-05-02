@@ -102,12 +102,45 @@ export default function SceneEditor({
   const inflightRef = useRef(false);
   const readOnly = loaded.permission !== "write";
 
-  // Reset when a different scene is loaded (e.g. navigating between scenes).
+  // Autosave dedup: cheap fingerprint of the meaningful scene state.
+  // Excalidraw fires onChange on every cursor/selection/zoom tick, which
+  // would otherwise produce a save-per-second of canvas activity even when
+  // the user isn't editing. We track the fingerprint of what's on disk and
+  // skip onChange / save / thumb work whenever it matches.
+  //
+  //  - savedFpRef:  fingerprint of the last successfully persisted blob.
+  //  - thumbFpRef:  fingerprint of the last successfully uploaded thumb.
+  const savedFpRef = useRef<string>(
+    fingerprintScene(
+      (loaded.blob.elements as ExcalidrawElement[]) || [],
+      (loaded.blob.appState as Partial<AppState>) || {},
+      (loaded.blob.files as BinaryFiles) || {}
+    )
+  );
+  const thumbFpRef = useRef<string | null>(null);
+
+  // Reset when a *different* scene is loaded — either navigating to another
+  // scene or after a 409 forces a re-fetch. We deliberately key on the
+  // `loaded.blob` reference, not on `loaded.meta.version`: the parent bumps
+  // `meta.version` after every successful save (while keeping the same blob
+  // reference), and re-seeding `savedFpRef` from the original blob on every
+  // bump would defeat dedup — every onChange would compare against a stale
+  // baseline and force a redundant save, which would bump the version again,
+  // and so on. The blob reference is stable across save-version bumps and
+  // only changes when a fresh `LoadedScene` is set (initial mount, scene
+  // navigation, post-409 reload).
   useEffect(() => {
     versionRef.current = loaded.meta.version;
+    savedFpRef.current = fingerprintScene(
+      (loaded.blob.elements as ExcalidrawElement[]) || [],
+      (loaded.blob.appState as Partial<AppState>) || {},
+      (loaded.blob.files as BinaryFiles) || {}
+    );
+    thumbFpRef.current = null;
     setStatus("idle");
     setErrorMsg(null);
-  }, [loaded.meta.id, loaded.meta.version]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded.blob]);
 
   // Sync external name changes (e.g. rename dialog) into Excalidraw's
   // appState. The worker treats appState.name as the canonical scene
@@ -134,6 +167,16 @@ export default function SceneEditor({
       files: BinaryFiles
     ) => {
       if (readOnly) return;
+
+      // Safety-net dedup: by the time the 1s debounce fires, the user may
+      // have undone their changes back to the on-disk state. Skip the
+      // round-trip in that case.
+      const fp = fingerprintScene(elements, appState, files);
+      if (fp === savedFpRef.current) {
+        if (!inflightRef.current) setStatus("saved");
+        return;
+      }
+
       if (inflightRef.current) {
         setStatus("dirty");
         return;
@@ -151,6 +194,7 @@ export default function SceneEditor({
       try {
         const res = await save(versionRef.current, blob);
         versionRef.current = res.version;
+        savedFpRef.current = fp;
         setStatus("saved");
       } catch (e) {
         if (e instanceof ApiError && e.status === 409 && reload) {
@@ -186,6 +230,12 @@ export default function SceneEditor({
     ) => {
       if (!saveThumb || readOnly) return;
       if (elements.length === 0) return;
+
+      // Skip the SVG export + upload if the scene hasn't meaningfully
+      // changed since the last successful thumb.
+      const fp = fingerprintScene(elements, appState, files);
+      if (fp === thumbFpRef.current) return;
+
       try {
         const svg = await exportToSvg({
           elements: normalizeImagesForExport(elements, files),
@@ -200,6 +250,7 @@ export default function SceneEditor({
         svg.setAttribute("width", "640");
         svg.removeAttribute("height");
         await saveThumb(svg.outerHTML);
+        thumbFpRef.current = fp;
       } catch {
         // Best-effort.
       }
@@ -217,6 +268,12 @@ export default function SceneEditor({
       files: BinaryFiles
     ) => {
       if (readOnly) return;
+      // Primary dedup: drop noisy onChange events (cursor / selection /
+      // zoom / pan / tool switch / hover) that don't change the persisted
+      // scene. Without this we'd debounce a save every second of canvas
+      // activity even when the user isn't editing.
+      const fp = fingerprintScene(elements, appState, files);
+      if (fp === savedFpRef.current) return;
       setStatus((s) => (s === "saving" ? s : "dirty"));
       debouncedSave(elements, appState, files);
       debouncedThumb(elements, appState, files);
@@ -341,6 +398,65 @@ export function EditorSaveBadge() {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+// Cheap O(n) fingerprint of the meaningful scene state — used to dedup
+// autosaves so cursor/selection/zoom/pan ticks don't trigger network I/O.
+//
+// Element-side signal: Excalidraw bumps `element.version` on any real
+// mutation (create, move, resize, text edit, style, z-order, delete) and
+// leaves it alone for transient UI state. So a rolling hash of per-element
+// versions captures "did the document change" without serialising element
+// bodies.
+//
+// AppState-side signal: a whitelist of persisted-relevant fields. Covers
+// (a) document settings (background, grid, theme, name, zen/snap modes)
+// and (b) the `currentItem*` style memory — colors / fonts / stroke /
+// arrowheads / roundness — because changing those is a real user action
+// that doesn't bump any element version. Anything not on this list
+// (cursor coords, selection, zoom, scrollX/Y, active tool, hover state,
+// editing flags, etc.) is intentionally ignored.
+//
+// File-side signal: sorted file-key list (catches added/removed images;
+// content edits to an existing image change the fileId, hence the key).
+function fingerprintScene(
+  elements: readonly ExcalidrawElement[],
+  appState: Partial<AppState>,
+  files: BinaryFiles
+): string {
+  let elemHash = elements.length | 0;
+  for (let i = 0; i < elements.length; i++) {
+    const v = ((elements[i] as { version?: number }).version ?? 0) | 0;
+    elemHash = ((elemHash * 31) + v) | 0;
+  }
+  const a = appState as Partial<AppState> & Record<string, unknown>;
+  const appPart = [
+    a.viewBackgroundColor ?? "",
+    a.gridModeEnabled ? 1 : 0,
+    a.gridSize ?? "",
+    a.theme ?? "",
+    a.name ?? "",
+    a.zenModeEnabled ? 1 : 0,
+    a.objectsSnapModeEnabled ? 1 : 0,
+    // Current-item style memory — user-chosen defaults for the next shape.
+    a.currentItemStrokeColor ?? "",
+    a.currentItemBackgroundColor ?? "",
+    a.currentItemFillStyle ?? "",
+    a.currentItemStrokeWidth ?? "",
+    a.currentItemStrokeStyle ?? "",
+    a.currentItemRoughness ?? "",
+    a.currentItemOpacity ?? "",
+    a.currentItemFontFamily ?? "",
+    a.currentItemFontSize ?? "",
+    a.currentItemTextAlign ?? "",
+    a.currentItemStartArrowhead ?? "",
+    a.currentItemEndArrowhead ?? "",
+    a.currentItemRoundness ?? "",
+    a.currentItemArrowType ?? "",
+  ].join("|");
+  const fileKeys = Object.keys(files);
+  const filePart = fileKeys.length === 0 ? "" : fileKeys.sort().join(",");
+  return `${elemHash}|${appPart}|${filePart}`;
+}
 
 // Strip transient appState that isn't meaningful to persist.
 function pickPersistableAppState(
