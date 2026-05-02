@@ -88,7 +88,7 @@ export function TagPicker({
     <div className={cn("flex flex-col gap-1.5", className)}>
       <div
         className={cn(
-          "flex flex-wrap items-center gap-1 rounded-md border border-border bg-input/20 px-1.5 py-1 transition-colors focus-within:border-ring",
+          "flex flex-wrap items-center gap-1 rounded-md border border-ink-soft/30 bg-paper-elev px-2 py-1.5 transition-colors focus-within:border-vermillion/60 focus-within:ring-2 focus-within:ring-vermillion/20",
           disabled && "pointer-events-none opacity-60"
         )}
         onClick={() => inputRef.current?.focus()}
@@ -97,7 +97,7 @@ export function TagPicker({
           <span
             key={tag}
             className={cn(
-              "inline-flex items-center rounded-full bg-accent text-accent-foreground",
+              "inline-flex items-center rounded-full bg-manila-soft text-ink",
               chipCls
             )}
           >
@@ -110,7 +110,7 @@ export function TagPicker({
                 e.stopPropagation();
                 remove(tag);
               }}
-              className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+              className="ml-0.5 rounded-full p-0.5 text-ink-soft hover:bg-ink-soft/15 hover:text-ink"
             >
               <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-2.5" />
             </button>
@@ -126,7 +126,7 @@ export function TagPicker({
           }}
           placeholder={normalized.length === 0 ? placeholder : ""}
           disabled={disabled || normalized.length >= MAX_TAGS}
-          className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 text-xs/relaxed outline-none placeholder:text-muted-foreground"
+          className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 font-sans text-sm text-ink outline-none placeholder:text-ink-muted"
         />
       </div>
       {filteredSuggestions.length > 0 ? (
@@ -137,7 +137,7 @@ export function TagPicker({
               type="button"
               onClick={() => add(s)}
               className={cn(
-                "inline-flex items-center rounded-full border border-border bg-background text-foreground hover:bg-muted",
+                "inline-flex items-center rounded-full border border-ink-soft/30 bg-paper-elev text-ink-soft hover:border-ink-soft/50 hover:text-ink hover:bg-manila-soft/40",
                 chipCls
               )}
             >
@@ -147,7 +147,7 @@ export function TagPicker({
           ))}
         </div>
       ) : null}
-      <div className="text-[0.6875rem] text-muted-foreground">
+      <div className="font-hand text-sm text-ink-muted">
         Press Enter or comma to add. Up to {MAX_TAGS} tags.
       </div>
     </div>

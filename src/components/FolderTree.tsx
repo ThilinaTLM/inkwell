@@ -122,8 +122,8 @@ function FolderNode({
         data-active={active}
         data-disabled={disabled}
         className={cn(
-          "group/folder flex items-center gap-1 rounded-md px-1 py-1 text-xs/relaxed text-foreground/80 transition-colors hover:bg-muted/60",
-          "data-[active=true]:bg-accent data-[active=true]:text-accent-foreground",
+          "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
+          "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium",
           "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
@@ -133,7 +133,7 @@ function FolderNode({
           aria-label={open ? "Collapse" : "Expand"}
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "grid size-4 place-items-center rounded text-muted-foreground hover:bg-foreground/10",
+            "grid size-4 place-items-center rounded text-ink-muted hover:bg-ink-soft/15",
             !hasChildren && "invisible"
           )}
         >
@@ -150,12 +150,12 @@ function FolderNode({
         >
           <HugeiconsIcon
             icon={folder.isDefault ? InboxIcon : active ? FolderOpenIcon : FolderLibraryIcon}
-            strokeWidth={2}
-            className="size-3.5 shrink-0 opacity-70"
+            strokeWidth={1.7}
+            className="size-4 shrink-0 opacity-80"
           />
           <span className="truncate">{folder.name}</span>
           {showCounts && folder.sceneCount > 0 ? (
-            <span className="ml-auto shrink-0 text-[0.625rem] text-muted-foreground">
+            <span className="ml-auto shrink-0 font-hand text-xs text-ink-muted">
               {folder.sceneCount}
             </span>
           ) : null}

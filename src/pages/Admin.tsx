@@ -24,6 +24,7 @@ import {
   admin,
 } from "@/api";
 import { Topbar } from "@/components/Topbar";
+import { PaperSurface } from "@/components/PaperSurface";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,15 +77,13 @@ interface AdminProps {
 
 export default function Admin({ user: self }: AdminProps) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+    <PaperSurface variant="page" className="flex flex-col">
       <Topbar user={self} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <header className="mb-6">
-          <h1 className="font-heading text-base font-semibold tracking-tight">
-            Admin
-          </h1>
-          <p className="mt-0.5 text-xs/relaxed text-muted-foreground">
+          <h1 className="font-heading text-3xl text-ink">Admin</h1>
+          <p className="mt-1 font-hand text-base text-ink-soft">
             Manage who can sign in and how they get there.
           </p>
         </header>
@@ -109,7 +108,7 @@ export default function Admin({ user: self }: AdminProps) {
           </TabsContent>
         </Tabs>
       </main>
-    </div>
+    </PaperSurface>
   );
 }
 

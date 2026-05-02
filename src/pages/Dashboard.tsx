@@ -1,12 +1,17 @@
-// Dashboard — folder tree + tag filters + scene grid.
+// Dashboard — sketchbook desk with drill-down folder navigation.
 //
-// State lives here and is mirrored to the URL (`?folder=…&recursive=1
-// &tag=…&q=…`) so views are linkable and survive reloads. Folder/tag
-// dropdowns dispatch into a small set of dialog states; mutations re-run
-// the same loaders so the sidebar counts and grid stay in sync.
+// Layout: paper page → DeskHeader (logo + search + new + user menu) →
+// RootFolderTabStrip (Inbox + user roots + "+") → optional Breadcrumb →
+// TagFilterStrip → mixed grid of subfolders (FolderTabs) and scenes
+// (SceneCards) for the current scope.
+//
+// State + URL plumbing is unchanged from the prior dashboard: scope,
+// active tags, and search live in the query string so views are
+// linkable and survive reloads. Mutations re-run the same loaders so
+// counts and the grid stay in sync.
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowRight01Icon,
@@ -16,7 +21,6 @@ import {
   Edit02Icon,
   FolderAddIcon,
   HashtagIcon,
-  Image01Icon,
   MoreHorizontalIcon,
   PlusSignIcon,
   Search01Icon,
@@ -34,11 +38,18 @@ import {
   scenes,
   tags as tagsApi,
 } from "@/api";
-import { Topbar } from "@/components/Topbar";
+import { PaperSurface } from "@/components/PaperSurface";
+import {
+  DeskHeader,
+  EmptyDeskNote,
+  FolderTab,
+  RootFolderTabStrip,
+  SceneCard,
+  TagFilterStrip,
+} from "@/components/sketch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,7 +75,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sidebar, type ScenesScope } from "@/components/dashboard/Sidebar";
 import { folderPath } from "@/components/FolderTree";
 import { MoveToFolderDialog } from "@/components/MoveToFolderDialog";
 import { TagEditDialog } from "@/components/TagEditDialog";
@@ -76,6 +86,8 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+type Scope = { kind: "all" } | { kind: "folder"; id: string; recursive: boolean };
+
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [folderList, setFolderList] = useState<FolderMeta[] | null>(null);
   const [tagList, setTagList] = useState<Tag[] | null>(null);
@@ -85,7 +97,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [creating, setCreating] = useState(false);
 
   // ─── URL state ────────────────────────────────────────────────────
-  const scope: ScenesScope = useMemo(() => {
+  const scope: Scope = useMemo(() => {
     const f = searchParams.get("folder");
     if (!f) return { kind: "all" };
     const recursive = searchParams.get("recursive") === "1";
@@ -106,7 +118,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     setSearchParams(sp, { replace: true });
   }
 
-  function setScope(next: ScenesScope) {
+  function setScope(next: Scope) {
     if (next.kind === "all") patchParams({ folder: null, recursive: null });
     else
       patchParams({
@@ -178,11 +190,19 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     | { kind: "folder"; folder: FolderMeta }
     | null
   >(null);
-  const [folderRenameTarget, setFolderRenameTarget] = useState<FolderMeta | null>(null);
-  const [folderMoveTarget, setFolderMoveTarget] = useState<FolderMeta | null>(null);
-  const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(null);
-  const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
-  const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
+  const [folderRenameTarget, setFolderRenameTarget] =
+    useState<FolderMeta | null>(null);
+  const [folderMoveTarget, setFolderMoveTarget] = useState<FolderMeta | null>(
+    null
+  );
+  const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(
+    null
+  );
+  const [folderDeleteTarget, setFolderDeleteTarget] =
+    useState<FolderMeta | null>(null);
+  const [folderCreate, setFolderCreate] = useState<{
+    parentId: string | null;
+  } | null>(null);
 
   // ─── Actions ──────────────────────────────────────────────────────
   async function createNew() {
@@ -198,7 +218,10 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   }
 
-  const tagSuggestions = useMemo(() => (tagList || []).map((t) => t.name), [tagList]);
+  const tagSuggestions = useMemo(
+    () => (tagList || []).map((t) => t.name),
+    [tagList]
+  );
   const currentFolder = useMemo(() => {
     if (scope.kind !== "folder" || !folderList) return null;
     return folderList.find((f) => f.id === scope.id) ?? null;
@@ -207,6 +230,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     if (!folderList || scope.kind !== "folder") return [];
     return folderPath(folderList, scope.id);
   }, [folderList, scope]);
+  const subfolders = useMemo(() => {
+    if (scope.kind !== "folder" || !folderList) return [];
+    return folderList
+      .filter((f) => f.parentId === scope.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [scope, folderList]);
 
   // Selected target name for share dialog.
   const shareName =
@@ -217,81 +246,104 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         : "";
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
-      <Topbar
+    <PaperSurface variant="page">
+      <DeskHeader
         user={user}
+        search={search}
+        onSearchChange={setSearch}
+        onCreateScene={createNew}
+        creating={creating}
         onLogout={onLogout}
-        center={
-          <div className="relative w-full max-w-sm">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              strokeWidth={2}
-              className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              type="search"
-              placeholder="Search scenes…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-7"
-            />
-          </div>
-        }
-        actions={
-          <Button onClick={createNew} disabled={creating}>
-            <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-            New scene
-          </Button>
-        }
       />
 
-      <div className="flex flex-1">
-        <Sidebar
-          folders={folderList}
-          tags={tagList}
-          scope={scope}
-          activeTags={activeTags}
-          onScopeChange={setScope}
-          onTagToggle={toggleTag}
-          onCreateRootFolder={() => setFolderCreate({ parentId: null })}
-          onCreateSubfolder={(f) => setFolderCreate({ parentId: f.id })}
-          onRenameFolder={(f) => setFolderRenameTarget(f)}
-          onMoveFolder={(f) => setFolderMoveTarget(f)}
-          onEditFolderTags={(f) => setFolderTagsTarget(f)}
-          onShareFolder={(f) => setShareTarget({ kind: "folder", folder: f })}
-          onDeleteFolder={(f) => setFolderDeleteTarget(f)}
-        />
+      <RootFolderTabStrip
+        folders={folderList}
+        activeId={scope.kind === "folder" ? scope.id : null}
+        allActive={scope.kind === "all"}
+        onSelectAll={() => setScope({ kind: "all" })}
+        onSelectFolder={(id) =>
+          setScope({ kind: "folder", id, recursive: false })
+        }
+        onCreateRootFolder={() => setFolderCreate({ parentId: null })}
+      />
 
-        <main className="flex-1 px-4 py-4">
-          <Breadcrumb breadcrumb={breadcrumb} onJump={(id) => setScope({ kind: "folder", id, recursive: scope.kind === "folder" ? scope.recursive : false })} onAll={() => setScope({ kind: "all" })} scope={scope} />
-          <ActiveFilters
-            activeTags={activeTags}
-            search={search}
-            onRemoveTag={toggleTag}
-            onClearSearch={() => setSearch("")}
-          />
-          <SceneGridArea
-            items={items}
-            search={search}
-            currentFolder={currentFolder}
-            onCreate={createNew}
-            creating={creating}
-            folders={folderList}
-            onOpenScene={(id) => navigate(`/s/${id}`)}
-            onRename={setRenameTarget}
-            onDelete={setDeleteTarget}
-            onMove={setMoveTarget}
-            onEditTags={setTagSceneTarget}
-            onShare={(s) => setShareTarget({ kind: "scene", scene: s })}
-          />
-        </main>
+      {/* Hairline rough divider between tabs row and content */}
+      <div className="px-6">
+        <div className="border-t border-ink-soft/15" />
       </div>
 
+      <main className="px-6 pb-16 pt-4">
+        {scope.kind === "folder" && breadcrumb.length > 0 && (
+          <Breadcrumb
+            breadcrumb={breadcrumb}
+            scope={scope}
+            onJump={(id) =>
+              setScope({
+                kind: "folder",
+                id,
+                recursive: scope.kind === "folder" ? scope.recursive : false,
+              })
+            }
+            onAll={() => setScope({ kind: "all" })}
+          />
+        )}
+
+        <TagFilterStrip
+          tags={tagList}
+          active={activeTags}
+          onToggle={toggleTag}
+        />
+
+        <ActiveFilters
+          search={search}
+          activeTags={activeTags}
+          onClearSearch={() => setSearch("")}
+          onRemoveTag={toggleTag}
+        />
+
+        <DeskGrid
+          items={items}
+          subfolders={subfolders}
+          search={search}
+          currentFolder={currentFolder}
+          inFolder={scope.kind === "folder"}
+          folderById={folderList}
+          onCreate={createNew}
+          creating={creating}
+          onCreateSubfolder={() =>
+            scope.kind === "folder" &&
+            setFolderCreate({ parentId: scope.id })
+          }
+          onOpenFolder={(id) =>
+            setScope({ kind: "folder", id, recursive: false })
+          }
+          onOpenScene={(id) => navigate(`/s/${id}`)}
+          onSceneAction={{
+            rename: setRenameTarget,
+            delete: setDeleteTarget,
+            move: setMoveTarget,
+            editTags: setTagSceneTarget,
+            share: (s) => setShareTarget({ kind: "scene", scene: s }),
+          }}
+          onFolderAction={{
+            rename: setFolderRenameTarget,
+            move: setFolderMoveTarget,
+            editTags: setFolderTagsTarget,
+            delete: setFolderDeleteTarget,
+            share: (f) => setShareTarget({ kind: "folder", folder: f }),
+            createSubfolder: (f) => setFolderCreate({ parentId: f.id }),
+          }}
+        />
+      </main>
+
+      {/* ─── Dialogs (logic preserved from prior implementation) ─── */}
       <RenameDialog
         scene={renameTarget}
         onOpenChange={(open) => !open && setRenameTarget(null)}
         onRenamed={(updated) => {
-          setItems((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev));
+          setItems((prev) =>
+            prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev
+          );
           setRenameTarget(null);
         }}
       />
@@ -306,19 +358,22 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         }}
       />
 
-      {/* Move scene */}
       {folderList && moveTarget ? (
         <MoveToFolderDialog
           open={!!moveTarget}
           onOpenChange={(o) => !o && setMoveTarget(null)}
           folders={folderList}
           initialId={moveTarget.folderId}
-          title={`Move “${moveTarget.name}”`}
+          title={`Move "${moveTarget.name}"`}
           description="Pick a destination folder."
           onSubmit={async (folderId) => {
             try {
               const updated = await scenes.move(moveTarget.id, folderId);
-              setItems((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev));
+              setItems((prev) =>
+                prev
+                  ? prev.map((x) => (x.id === updated.id ? updated : x))
+                  : prev
+              );
               toast.success("Moved.");
               await refreshFolders();
             } catch (e) {
@@ -328,14 +383,13 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         />
       ) : null}
 
-      {/* Edit scene tags */}
       {tagSceneTarget ? (
         <TagEditDialog
           open={!!tagSceneTarget}
           onOpenChange={(o) => !o && setTagSceneTarget(null)}
           initialTags={tagSceneTarget.tags}
           suggestions={tagSuggestions}
-          title={`Tags for “${tagSceneTarget.name}”`}
+          title={`Tags for "${tagSceneTarget.name}"`}
           onSave={async (next) => {
             const result = await scenes.setTags(tagSceneTarget.id, next);
             return result.tags;
@@ -343,7 +397,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           onSaved={async (next) => {
             setItems((prev) =>
               prev
-                ? prev.map((x) => (x.id === tagSceneTarget.id ? { ...x, tags: next } : x))
+                ? prev.map((x) =>
+                    x.id === tagSceneTarget.id ? { ...x, tags: next } : x
+                  )
                 : prev
             );
             await refreshTags();
@@ -351,7 +407,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         />
       ) : null}
 
-      {/* Share */}
       {shareTarget ? (
         <ShareDialog
           open={!!shareTarget}
@@ -366,7 +421,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         />
       ) : null}
 
-      {/* Folder dialogs */}
       {folderCreate ? (
         <FolderCreateDialog
           parentId={folderCreate.parentId}
@@ -404,9 +458,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           onOpenChange={(o) => !o && setFolderTagsTarget(null)}
           initialTags={folderTagsTarget.tags}
           suggestions={tagSuggestions}
-          title={`Tags for “${folderTagsTarget.name}”`}
+          title={`Tags for "${folderTagsTarget.name}"`}
           onSave={async (next) => {
-            const updated = await folders.update(folderTagsTarget.id, { tags: next });
+            const updated = await folders.update(folderTagsTarget.id, {
+              tags: next,
+            });
             return updated.tags;
           }}
           onSaved={async () => {
@@ -423,18 +479,20 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             setFolderDeleteTarget(null);
             await refreshFolders();
             await refreshScenes();
-            // If we just deleted the active folder, fall back to All scenes.
-            if (scope.kind === "folder" && scope.id === folderDeleteTarget.id) {
+            if (
+              scope.kind === "folder" &&
+              scope.id === folderDeleteTarget.id
+            ) {
               setScope({ kind: "all" });
             }
           }}
         />
       ) : null}
-    </div>
+    </PaperSurface>
   );
 }
 
-// ─── Breadcrumb + filters ────────────────────────────────────────────────
+// ─── Breadcrumb + active filter chips ────────────────────────────────────
 
 function Breadcrumb({
   breadcrumb,
@@ -443,31 +501,38 @@ function Breadcrumb({
   onAll,
 }: {
   breadcrumb: FolderMeta[];
-  scope: ScenesScope;
+  scope: Scope;
   onJump: (id: string) => void;
   onAll: () => void;
 }) {
   return (
-    <nav className="flex items-center gap-1 text-xs/relaxed text-muted-foreground">
+    <nav
+      aria-label="Folder path"
+      className="flex items-center gap-1 px-6 py-1 font-hand text-base text-ink-soft"
+    >
       <button
         type="button"
         onClick={onAll}
         className={cn(
-          "rounded px-1 py-0.5 hover:bg-muted/60",
-          scope.kind === "all" && "text-foreground font-medium"
+          "rounded px-1 py-0.5 transition-colors hover:text-ink",
+          scope.kind === "all" && "text-ink"
         )}
       >
         All scenes
       </button>
       {breadcrumb.map((f, i) => (
         <span key={f.id} className="flex items-center gap-1">
-          <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3 opacity-50" />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            strokeWidth={1.5}
+            className="size-3 opacity-50"
+          />
           <button
             type="button"
             onClick={() => onJump(f.id)}
             className={cn(
-              "rounded px-1 py-0.5 hover:bg-muted/60",
-              i === breadcrumb.length - 1 && "text-foreground font-medium"
+              "rounded px-1 py-0.5 transition-colors hover:text-ink",
+              i === breadcrumb.length - 1 && "text-ink"
             )}
           >
             {f.name}
@@ -491,208 +556,380 @@ function ActiveFilters({
 }) {
   if (activeTags.length === 0 && !search) return null;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1.5 px-6 pb-2 pt-1">
+      <span className="font-hand text-sm text-ink-muted">Filtering by:</span>
       {activeTags.map((t) => (
         <button
           key={t}
           type="button"
           onClick={() => onRemoveTag(t)}
-          className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[0.6875rem] text-accent-foreground hover:bg-accent/80"
+          className="inline-flex items-center gap-1 rounded-full bg-manila-soft px-2 py-0.5 font-sans text-[0.6875rem] text-ink hover:bg-manila"
         >
-          <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-70" />
+          <HugeiconsIcon
+            icon={HashtagIcon}
+            strokeWidth={2}
+            className="size-2.5 opacity-70"
+          />
           {t}
-          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-2.5 opacity-70" />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            strokeWidth={2}
+            className="size-2.5 opacity-70"
+          />
         </button>
       ))}
       {search ? (
         <button
           type="button"
           onClick={onClearSearch}
-          className="inline-flex items-center gap-1 rounded-full bg-input/30 px-2 py-0.5 text-[0.6875rem] hover:bg-input/50"
+          className="inline-flex items-center gap-1 rounded-full bg-paper-edge px-2 py-0.5 font-sans text-[0.6875rem] text-ink-soft hover:bg-paper-edge/80"
         >
-          <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-2.5 opacity-70" />
-          “{search}”
-          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-2.5 opacity-70" />
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            className="size-2.5 opacity-70"
+          />
+          "{search}"
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            strokeWidth={2}
+            className="size-2.5 opacity-70"
+          />
         </button>
       ) : null}
     </div>
   );
 }
 
-// ─── Scene grid ──────────────────────────────────────────────────────────
+// ─── Mixed grid: subfolders + scenes ─────────────────────────────────────
 
-interface SceneGridAreaProps {
-  items: SceneMeta[] | null;
-  search: string;
-  currentFolder: FolderMeta | null;
-  onCreate: () => void;
-  creating: boolean;
-  folders: FolderMeta[] | null;
-  onOpenScene: (id: string) => void;
-  onRename: (s: SceneMeta) => void;
-  onDelete: (s: SceneMeta) => void;
-  onMove: (s: SceneMeta) => void;
-  onEditTags: (s: SceneMeta) => void;
-  onShare: (s: SceneMeta) => void;
+interface SceneActionHandlers {
+  rename: (s: SceneMeta) => void;
+  delete: (s: SceneMeta) => void;
+  move: (s: SceneMeta) => void;
+  editTags: (s: SceneMeta) => void;
+  share: (s: SceneMeta) => void;
 }
 
-function SceneGridArea({
+interface FolderActionHandlers {
+  rename: (f: FolderMeta) => void;
+  move: (f: FolderMeta) => void;
+  editTags: (f: FolderMeta) => void;
+  delete: (f: FolderMeta) => void;
+  share: (f: FolderMeta) => void;
+  createSubfolder: (f: FolderMeta) => void;
+}
+
+interface DeskGridProps {
+  items: SceneMeta[] | null;
+  subfolders: FolderMeta[];
+  search: string;
+  currentFolder: FolderMeta | null;
+  inFolder: boolean;
+  folderById: FolderMeta[] | null;
+  onCreate: () => void;
+  creating: boolean;
+  onCreateSubfolder: () => void;
+  onOpenFolder: (id: string) => void;
+  onOpenScene: (id: string) => void;
+  onSceneAction: SceneActionHandlers;
+  onFolderAction: FolderActionHandlers;
+}
+
+function DeskGrid({
   items,
-  search,
+  subfolders,
   currentFolder,
+  inFolder,
+  search,
+  folderById,
   onCreate,
   creating,
-  folders,
+  onCreateSubfolder,
+  onOpenFolder,
   onOpenScene,
-  onRename,
-  onDelete,
-  onMove,
-  onEditTags,
-  onShare,
-}: SceneGridAreaProps) {
-  const folderById = useMemo(
-    () => new Map((folders ?? []).map((f) => [f.id, f])),
-    [folders]
+  onSceneAction,
+  onFolderAction,
+}: DeskGridProps) {
+  const folderMap = useMemo(
+    () => new Map((folderById ?? []).map((f) => [f.id, f])),
+    [folderById]
   );
 
-  if (items === null) return <SceneGridSkeleton />;
-  if (items.length === 0) {
+  if (items === null) {
+    return <DeskGridSkeleton />;
+  }
+
+  const noScenes = items.length === 0;
+  const noSubfolders = subfolders.length === 0;
+
+  // ─── Empty / zero states ───
+  if (noScenes && noSubfolders) {
+    if (search) {
+      return (
+        <EmptyDeskNote
+          seed="search-empty"
+          title="Nothing here"
+          body={
+            <>
+              No scenes match{" "}
+              <span className="font-heading text-ink">"{search}"</span>.
+            </>
+          }
+        />
+      );
+    }
     return (
-      <EmptyState
-        search={search}
-        currentFolderName={currentFolder?.name ?? null}
-        onCreate={onCreate}
-        creating={creating}
+      <EmptyDeskNote
+        seed={`empty-${currentFolder?.id ?? "all"}`}
+        title={
+          currentFolder ? `"${currentFolder.name}" is empty` : "No scenes yet"
+        }
+        body="Start sketching — your first scene is one click away."
+        action={
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button onClick={onCreate} disabled={creating} size="lg">
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+              New scene
+            </Button>
+            {inFolder && (
+              <Button
+                onClick={onCreateSubfolder}
+                variant="outline"
+                size="lg"
+              >
+                <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+                New subfolder
+              </Button>
+            )}
+          </div>
+        }
       />
     );
   }
+
   return (
-    <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map((s) => (
-        <SceneCard
-          key={s.id}
-          scene={s}
-          folder={folderById.get(s.folderId) || null}
-          onOpen={() => onOpenScene(s.id)}
-          onRename={() => onRename(s)}
-          onDelete={() => onDelete(s)}
-          onMove={() => onMove(s)}
-          onEditTags={() => onEditTags(s)}
-          onShare={() => onShare(s)}
-        />
-      ))}
-    </ul>
+    <div className="space-y-6">
+      {!noSubfolders && (
+        <section aria-label="Subfolders">
+          <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
+            Folders
+          </h3>
+          <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {subfolders.map((f) => (
+              <FolderTab
+                key={f.id}
+                id={f.id}
+                name={f.name}
+                accent={f.isDefault ? "graphite" : "manila"}
+                isInbox={f.isDefault}
+                count={f.sceneCount}
+                variant="grid"
+                onClick={() => onOpenFolder(f.id)}
+                actions={
+                  <FolderActionsMenu
+                    folder={f}
+                    onRename={() => onFolderAction.rename(f)}
+                    onMove={() => onFolderAction.move(f)}
+                    onEditTags={() => onFolderAction.editTags(f)}
+                    onShare={() => onFolderAction.share(f)}
+                    onDelete={() => onFolderAction.delete(f)}
+                    onCreateSubfolder={() =>
+                      onFolderAction.createSubfolder(f)
+                    }
+                  />
+                }
+              />
+            ))}
+            {inFolder && (
+              <button
+                type="button"
+                onClick={onCreateSubfolder}
+                aria-label="New subfolder"
+                className="group/new relative flex h-32 min-w-48 items-center justify-center gap-2 font-heading text-sm text-ink-soft transition-colors hover:text-vermillion"
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-md border border-dashed border-ink-soft/40 transition-colors group-hover/new:border-vermillion/60"
+                />
+                <HugeiconsIcon
+                  icon={FolderAddIcon}
+                  strokeWidth={1.6}
+                  className="size-5"
+                />
+                New subfolder
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!noScenes && (
+        <section aria-label="Scenes">
+          <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
+            Scenes
+          </h3>
+          <ul className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {items.map((s) => {
+              const folder = folderMap.get(s.folderId) ?? null;
+              return (
+                <SceneCard
+                  key={s.id}
+                  id={s.id}
+                  name={s.name}
+                  hasThumb={s.hasThumb}
+                  thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
+                  folderName={folder?.name ?? null}
+                  updatedAtLabel={relTime(s.updatedAt)}
+                  tags={s.tags}
+                  href={`/s/${s.id}`}
+                  onOpen={() => onOpenScene(s.id)}
+                  actions={
+                    <SceneActionsMenu
+                      scene={s}
+                      onShare={() => onSceneAction.share(s)}
+                      onEditTags={() => onSceneAction.editTags(s)}
+                      onMove={() => onSceneAction.move(s)}
+                      onRename={() => onSceneAction.rename(s)}
+                      onDelete={() => onSceneAction.delete(s)}
+                    />
+                  }
+                />
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
   );
 }
 
-// ─── Scene card ──────────────────────────────────────────────────────────
-
-interface SceneCardProps {
-  scene: SceneMeta;
-  folder: FolderMeta | null;
-  onOpen: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  onMove: () => void;
-  onEditTags: () => void;
-  onShare: () => void;
+function DeskGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-5 px-6 pt-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
+        />
+      ))}
+    </div>
+  );
 }
 
-function SceneCard({
+// ─── Per-card action menus ───────────────────────────────────────────────
+
+function SceneActionsMenu({
   scene,
-  folder,
-  onOpen,
+  onShare,
+  onEditTags,
+  onMove,
   onRename,
   onDelete,
+}: {
+  scene: SceneMeta;
+  onShare: () => void;
+  onEditTags: () => void;
+  onMove: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${scene.name}`}
+            className="size-7"
+          />
+        }
+      >
+        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4}>
+        <DropdownMenuItem onClick={onShare}>
+          <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
+          Share…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          render={
+            <a href={scenes.downloadUrl(scene.id)} download>
+              <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />
+              Download
+            </a>
+          }
+        />
+        <DropdownMenuItem onClick={onEditTags}>
+          <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} />
+          Edit tags…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onMove}>
+          <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+          Move to…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onRename}>
+          <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function FolderActionsMenu({
+  folder,
+  onRename,
   onMove,
   onEditTags,
   onShare,
-}: SceneCardProps) {
+  onDelete,
+  onCreateSubfolder,
+}: {
+  folder: FolderMeta;
+  onRename: () => void;
+  onMove: () => void;
+  onEditTags: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+  onCreateSubfolder: () => void;
+}) {
+  const isInbox = folder.isDefault;
   return (
-    <li className="group/scene relative overflow-hidden rounded-lg bg-card text-card-foreground ring-1 ring-foreground/10 transition-all hover:ring-foreground/20">
-      <Link
-        to={`/s/${scene.id}`}
-        aria-label={`Open ${scene.name}`}
-        className="block aspect-[4/3] w-full overflow-hidden bg-muted/40 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-      >
-        {scene.hasThumb ? (
-          <img
-            src={`/api/scenes/${scene.id}/thumb?v=${scene.version}`}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-contain transition-transform duration-300 group-hover/scene:scale-[1.02]"
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${folder.name}`}
+            className="size-7 bg-paper-elev/80"
           />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
-            <HugeiconsIcon icon={Image01Icon} strokeWidth={1.5} className="size-10" />
-          </div>
-        )}
-      </Link>
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={onOpen}
-            className="block w-full truncate text-left text-xs/relaxed font-medium text-foreground hover:underline"
-            title={scene.name}
-          >
-            {scene.name}
-          </button>
-          <div className="flex items-center gap-1 text-[0.6875rem] text-muted-foreground">
-            {folder ? (
-              <span className="truncate">{folder.name}</span>
-            ) : null}
-            {folder ? <span aria-hidden>·</span> : null}
-            <span>{relTime(scene.updatedAt)}</span>
-          </div>
-          {scene.tags.length > 0 ? (
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {scene.tags.slice(0, 2).map((t) => (
-                <span
-                  key={t}
-                  className="inline-flex max-w-[8rem] items-center gap-0.5 rounded-full bg-accent/40 px-1.5 py-0.5 text-[0.625rem] text-accent-foreground"
-                >
-                  <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-60" />
-                  <span className="truncate">{t}</span>
-                </span>
-              ))}
-              {scene.tags.length > 2 ? (
-                <span className="text-[0.625rem] text-muted-foreground">
-                  +{scene.tags.length - 2}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Actions for ${scene.name}`}
-              />
-            }
-          >
-            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={4}>
-            <DropdownMenuItem onClick={onShare}>
-              <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
-              Share…
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              render={
-                <a href={scenes.downloadUrl(scene.id)} download>
-                  <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />
-                  Download
-                </a>
-              }
-            />
-            <DropdownMenuItem onClick={onEditTags}>
-              <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} />
-              Edit tags…
-            </DropdownMenuItem>
+        }
+      >
+        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4}>
+        <DropdownMenuItem onClick={onShare}>
+          <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
+          Share…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onCreateSubfolder}>
+          <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+          New subfolder
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onEditTags}>
+          <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} />
+          Edit tags…
+        </DropdownMenuItem>
+        {!isInbox && (
+          <>
             <DropdownMenuItem onClick={onMove}>
               <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
               Move to…
@@ -706,72 +943,10 @@ function SceneCard({
               <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
               Delete
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </li>
-  );
-}
-
-// ─── Empty + skeleton ────────────────────────────────────────────────────
-
-function EmptyState({
-  search,
-  currentFolderName,
-  onCreate,
-  creating,
-}: {
-  search: string;
-  currentFolderName: string | null;
-  onCreate: () => void;
-  creating: boolean;
-}) {
-  if (search) {
-    return (
-      <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-2 rounded-lg border border-dashed border-border/60 px-6 py-16 text-center">
-        <HugeiconsIcon icon={Search01Icon} strokeWidth={1.5} className="size-7 text-muted-foreground" />
-        <div className="text-sm font-medium">No matches</div>
-        <p className="text-xs/relaxed text-muted-foreground">
-          No scenes match “{search}”.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-border/60 px-6 py-16 text-center">
-      <HugeiconsIcon icon={Image01Icon} strokeWidth={1.5} className="size-8 text-muted-foreground" />
-      <div className="space-y-1">
-        <div className="text-sm font-medium">
-          {currentFolderName ? `“${currentFolderName}” is empty` : "No scenes yet"}
-        </div>
-        <p className="text-xs/relaxed text-muted-foreground">
-          Start sketching — your first scene is one click away.
-        </p>
-      </div>
-      <Button onClick={onCreate} disabled={creating} size="lg" className="mt-2">
-        <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-        Create a scene
-      </Button>
-    </div>
-  );
-}
-
-function SceneGridSkeleton() {
-  return (
-    <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <li key={i} className="overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10">
-          <Skeleton className="aspect-[4/3] w-full rounded-none" />
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-3 w-3/5" />
-              <Skeleton className="h-2.5 w-1/4" />
-            </div>
-            <Skeleton className="size-6 rounded-md" />
-          </div>
-        </li>
-      ))}
-    </ul>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -801,7 +976,7 @@ function RenameDialog({ scene, onOpenChange, onRenamed }: RenameDialogProps) {
     setBusy(true);
     try {
       const updated = await scenes.rename(scene.id, next);
-      toast.success(`Renamed to “${updated.name}”.`);
+      toast.success(`Renamed to "${updated.name}".`);
       onRenamed(updated);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "rename failed");
@@ -829,7 +1004,12 @@ function RenameDialog({ scene, onOpenChange, onRenamed }: RenameDialogProps) {
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !name.trim()}>
@@ -855,7 +1035,7 @@ function DeleteDialog({ scene, onOpenChange, onDeleted }: DeleteDialogProps) {
     setBusy(true);
     try {
       await scenes.delete(scene.id);
-      toast.success(`Deleted “${scene.name}”.`);
+      toast.success(`Deleted "${scene.name}".`);
       onDeleted(scene.id);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "delete failed");
@@ -869,7 +1049,7 @@ function DeleteDialog({ scene, onOpenChange, onDeleted }: DeleteDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle>Delete scene?</AlertDialogTitle>
           <AlertDialogDescription>
-            “{scene?.name}” will be permanently removed. This cannot be undone.
+            "{scene?.name}" will be permanently removed. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -910,10 +1090,12 @@ function FolderCreateDialog({
     setBusy(true);
     try {
       const m = await folders.create({ name: trimmed, parentId });
-      toast.success(`Created “${m.name}”.`);
+      toast.success(`Created "${m.name}".`);
       onCreated(m);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "could not create folder");
+      toast.error(
+        e instanceof ApiError ? e.message : "could not create folder"
+      );
     } finally {
       setBusy(false);
     }
@@ -923,7 +1105,9 @@ function FolderCreateDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{parentId ? "New subfolder" : "New folder"}</DialogTitle>
-          <DialogDescription>Folders organize your scenes. You can nest them.</DialogDescription>
+          <DialogDescription>
+            Folders organize your scenes. You can nest them.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
@@ -937,7 +1121,12 @@ function FolderCreateDialog({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !name.trim()}>
@@ -971,7 +1160,7 @@ function FolderRenameDialog({
     setBusy(true);
     try {
       const m = await folders.update(folder.id, { name: trimmed });
-      toast.success(`Renamed to “${m.name}”.`);
+      toast.success(`Renamed to "${m.name}".`);
       onRenamed(m);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "rename failed");
@@ -997,7 +1186,12 @@ function FolderRenameDialog({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !name.trim()}>
@@ -1021,7 +1215,6 @@ function FolderMoveDialog({
   onOpenChange: (open: boolean) => void;
   onMoved: () => void;
 }) {
-  // Forbidden = self + descendants. Compute via BFS.
   const forbidden = useMemo(() => {
     const out = new Set<string>([folder.id]);
     const childrenOf = new Map<string | null, FolderMeta[]>();
@@ -1050,21 +1243,15 @@ function FolderMoveDialog({
       folders={allFolders}
       initialId={folder.parentId}
       forbiddenIds={forbidden}
-      title={`Move “${folder.name}”`}
+      title={`Move "${folder.name}"`}
       description="Pick a new parent folder. Choose Inbox or another root to move it to the top level."
       onSubmit={async (folderId) => {
         try {
-          // If user selects the folder's current parent, no-op.
           if (folderId === folder.parentId) return;
-          // If user selected the same folder (shouldn't be possible —
-          // forbiddenIds covers self), skip.
           if (folderId === folder.id) return;
-          // Translate "selected an Inbox or root-level folder" semantics:
-          // moving to the Inbox is treated as "make it a sibling of Inbox"
-          // i.e. parentId = null. Other selections become the literal
-          // parentId.
           const parentId =
-            allFolders.find((f) => f.id === folderId)?.isDefault && folder.parentId !== folderId
+            allFolders.find((f) => f.id === folderId)?.isDefault &&
+            folder.parentId !== folderId
               ? null
               : folderId;
           await folders.update(folder.id, { parentId });
@@ -1092,7 +1279,7 @@ function FolderDeleteDialog({
     setBusy(true);
     try {
       await folders.delete(folder.id);
-      toast.success(`Deleted “${folder.name}”.`);
+      toast.success(`Deleted "${folder.name}".`);
       onDeleted();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "could not delete");
@@ -1106,7 +1293,7 @@ function FolderDeleteDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete folder?</AlertDialogTitle>
           <AlertDialogDescription>
-            “{folder.name}” will be removed. Its scenes and subfolders move up
+            "{folder.name}" will be removed. Its scenes and subfolders move up
             one level (to {folder.parentId ? "the parent folder" : "Inbox"}).
             Active share links for this folder are revoked.
           </AlertDialogDescription>

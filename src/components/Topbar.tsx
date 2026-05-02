@@ -54,10 +54,10 @@ export function Topbar({ user, center, actions, onLogout }: TopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur supports-backdrop-filter:bg-background/60">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-soft/15 bg-paper/85 px-5 backdrop-blur supports-backdrop-filter:bg-paper/70">
       <Link
         to="/"
-        className="font-heading text-sm font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+        className="font-heading text-xl text-ink transition-opacity hover:opacity-70"
         aria-label="Inkwell home"
       >
         inkwell
@@ -74,27 +74,27 @@ export function Topbar({ user, center, actions, onLogout }: TopbarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 pl-1 pr-1.5"
+              className="h-9 gap-2 pl-1 pr-2"
               aria-label={`Account menu for ${fullName}`}
             />
           }
         >
-          <Avatar size="sm" className="size-5">
-            <AvatarFallback className="text-[0.625rem] font-medium uppercase">
+          <Avatar size="sm" className="size-7 ring-1 ring-ink-soft/30">
+            <AvatarFallback className="bg-manila text-ink text-[0.7rem] font-heading uppercase">
               {initials.slice(0, 2)}
             </AvatarFallback>
           </Avatar>
-          <span className="max-w-[10rem] truncate text-xs/relaxed">
+          <span className="hidden max-w-[10rem] truncate font-sans text-xs text-ink md:inline">
             {fullName}
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={6} className="min-w-56">
           <DropdownMenuLabel>
             <div className="flex flex-col gap-0.5">
-              <span className="truncate text-xs font-medium text-foreground">
+              <span className="truncate font-heading text-sm text-ink">
                 {fullName}
               </span>
-              <span className="truncate text-[0.6875rem] text-muted-foreground">
+              <span className="truncate font-sans text-[0.6875rem] text-ink-muted">
                 {user.email}
               </span>
             </div>

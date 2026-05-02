@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { ApiError, User, auth } from "@/api";
 import { Topbar } from "@/components/Topbar";
+import { PaperSurface } from "@/components/PaperSurface";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,15 +66,13 @@ export default function Account({ user, onUserChange: _onUserChange }: AccountPr
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+    <PaperSurface variant="page" className="flex flex-col">
       <Topbar user={user} />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <header className="mb-6">
-          <h1 className="font-heading text-base font-semibold tracking-tight">
-            Account
-          </h1>
-          <p className="mt-0.5 text-xs/relaxed text-muted-foreground">
+          <h1 className="font-heading text-3xl text-ink">Account</h1>
+          <p className="mt-1 font-hand text-base text-ink-soft">
             Manage your profile and security settings.
           </p>
         </header>
@@ -81,8 +80,8 @@ export default function Account({ user, onUserChange: _onUserChange }: AccountPr
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-heading text-sm font-medium">
-                <HugeiconsIcon icon={UserCircleIcon} strokeWidth={2} />
+              <CardTitle className="flex items-center gap-2">
+                <HugeiconsIcon icon={UserCircleIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
                 Profile
               </CardTitle>
               <CardDescription>Read-only for now.</CardDescription>
@@ -110,8 +109,8 @@ export default function Account({ user, onUserChange: _onUserChange }: AccountPr
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-heading text-sm font-medium">
-                <HugeiconsIcon icon={SecurityCheckIcon} strokeWidth={2} />
+              <CardTitle className="flex items-center gap-2">
+                <HugeiconsIcon icon={SecurityCheckIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
                 Change password
               </CardTitle>
               <CardDescription>
@@ -191,6 +190,6 @@ export default function Account({ user, onUserChange: _onUserChange }: AccountPr
           </Card>
         </div>
       </main>
-    </div>
+    </PaperSurface>
   );
 }

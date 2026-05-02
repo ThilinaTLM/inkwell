@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev:worker": "pnpm db:migrate:local",
     "dev:worker": "wrangler dev",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
@@ -20,7 +21,8 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@excalidraw/excalidraw": "^0.18.1",
-    "@fontsource-variable/roboto": "^5.2.10",
+    "@fontsource-variable/caveat": "^5.2.8",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
     "@tailwindcss/vite": "^4.2.4",
@@ -32,6 +34,7 @@
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "shadcn": "^4.6.0",
+    "roughjs": "^4.6.6",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",

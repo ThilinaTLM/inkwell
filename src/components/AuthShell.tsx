@@ -1,9 +1,11 @@
-// Centered shell used by Login + InviteAccept. Renders a soft radial-gradient
-// backdrop behind a single Card so unauthenticated pages share visual rhythm.
+// AuthShell — centered single-sheet layout for unauthenticated routes
+// (Login, InviteAccept) and the same shape reused for Account.
+// A paper page with a slightly rotated paper-elev card laid on top.
 
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaperSurface } from "@/components/PaperSurface";
+import { RoughBox } from "@/components/rough";
 
 interface AuthShellProps {
   title?: ReactNode;
@@ -21,49 +23,60 @@ export function AuthShell({
   className,
 }: AuthShellProps) {
   return (
-    <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-background px-4 py-10">
-      <BackdropGlow />
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
-          <div className="font-heading text-lg font-semibold tracking-tight">
-            inkwell
-          </div>
-          <p className="text-[0.6875rem] text-muted-foreground">
+    <PaperSurface
+      variant="page"
+      className="grid place-items-center overflow-hidden px-4 py-10"
+    >
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mb-6 flex flex-col items-center gap-1 text-center">
+          <div className="font-heading text-3xl text-ink">inkwell</div>
+          <p className="font-hand text-base text-ink-soft">
             A small place for your Excalidraw scenes.
           </p>
         </div>
-        <Card className={cn("gap-3", className)}>
-          {(title || description) && (
-            <CardHeader className="gap-1">
-              {title && (
-                <CardTitle className="font-heading text-sm font-medium">
-                  {title}
-                </CardTitle>
-              )}
-              {description && (
-                <p className="text-xs/relaxed text-muted-foreground">
-                  {description}
-                </p>
-              )}
-            </CardHeader>
-          )}
-          <CardContent className="px-4">{children}</CardContent>
-        </Card>
+
+        <div
+          className={cn("relative isolate p-7", className)}
+          style={{ transform: "rotate(-0.4deg)" }}
+        >
+          <RoughBox
+            shape="card"
+            seed="auth-shell"
+            stroke="var(--color-ink-soft)"
+            strokeWidth={1.4}
+            fill="var(--color-paper-elev)"
+            fillStyle="solid"
+            roughness={1.2}
+            radius={6}
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 rounded-md shadow-[0_18px_40px_-14px_rgba(28,24,20,0.35)]"
+          />
+
+          <div className="relative">
+            {(title || description) && (
+              <div className="mb-4 flex flex-col gap-1">
+                {title && (
+                  <h2 className="font-heading text-2xl text-ink">{title}</h2>
+                )}
+                {description && (
+                  <p className="font-hand text-base text-ink-soft">
+                    {description}
+                  </p>
+                )}
+              </div>
+            )}
+            {children}
+          </div>
+        </div>
+
         {footer && (
-          <div className="mt-4 text-center text-[0.6875rem] text-muted-foreground">
+          <div className="mt-5 text-center font-hand text-sm text-ink-muted">
             {footer}
           </div>
         )}
       </div>
-    </main>
-  );
-}
-
-function BackdropGlow() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 -z-0 [background:radial-gradient(60%_50%_at_50%_0%,oklch(0.3_0_0/0.6)_0%,transparent_70%),radial-gradient(40%_30%_at_80%_100%,oklch(0.25_0_0/0.4)_0%,transparent_70%)]"
-    />
+    </PaperSurface>
   );
 }

@@ -138,11 +138,9 @@ function RequireAdmin({ user, children }: { user: User; children: ReactNode }) {
 
 function BootSplash() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-background">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <div className="font-heading text-base font-semibold tracking-tight text-foreground">
-          inkwell
-        </div>
+    <div className="grid min-h-dvh place-items-center bg-paper">
+      <div className="flex flex-col items-center gap-3 text-ink-soft">
+        <div className="font-heading text-3xl text-ink">inkwell</div>
         <HugeiconsIcon
           icon={Loading03Icon}
           strokeWidth={2}

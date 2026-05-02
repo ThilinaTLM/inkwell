@@ -1,17 +1,20 @@
-// Public folder-share landing page. Lists the folder subtree (rooted at
-// the shared folder — the user can't see ancestors) and the scenes
-// inside it. Clicking a scene navigates to /share/:token/scenes/:sceneId
+// SharedFolder — public folder-share landing. Same drill-down model as the
+// owner Dashboard, but without the user menu, without scene/folder
+// mutations, and with a single banner row that says "Shared · view only"
+// or "Shared · can edit".
+//
+// The user can still navigate the folder subtree (rooted at the shared
+// folder; ancestors are not visible) via the breadcrumb + per-folder
+// tab strip. Clicking a scene navigates to /share/:token/scenes/:sceneId
 // which mounts SharedEditor in folder-share mode.
 
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ArrowRight01Icon,
   Download01Icon,
   EyeIcon,
-  FolderLibraryIcon,
-  HashtagIcon,
-  Image01Icon,
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -22,9 +25,13 @@ import {
   SceneMeta,
   shares,
 } from "@/api";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { FolderTree, folderPath } from "@/components/FolderTree";
+import { PaperSurface } from "@/components/PaperSurface";
+import {
+  EmptyDeskNote,
+  FolderTab,
+  SceneCard,
+} from "@/components/sketch";
+import { folderPath } from "@/components/FolderTree";
 import { cn } from "@/lib/utils";
 
 interface SharedFolderProps {
@@ -35,7 +42,9 @@ interface SharedFolderProps {
 export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
   const { token = "" } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const [payload, setPayload] = useState<FolderSharePayload | null>(preloaded ?? null);
+  const [payload, setPayload] = useState<FolderSharePayload | null>(
+    preloaded ?? null
+  );
   const [err, setErr] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(
     preloaded?.root.id ?? null
@@ -56,7 +65,9 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
         setSelectedId(p.root.id);
       })
       .catch((e) =>
-        setErr(e instanceof ApiError ? e.message : "could not load shared folder")
+        setErr(
+          e instanceof ApiError ? e.message : "could not load shared folder"
+        )
       );
   }, [token, preloaded]);
 
@@ -68,6 +79,13 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
     return payload.scenes.filter((s) => s.folderId === selectedId);
   }, [payload, selectedId]);
 
+  const subfolders = useMemo(() => {
+    if (!payload || !selectedId) return [];
+    return payload.folders
+      .filter((f) => f.parentId === selectedId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [payload, selectedId]);
+
   const breadcrumb = useMemo(() => {
     if (!payload || !selectedId) return [];
     return folderPath(payload.folders, selectedId);
@@ -75,89 +93,129 @@ export default function SharedFolder({ preloaded }: SharedFolderProps = {}) {
 
   if (err) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-background px-4">
-        <div className="flex max-w-sm flex-col items-center gap-2 rounded-lg border border-border bg-card p-6 text-center text-card-foreground">
-          <div className="text-sm font-medium">Couldn't load this folder</div>
-          <p className="text-xs/relaxed text-muted-foreground">{err}</p>
-        </div>
-      </div>
+      <PaperSurface variant="page" className="grid place-items-center px-4">
+        <EmptyDeskNote
+          seed="shared-folder-error"
+          title="Couldn't load this folder"
+          body={err}
+        />
+      </PaperSurface>
     );
   }
 
   if (!payload) {
     return (
-      <div className="flex min-h-dvh">
-        <aside className="w-60 border-r border-border/60 bg-card/30 p-3">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="mt-3 h-3 w-2/3" />
-          <Skeleton className="mt-1 h-3 w-1/2" />
-        </aside>
-        <main className="flex-1 p-4">
-          <Skeleton className="h-4 w-1/3" />
-          <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <PaperSurface variant="page" className="px-6 py-6">
+        <div className="space-y-4">
+          <div className="h-10 w-2/3 max-w-sm animate-pulse rounded-md bg-paper-edge/60" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <li key={i} className="overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10">
-                <Skeleton className="aspect-[4/3] w-full rounded-none" />
-                <div className="px-3 py-2">
-                  <Skeleton className="h-3 w-3/4" />
-                </div>
-              </li>
+              <div
+                key={i}
+                className="aspect-[4/3] w-full animate-pulse rounded-md bg-paper-edge/50"
+              />
             ))}
-          </ul>
-        </main>
-      </div>
+          </div>
+        </div>
+      </PaperSurface>
     );
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur">
-        <span className="font-heading text-sm font-medium">
+    <PaperSurface variant="page">
+      {/* Banner */}
+      <header className="flex flex-wrap items-center gap-3 px-6 pt-6 pb-2">
+        <div className="font-heading text-2xl text-ink">
           {payload.root.name}
-        </span>
-        {writable ? (
-          <Badge variant="secondary">
-            <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-            Shared · can edit
-          </Badge>
-        ) : (
-          <Badge variant="outline">
-            <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
-            Shared · view only
-          </Badge>
-        )}
+        </div>
+        <div
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-xs ring-1",
+            writable
+              ? "bg-manila-soft text-ink ring-manila/40"
+              : "bg-paper-elev text-ink-soft ring-ink-soft/20"
+          )}
+        >
+          <HugeiconsIcon
+            icon={writable ? PencilEdit02Icon : EyeIcon}
+            strokeWidth={1.8}
+            className="size-3.5"
+          />
+          {writable ? "Shared · can edit" : "Shared · view only"}
+        </div>
         {payload.share.label ? (
-          <span className="ml-1 truncate text-xs text-muted-foreground">
-            {payload.share.label}
+          <span className="font-hand text-base text-ink-muted">
+            "{payload.share.label}"
           </span>
         ) : null}
       </header>
 
-      <div className="flex flex-1">
-        <aside className="flex w-60 flex-col gap-2 border-r border-border/60 bg-card/30 p-2 text-xs/relaxed">
-          <div className="px-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">
-            Folders
-          </div>
-          <FolderTree
-            folders={payload.folders}
-            selectedId={selectedId}
-            onSelect={(id) => setSelectedId(id)}
-            showCounts
-          />
-        </aside>
-
-        <main className="flex-1 px-4 py-4">
-          <Breadcrumb breadcrumb={breadcrumb} onJump={setSelectedId} />
-          <SceneGrid
-            scenes={visibleScenes}
-            token={token}
-            writable={!!writable}
-            allowDownload={!!allowDownload}
-            onOpen={(s) => navigate(`/share/${token}/scenes/${s.id}`)}
-          />
-        </main>
+      <div className="px-6">
+        <div className="border-t border-ink-soft/15" />
       </div>
-    </div>
+
+      <main className="px-6 pb-16 pt-3">
+        {breadcrumb.length > 0 && (
+          <Breadcrumb breadcrumb={breadcrumb} onJump={setSelectedId} />
+        )}
+
+        {subfolders.length === 0 && visibleScenes.length === 0 ? (
+          <EmptyDeskNote
+            seed={`shared-empty-${selectedId}`}
+            title={`"${
+              payload.folders.find((f) => f.id === selectedId)?.name ??
+              payload.root.name
+            }" is empty`}
+            body="No scenes in this folder. Try another folder above."
+          />
+        ) : (
+          <div className="space-y-6">
+            {subfolders.length > 0 && (
+              <section aria-label="Subfolders">
+                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
+                  Folders
+                </h3>
+                <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {subfolders.map((f) => (
+                    <FolderTab
+                      key={f.id}
+                      id={f.id}
+                      name={f.name}
+                      accent={f.isDefault ? "graphite" : "manila"}
+                      isInbox={f.isDefault}
+                      count={f.sceneCount}
+                      variant="grid"
+                      onClick={() => setSelectedId(f.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {visibleScenes.length > 0 && (
+              <section aria-label="Scenes">
+                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
+                  Scenes
+                </h3>
+                <ul className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {visibleScenes.map((s) => (
+                    <SharedSceneCard
+                      key={s.id}
+                      scene={s}
+                      token={token}
+                      allowDownload={allowDownload}
+                      onOpen={() =>
+                        navigate(`/share/${token}/scenes/${s.id}`)
+                      }
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
+      </main>
+    </PaperSurface>
   );
 }
 
@@ -169,16 +227,25 @@ function Breadcrumb({
   onJump: (id: string) => void;
 }) {
   return (
-    <nav className="flex items-center gap-1 text-xs/relaxed text-muted-foreground">
+    <nav
+      aria-label="Folder path"
+      className="flex items-center gap-1 px-6 py-2 font-hand text-base text-ink-soft"
+    >
       {breadcrumb.map((f, i) => (
         <span key={f.id} className="flex items-center gap-1">
-          {i > 0 ? <span aria-hidden>/</span> : null}
+          {i > 0 ? (
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              strokeWidth={1.5}
+              className="size-3 opacity-50"
+            />
+          ) : null}
           <button
             type="button"
             onClick={() => onJump(f.id)}
             className={cn(
-              "rounded px-1 py-0.5 hover:bg-muted/60",
-              i === breadcrumb.length - 1 && "text-foreground font-medium"
+              "rounded px-1 py-0.5 transition-colors hover:text-ink",
+              i === breadcrumb.length - 1 && "text-ink"
             )}
           >
             {f.name}
@@ -189,104 +256,57 @@ function Breadcrumb({
   );
 }
 
-function SceneGrid({
-  scenes: list,
+function SharedSceneCard({
+  scene: s,
   token,
-  writable,
   allowDownload,
   onOpen,
 }: {
-  scenes: SceneMeta[];
+  scene: SceneMeta;
   token: string;
-  writable: boolean;
   allowDownload: boolean;
-  onOpen: (s: SceneMeta) => void;
+  onOpen: () => void;
 }) {
-  if (list.length === 0) {
-    return (
-      <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-2 rounded-lg border border-dashed border-border/60 px-6 py-16 text-center">
-        <HugeiconsIcon icon={FolderLibraryIcon} strokeWidth={1.5} className="size-7 text-muted-foreground" />
-        <div className="text-sm font-medium">No scenes here</div>
-        <p className="text-xs/relaxed text-muted-foreground">
-          This folder doesn't contain any scenes directly. Pick a subfolder
-          from the sidebar.
-        </p>
-      </div>
-    );
-  }
   return (
-    <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {list.map((s) => (
-        <li
-          key={s.id}
-          className="group/scene relative overflow-hidden rounded-lg bg-card text-card-foreground ring-1 ring-foreground/10 transition-all hover:ring-foreground/20"
-        >
-          <button
-            type="button"
-            onClick={() => onOpen(s)}
-            aria-label={`Open ${s.name}`}
-            className="block aspect-[4/3] w-full overflow-hidden bg-muted/40 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+    <SceneCard
+      id={s.id}
+      name={s.name}
+      hasThumb={s.hasThumb}
+      thumbUrl={`${shares.folderSceneThumbUrl(token, s.id)}?v=${s.version}`}
+      folderName={null}
+      updatedAtLabel={relTime(s.updatedAt)}
+      tags={s.tags}
+      href={`/share/${token}/scenes/${s.id}`}
+      onOpen={onOpen}
+      actions={
+        allowDownload ? (
+          <a
+            href={shares.folderSceneDownloadUrl(token, s.id)}
+            download
+            aria-label={`Download ${s.name}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex size-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft hover:text-ink"
           >
-            {s.hasThumb ? (
-              <img
-                src={shares.folderSceneThumbUrl(token, s.id) + `?v=${s.version}`}
-                alt=""
-                loading="lazy"
-                className="h-full w-full object-contain transition-transform duration-300 group-hover/scene:scale-[1.02]"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
-                <HugeiconsIcon icon={Image01Icon} strokeWidth={1.5} className="size-10" />
-              </div>
-            )}
-          </button>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <Link
-                to={`/share/${token}/scenes/${s.id}`}
-                className="block truncate text-xs/relaxed font-medium text-foreground hover:underline"
-                title={s.name}
-              >
-                {s.name}
-              </Link>
-              {s.tags.length > 0 ? (
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {s.tags.slice(0, 2).map((t) => (
-                    <span
-                      key={t}
-                      className="inline-flex max-w-[8rem] items-center gap-0.5 rounded-full bg-accent/40 px-1.5 py-0.5 text-[0.625rem] text-accent-foreground"
-                    >
-                      <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-60" />
-                      <span className="truncate">{t}</span>
-                    </span>
-                  ))}
-                  {s.tags.length > 2 ? (
-                    <span className="text-[0.625rem] text-muted-foreground">
-                      +{s.tags.length - 2}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-            {allowDownload ? (
-              <a
-                href={shares.folderSceneDownloadUrl(token, s.id)}
-                download
-                aria-label={`Download ${s.name}`}
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="size-3.5" />
-              </a>
-            ) : null}
-            {writable ? (
-              <Badge variant="secondary">
-                <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-                Edit
-              </Badge>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
+            <HugeiconsIcon
+              icon={Download01Icon}
+              strokeWidth={2}
+              className="size-3.5"
+            />
+          </a>
+        ) : null
+      }
+    />
   );
+}
+
+function relTime(ms: number): string {
+  const diff = Date.now() - ms;
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ms).toLocaleDateString();
 }

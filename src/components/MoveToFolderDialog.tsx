@@ -71,13 +71,13 @@ export function MoveToFolderDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} className="size-3.5" />
+          <DialogTitle className="flex items-center gap-2">
+            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
             {title}
           </DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border bg-input/10 p-1.5">
+        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-ink-soft/20 bg-paper/50 p-1.5">
           <FolderTree
             folders={folders}
             selectedId={selected}

@@ -2,15 +2,21 @@
 //   /share/:token                  → scene-share (loads /api/share/:token)
 //   /share/:token/scenes/:sceneId  → folder-share scene (loads /api/share/:token/scenes/:sceneId)
 //
-// The first request to /api/share/:token also returns a folder listing
-// when the token is a folder share — that case is handled by
-// `pages/SharedFolder.tsx`. This component is only mounted when we
-// already know we're loading a scene.
+// Like Editor, this is a zero-chrome canvas page. All controls live inside
+// Excalidraw's MainMenu / Footer. We expose a reduced action set:
+//   • Back to folder (only on folder-share scene routes)
+//   • Download (only when the share grants downloads)
+//   • Default Excalidraw items (theme, save-as-image, help)
+// Read-only shares get the canvas in view mode; writeable shares get the
+// save-status footer pill, but no rename/share-from-share since the visitor
+// doesn't own the scene.
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { MainMenu, Footer } from "@excalidraw/excalidraw";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ArrowLeft01Icon,
   Download01Icon,
   EyeIcon,
   PencilEdit02Icon,
@@ -18,18 +24,9 @@ import {
 
 import type { LoadedScene, SceneBlob } from "@/api";
 import { ApiError, shares } from "@/api";
-import SceneEditor from "@/components/SceneEditor";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  EditorErrorState,
-  EditorHeader,
-  EditorLoadingState,
-} from "./Editor";
+import SceneEditor, { EditorSaveBadge } from "@/components/SceneEditor";
+import { SceneNameLabel } from "@/components/sketch";
+import { EditorErrorState, EditorLoadingState } from "./Editor";
 
 interface SharedEditorProps {
   /** Optional preloaded scene; used by SharedTokenLanding to avoid a double fetch. */
@@ -38,6 +35,7 @@ interface SharedEditorProps {
 
 export default function SharedEditor({ preloaded }: SharedEditorProps = {}) {
   const params = useParams<{ token: string; sceneId?: string }>();
+  const navigate = useNavigate();
   const token = params.token || "";
   const sceneId = params.sceneId; // present only on folder-share routes
 
@@ -97,55 +95,86 @@ export default function SharedEditor({ preloaded }: SharedEditorProps = {}) {
     : shares.downloadUrl(token);
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
-      <EditorHeader
-        backHref={sceneId ? `/share/${token}` : undefined}
-        backLabel={sceneId ? "Back to folder" : "Back"}
-        title={loaded.meta.name}
-        badge={
-          writable ? (
-            <Badge variant="secondary" className="ml-1 gap-1">
-              <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-              Shared · can edit
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="ml-1 gap-1">
-              <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
-              Shared · view only
-            </Badge>
-          )
-        }
-        actions={
-          loaded.allowDownload ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <a
-                    href={downloadHref}
-                    download
-                    aria-label="Download .excalidraw"
-                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  />
-                }
-              >
-                <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="size-3.5" />
-              </TooltipTrigger>
-              <TooltipContent>Download</TooltipContent>
-            </Tooltip>
-          ) : null
+    <div className="h-dvh w-dvw bg-paper">
+      <SceneEditor
+        loaded={loaded}
+        save={writable ? save : async () => ({ version: loaded.meta.version })}
+        saveThumb={null}
+        reload={reload}
+        onReload={(ls) => setLoaded(ls)}
+        chrome={
+          <>
+            <MainMenu>
+              {/* Header showing scene name + share permission. Excalidraw
+                  owns the actual hamburger trigger; we surface document
+                  context inside the menu and via <Footer>. */}
+              <MainMenu.ItemCustom>
+                <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1">
+                  <span
+                    className="truncate font-heading text-base text-ink"
+                    title={loaded.meta.name}
+                  >
+                    {loaded.meta.name}
+                  </span>
+                  <span className="flex items-center gap-1 font-hand text-xs text-ink-muted">
+                    {writable ? (
+                      <>
+                        <HugeiconsIcon
+                          icon={PencilEdit02Icon}
+                          strokeWidth={1.8}
+                          className="size-3"
+                        />
+                        Shared · can edit
+                      </>
+                    ) : (
+                      <>
+                        <HugeiconsIcon
+                          icon={EyeIcon}
+                          strokeWidth={1.8}
+                          className="size-3"
+                        />
+                        Shared · view only
+                      </>
+                    )}
+                  </span>
+                </div>
+              </MainMenu.ItemCustom>
+              <MainMenu.Separator />
+
+              {sceneId && (
+                <MainMenu.Item
+                  icon={
+                    <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />
+                  }
+                  onSelect={() => navigate(`/share/${token}`)}
+                >
+                  Back to folder
+                </MainMenu.Item>
+              )}
+              {loaded.allowDownload && (
+                <MainMenu.ItemLink
+                  href={downloadHref}
+                  icon={
+                    <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
+                  }
+                >
+                  Download .excalidraw
+                </MainMenu.ItemLink>
+              )}
+
+              <MainMenu.Separator />
+              <MainMenu.DefaultItems.ToggleTheme />
+              <MainMenu.DefaultItems.SaveAsImage />
+              <MainMenu.DefaultItems.Help />
+            </MainMenu>
+
+            <Footer>
+              <SceneNameLabel name={loaded.meta.name} />
+              {writable && <EditorSaveBadge />}
+            </Footer>
+          </>
         }
       />
-      <div className="flex-1 min-h-0">
-        <SceneEditor
-          loaded={loaded}
-          save={writable ? save : async () => ({ version: loaded.meta.version })}
-          saveThumb={null}
-          reload={reload}
-          onReload={(ls) => setLoaded(ls)}
-        />
-      </div>
     </div>
   );
 }
-
-

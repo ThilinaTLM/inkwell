@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { ApiError, FolderSharePayload, LoadedScene, shares } from "@/api";
+import { PaperSurface } from "@/components/PaperSurface";
+import { EmptyDeskNote } from "@/components/sketch";
 import SharedFolder from "./SharedFolder";
 import SharedEditor from "./SharedEditor";
 
@@ -47,12 +49,13 @@ export default function SharedTokenLanding() {
   if (state.phase === "loading") return null; // SharedEditor/SharedFolder render their own skeletons after re-mount
   if (state.phase === "error") {
     return (
-      <div className="grid min-h-dvh place-items-center bg-background px-4">
-        <div className="flex max-w-sm flex-col items-center gap-2 rounded-lg border border-border bg-card p-6 text-center text-card-foreground">
-          <div className="text-sm font-medium">Couldn't open this link</div>
-          <p className="text-xs/relaxed text-muted-foreground">{state.message}</p>
-        </div>
-      </div>
+      <PaperSurface variant="page" className="grid place-items-center px-4">
+        <EmptyDeskNote
+          seed="shared-link-error"
+          title="Couldn't open this link"
+          body={state.message}
+        />
+      </PaperSurface>
     );
   }
   if (state.data.kind === "folder") {
