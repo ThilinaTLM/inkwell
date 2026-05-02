@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "predev:worker": "pnpm db:migrate:local",
-    "dev:worker": "wrangler dev",
+    "dev:worker": "wrangler dev --port 8888",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "deploy": "pnpm run build && wrangler deploy",

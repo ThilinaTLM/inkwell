@@ -174,11 +174,11 @@ SESSION_SECRET=devsecretdevsecretdevsecretdevse
 In two terminals:
 
 ```bash
-pnpm run dev:worker   # wrangler dev → :8787
-pnpm run dev          # vite          → :5173 (proxies /api to :8787)
+pnpm run dev:worker   # wrangler dev → :8888
+pnpm run dev          # vite          → :3838 (proxies /api to :8888)
 ```
 
-Open <http://localhost:5173>. Log in with `SUPER_ADMIN_EMAIL` and
+Open <http://localhost:3838>. Log in with `SUPER_ADMIN_EMAIL` and
 `SUPER_ADMIN_PASSWORD`, click **+ New scene**.
 
 To invite another user: click the avatar in the top-right → **Admin** →
