@@ -284,25 +284,34 @@ function useSceneTagsLazy(
       write: (next: string[]) => void;
     } {
   const qc = useQueryClient();
-  const [tags, setTags] = useState<string[] | null>(null);
+  const [tagState, setTagState] = useState<{ id: string; tags: string[] | null }>({
+    id,
+    tags: null,
+  });
+  const tags = tagState.id === id ? tagState.tags : null;
+
+  useEffect(() => {
+    setTagState((prev) => (prev.id === id ? prev : { id, tags: null }));
+  }, [id]);
 
   useEffect(() => {
     if (!enabled || tags !== null) return;
 
     // 1) Check every cached scenes.list query for this id.
     const lists = qc.getQueriesData<SceneMeta[]>({
-      queryKey: keys.scenes.all,
+      queryKey: keys.scenes.listPrefix(),
     });
     for (const [, rows] of lists) {
-      const hit = rows?.find((r) => r.id === id);
+      if (!Array.isArray(rows)) continue;
+      const hit = rows.find((r) => r.id === id);
       if (hit) {
-        setTags(hit.tags);
+        setTagState({ id, tags: hit.tags });
         return;
       }
     }
 
     // 2) Cache miss. Do a one-shot list and cache it under the
-    //    canonical "all scenes" key so future opens hit the cache.
+    //    canonical scenes.list key so future opens hit the cache.
     let alive = true;
     qc.fetchQuery({
       queryKey: keys.scenes.list({}),
@@ -311,10 +320,10 @@ function useSceneTagsLazy(
       .then((rows) => {
         if (!alive) return;
         const hit = rows.find((r) => r.id === id);
-        setTags(hit?.tags ?? []);
+        setTagState({ id, tags: hit?.tags ?? [] });
       })
       .catch(() => {
-        if (alive) setTags([]);
+        if (alive) setTagState({ id, tags: [] });
       });
     return () => {
       alive = false;
@@ -323,5 +332,9 @@ function useSceneTagsLazy(
 
   if (!enabled && tags === null) return { status: "idle" };
   if (tags === null) return { status: "loading" };
-  return { status: "ok", tags, write: setTags };
+  return {
+    status: "ok",
+    tags,
+    write: (next) => setTagState({ id, tags: next }),
+  };
 }

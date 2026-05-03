@@ -26,6 +26,7 @@ export const keys = {
 
   scenes: {
     all: ["scenes"] as const,
+    listPrefix: () => ["scenes", "list"] as const,
     list: (q: ScenesQuery) => ["scenes", "list", q] as const,
     detail: (id: string) => ["scenes", "detail", id] as const,
     shares: (sceneId: string) => ["scenes", sceneId, "shares"] as const,
