@@ -199,13 +199,13 @@ export async function loadRowAnyOwner(env: Env, id: string): Promise<SceneRow | 
 export async function getScene(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, row);
+  return await streamSceneBody(env, row, { includeFolderId: true });
 }
 
 export async function streamSceneBody(
   env: Env,
   row: SceneRow,
-  opts: { download?: boolean } = {},
+  opts: { download?: boolean; includeFolderId?: boolean } = {},
 ): Promise<Response> {
   const obj = await env.R2.get(r2SceneKey(row.id));
   if (!obj) return errorResponse(404, "scene blob missing in R2");
@@ -218,6 +218,12 @@ export async function streamSceneBody(
     "x-scene-updated-at": String(row.updated_at),
     "cache-control": "no-store",
   };
+  // Owner-only: scene's parent folder, used by the editor's "Back" button
+  // to fall back to the right folder on cold deep-links. Omitted on share-
+  // token loads so we don't surface owner-side folder IDs to recipients.
+  if (opts.includeFolderId) {
+    headers["x-scene-folder-id"] = row.folder_id ?? "";
+  }
   if (opts.download) {
     headers["content-disposition"] = `attachment; filename="${safeFilename(row.name)}.excalidraw"`;
   }
@@ -235,7 +241,7 @@ function safeFilename(name: string): string {
 export async function downloadScene(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, row, { download: true });
+  return await streamSceneBody(env, row, { download: true, includeFolderId: true });
 }
 
 // ─── Update (full body) ───────────────────────────────────────────────

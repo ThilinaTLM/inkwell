@@ -92,7 +92,15 @@ export interface SceneBlob {
 }
 
 export interface LoadedScene {
-  meta: { id: string; name: string; version: number; updatedAt: number };
+  meta: {
+    id: string;
+    name: string;
+    version: number;
+    updatedAt: number;
+    /** Parent folder, or `null` when the scene lives at the root.
+     *  Only populated for owner-loaded scenes; share-token loads omit it. */
+    folderId: string | null;
+  };
   blob: SceneBlob;
   /** Permission when loaded via a share token. Owner-loaded scenes are 'write'. */
   permission: "read" | "write";
@@ -471,9 +479,11 @@ async function readSceneResponse(
   const name = decodeURIComponent(resp.headers.get("x-scene-name") || "Untitled");
   const version = Number(resp.headers.get("x-scene-version") || "1");
   const updatedAt = Number(resp.headers.get("x-scene-updated-at") || "0");
+  const folderHeader = resp.headers.get("x-scene-folder-id");
+  const folderId = folderHeader ? folderHeader : null;
   const blob = (await resp.json()) as SceneBlob;
   return {
-    meta: { id, name, version, updatedAt },
+    meta: { id, name, version, updatedAt, folderId },
     blob,
     permission,
     allowDownload,

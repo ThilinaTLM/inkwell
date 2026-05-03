@@ -21,6 +21,7 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
       <Route path="/" element={<DashboardPage />} />
+      <Route path="/folders/:folderId" element={<DashboardPage />} />
       <Route path="/s/:id" element={<EditorPage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route

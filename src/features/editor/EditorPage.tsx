@@ -15,7 +15,7 @@ import { Download01Icon, Edit02Icon, HashtagIcon, Share08Icon } from "@hugeicons
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useScene } from "@/features/editor/hooks";
 import { useRenameScene, useSetSceneTags, useTags } from "@/features/explorer/hooks";
@@ -39,6 +39,7 @@ export default function EditorPage() {
   const setTagsMutation = useSetSceneTags();
 
   const navigate = useNavigate();
+  const navType = useNavigationType();
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -134,6 +135,21 @@ export default function EditorPage() {
   // refetch the whole-account scene list per dialog-open.
   const sceneTags = useSceneTagsLazy(id, tagsOpen);
 
+  // History-aware "Back to dashboard":
+  //   - PUSH (we got here via in-app navigation) → real browser back, so
+  //     the user lands in whatever section/folder they came from.
+  //   - Anything else (cold deep-link, refresh, forward-then-back) → fall
+  //     back to the scene's actual parent folder (server truth from
+  //     `LoadedScene.meta.folderId`), or root if the scene is at root.
+  const parentFolderId = loaded?.meta.folderId ?? null;
+  const handleBack = useCallback(() => {
+    if (navType === "PUSH") {
+      navigate(-1);
+    } else {
+      navigate(parentFolderId ? `/folders/${parentFolderId}` : "/", { replace: true });
+    }
+  }, [navType, parentFolderId, navigate]);
+
   if (sceneQuery.isError) {
     return <EditorErrorState message={errorMessage(sceneQuery.error, "load failed")} />;
   }
@@ -148,7 +164,7 @@ export default function EditorPage() {
         onThumbSaved={onThumbSaved}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
-        back={{ onClick: () => navigate("/"), label: "Back to dashboard" }}
+        back={{ onClick: handleBack, label: "Back to dashboard" }}
         onRequestRename={() => setRenameOpen(true)}
         chrome={
           <MainMenu>

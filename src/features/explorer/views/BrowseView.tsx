@@ -1,7 +1,7 @@
 // BrowseView — the file-explorer pane.
 //
 //   /                       → root (folders + scenes with `folder_id IS NULL`)
-//   /?folder=<id>           → that folder's direct children
+//   /folders/:folderId      → that folder's direct children
 //
 // Layout:
 //   - Page header: path strip (breadcrumb) + folder name title +

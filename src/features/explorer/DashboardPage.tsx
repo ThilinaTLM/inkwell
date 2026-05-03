@@ -1,18 +1,23 @@
 // Dashboard — file-explorer shell.
 //
 // Owns:
-//   - URL state (`?folder=`).
+//   - URL state (path: `/` for root, `/folders/:folderId` for a folder).
 //   - Dialog state (which scene/folder a rename / delete / move / share /
 //     edit-tags dialog is currently targeting).
 //   - The `actions` table handed to the Browse view's right-click menu.
+//
+// Folder navigation pushes a new history entry (no `replace`) so the
+// browser back button walks the folder stack naturally, and so the
+// editor's history-aware back button lands the user back in the folder
+// they came from.
 //
 // Does NOT own data fetching: `<BrowseView>` consumes the explorer
 // query hooks (`useFolders`, `useScenes`) directly. Mutations from
 // the dialog hooks invalidate those queries, so the view refreshes
 // without any manual `refreshTick` plumbing.
 
-import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { PaperSurface } from "@/components/PaperSurface";
@@ -43,9 +48,19 @@ type ShareTarget = { kind: "scene"; scene: SceneMeta } | { kind: "folder"; folde
 export default function DashboardPage() {
   const me = useMe();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const params = useParams<{ folderId: string }>();
+  const folderId = params.folderId ?? null;
 
-  const folderId = searchParams.get("folder");
+  // Legacy `/?folder=<id>` redirect. Old bookmarks land here; rewrite to
+  // the canonical path-based URL with `replace` so the legacy form does
+  // not clutter the history stack.
+  const [legacyParams] = useSearchParams();
+  useEffect(() => {
+    const legacyFolder = legacyParams.get("folder");
+    if (legacyFolder && !folderId) {
+      navigate(`/folders/${legacyFolder}`, { replace: true });
+    }
+  }, [legacyParams, folderId, navigate]);
 
   const folders = useFolders();
   const tags = useTags();
@@ -54,10 +69,9 @@ export default function DashboardPage() {
   const updateFolder = useUpdateFolder();
 
   // ─── URL helpers ──────────────────────────────────────────────────
+  // Push a new history entry so browser back walks the folder stack.
   function setFolder(id: string | null) {
-    const sp = new URLSearchParams();
-    if (id) sp.set("folder", id);
-    setSearchParams(sp, { replace: true });
+    navigate(id ? `/folders/${id}` : "/");
   }
 
   // ─── Dialog state ─────────────────────────────────────────────────
