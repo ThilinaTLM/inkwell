@@ -42,7 +42,6 @@ import {
   CheckmarkCircle02Icon,
   EyeIcon,
   Loading03Icon,
-  PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { CSSProperties, ReactNode } from "react";
@@ -92,16 +91,12 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
     statusIcon = <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />;
   } else {
     switch (status) {
-      case "idle":
-        statusTitle = "Ready";
-        statusIcon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        break;
       case "dirty":
-        statusTitle = "Editing";
-        statusIcon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        statusTone = "text-foreground";
-        break;
       case "saving":
+        // Both states render the spinner: "dirty" is the 1s debounce
+        // window before the autosave fires, "saving" is the in-flight
+        // round-trip. Showing a spinner across the whole interval makes
+        // it clear the system is on its way to persisting the edit.
         statusTitle = "Saving…";
         statusIcon = (
           <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />

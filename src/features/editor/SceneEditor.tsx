@@ -70,7 +70,11 @@ import { SceneTopLeftStrip } from "./SceneTopLeftStrip";
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
 
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+// Editor save lifecycle. "saved" is the resting state — both the
+// initial value (a freshly loaded scene matches the server) and the
+// state after a successful autosave. "dirty" / "saving" / "error"
+// are the transient in-edit states.
+export type SaveStatus = "dirty" | "saving" | "saved" | "error";
 
 export interface SceneEditorProps {
   loaded: LoadedScene;
@@ -135,7 +139,7 @@ const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
  */
 export function useSceneEditorContext(): SceneEditorContextValue {
   const ctx = useContext(SceneEditorContext);
-  return ctx ?? { status: "idle", errorMessage: null, readOnly: false, onRequestRename: null };
+  return ctx ?? { status: "saved", errorMessage: null, readOnly: false, onRequestRename: null };
 }
 
 export default function SceneEditor({
@@ -150,7 +154,12 @@ export default function SceneEditor({
   onRequestRename,
 }: SceneEditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
-  const [status, setStatus] = useState<SaveStatus>("idle");
+  // A freshly loaded scene matches the server by construction, so the
+  // initial state is "saved", not "idle". "idle" would surface the
+  // pencil "Ready" indicator on first paint and only flip to a
+  // checkmark after the user makes (and we persist) an edit —
+  // misleading, since the scene already is saved on disk.
+  const [status, setStatus] = useState<SaveStatus>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // App theme is the single source of truth; Excalidraw renders as a
@@ -198,7 +207,8 @@ export default function SceneEditor({
       (loaded.blob.files as BinaryFiles) || {},
     );
     thumbFpRef.current = null;
-    setStatus("idle");
+    // See note on the initial status: a fresh blob === server state.
+    setStatus("saved");
     setErrorMsg(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded.blob]);
