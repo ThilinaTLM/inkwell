@@ -43,7 +43,6 @@ import { type Ref, useMemo } from "react";
 import { useRoughPath } from "@/components/rough";
 import { cn } from "@/lib/utils";
 
-import { TapeChip } from "./TapeChip";
 import { tiltFromId } from "./tilt";
 import { buildTornCorner } from "./tornCorner";
 
@@ -66,6 +65,7 @@ export interface SceneCardProps {
    *  it in the right-click menu) but kept on the prop for future use. */
   folderName?: string | null;
   updatedAtLabel: string;
+  /** Scene tags are still passed through from list data, but are not shown on the card. */
   tags: string[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
@@ -82,7 +82,6 @@ export function SceneCard({
   hasThumb,
   thumbUrl,
   updatedAtLabel,
-  tags,
   actions,
   onOpen,
   onContextMenu,
@@ -120,16 +119,6 @@ export function SceneCard({
           <div className="truncate font-heading text-sm text-foreground" title={name}>
             {name}
           </div>
-          {tags.length > 0 ? (
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-              {tags.slice(0, 3).map((t) => (
-                <TapeChip key={t} label={t} size="sm" asStatic active />
-              ))}
-              {tags.length > 3 ? (
-                <span className="text-xs text-muted-foreground/70">+{tags.length - 3}</span>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       </button>
 
