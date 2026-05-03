@@ -24,11 +24,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useTheme, type ThemeMode } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -37,32 +32,26 @@ export function ThemeToggle({ className }: { className?: string }) {
 
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Toggle theme"
-                  className={cn(
-                    "grid size-8 place-items-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft/50 hover:text-ink",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                    className,
-                  )}
-                />
-              }
-            />
-          }
-        >
-          <HugeiconsIcon
-            icon={resolved === "dark" ? Moon02Icon : Sun03Icon}
-            strokeWidth={1.7}
-            className="size-4"
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Toggle theme"
+            title="Theme"
+            className={cn(
+              "grid size-8 place-items-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft/50 hover:text-ink",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              className,
+            )}
           />
-        </TooltipTrigger>
-        <TooltipContent>Theme</TooltipContent>
-      </Tooltip>
+        }
+      >
+        <HugeiconsIcon
+          icon={resolved === "dark" ? Moon02Icon : Sun03Icon}
+          strokeWidth={1.7}
+          className="size-4"
+        />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
         <DropdownMenuRadioGroup
           value={mode}
