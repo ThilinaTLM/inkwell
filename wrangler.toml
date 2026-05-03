@@ -3,6 +3,13 @@ main = "worker/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Bind the Worker to inkwell.tlmtech.dev.
+# `custom_domain = true` tells Cloudflare to manage the DNS record and TLS
+# cert automatically in the tlmtech.dev zone — no manual DNS work needed.
+[[routes]]
+pattern = "inkwell.tlmtech.dev"
+custom_domain = true
+
 # Serve the built React SPA from ./dist.
 # `not_found_handling = "single-page-application"` makes /s/:id and /share/:token
 # fall back to index.html for client-side routing.
@@ -32,6 +39,8 @@ migrations_dir = "drizzle"
 # Non-secret config. Override per-env in [env.production.vars].
 [vars]
 # Comma-separated list of allowed origins for CORS (leave empty = same-origin only).
+# The SPA and API are served from the same Worker on inkwell.tlmtech.dev,
+# so same-origin (empty) is correct unless we add a separate frontend host.
 ALLOWED_ORIGINS = ""
 
 # Secrets to set via:

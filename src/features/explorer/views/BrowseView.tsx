@@ -101,15 +101,20 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
   const titleNode = <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />;
   const subtitle = isLoading ? undefined : buildSubtitle(subfolders.length, scenes?.length ?? 0);
 
+  // The body sits on a subtly lifted "deck" surface — `bg-muted/40`
+  // tints just enough above `--background` to separate the working
+  // area from the page-header chrome, in both light and dark themes.
+  // Inset on all four sides with a hairline border + rounded corners
+  // so the panel reads as a self-contained tray rather than a wall.
   const body = (
     <ItemContextMenu
       target={{ kind: "empty", folderId }}
       actions={actions}
       className="flex flex-1 flex-col min-h-0"
     >
-      <div className="flex flex-1 flex-col min-h-0 pb-16">
+      <div className="mx-3 mb-3 flex flex-1 flex-col min-h-0 rounded-2xl border border-border/50 bg-muted/40 py-4">
         {isLoading ? (
-          <div className="px-6 pt-4">
+          <div className="px-6">
             <SkeletonGrid />
           </div>
         ) : isEmpty ? (

@@ -34,6 +34,7 @@ CREATE TABLE `scenes` (
 	`version` integer DEFAULT 1 NOT NULL,
 	`size_bytes` integer DEFAULT 0 NOT NULL,
 	`has_thumb` integer DEFAULT false NOT NULL,
+	`thumb_updated_at` integer DEFAULT 0 NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`owner`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,

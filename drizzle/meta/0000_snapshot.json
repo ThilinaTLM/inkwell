@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "15debc0b-f01d-45f6-b7ba-df2219fdbb46",
+  "id": "33d7ec2a-e00a-4683-98a6-7300317dca07",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "folders": {
@@ -258,6 +258,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "thumb_updated_at": {
+          "name": "thumb_updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
