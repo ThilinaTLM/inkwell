@@ -3,24 +3,21 @@
 //   /share/:token/scenes/:sceneId  → folder-share scene (loads /api/share/:token/scenes/:sceneId)
 //
 // Like Editor, this is a zero-chrome canvas page. Scene name + save / read-only
-// status are rendered in Excalidraw's native top-right slot via SceneEditor's
-// internal `renderTopRightUI` wiring (see `SceneContextStrip`). The hamburger
-// menu surfaces a reduced action set:
+// status are rendered in the patched-in top-left slot via SceneEditor's
+// internal `renderTopLeftUI` wiring (see `SceneTopLeftStrip`). The dedicated
+// back icon button in that strip handles "back to folder" on folder-share
+// scene routes; on a top-level scene-share token there's no parent and the
+// back button is hidden. The MainMenu hamburger (relocated to the top-right
+// next to Library by our Excalidraw patch) surfaces a reduced action set:
 //   • Share-permission sub-label ("Shared · can edit" / "Shared · view only")
-//   • Back to folder (only on folder-share scene routes)
 //   • Download (only when the share grants downloads)
 //   • Default Excalidraw items (theme, save-as-image, help)
-// Read-only shares get the canvas in view mode; the top-right strip surfaces
+// Read-only shares get the canvas in view mode; the top-left strip surfaces
 // the read-only state via the EyeIcon variant. Visitors never see
 // rename/share-from-share since they don't own the scene.
 
 import { MainMenu } from "@excalidraw/excalidraw";
-import {
-  ArrowLeft01Icon,
-  Download01Icon,
-  EyeIcon,
-  PencilEdit02Icon,
-} from "@hugeicons/core-free-icons";
+import { Download01Icon, EyeIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
@@ -112,12 +109,15 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
         saveThumb={null}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
+        back={
+          sceneId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
+        }
         chrome={
           <MainMenu>
             {/* Scene name + save status / read-only state render in the
-                native top-right slot. Here we keep just the share-permission
+                top-left strip. Here we keep just the share-permission
                 line, which clarifies the *source* of any "Read-only"
-                indicator users see in the top-right strip. */}
+                indicator users see in that strip. */}
             <MainMenu.ItemCustom>
               <div className="px-2 pb-2 pt-1">
                 <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
@@ -137,14 +137,9 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
             </MainMenu.ItemCustom>
             <MainMenu.Separator />
 
-            {sceneId && (
-              <MainMenu.Item
-                icon={<HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />}
-                onSelect={() => navigate(`/share/${token}`)}
-              >
-                Back to folder
-              </MainMenu.Item>
-            )}
+            {/* "Back to folder" is now exposed as the dedicated back icon
+                button in the top-left strip, so we don't duplicate it as a
+                menu entry. */}
             {loaded.allowDownload && (
               <MainMenu.ItemLink
                 href={downloadHref}

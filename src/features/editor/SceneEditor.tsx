@@ -1,13 +1,21 @@
 // Shared Excalidraw editor used by both the owner Editor page and the
 // share-token SharedEditor page. The page-specific code only has to
-// provide load/save/saveThumb closures and a `chrome` slot for
-// `<MainMenu>` — all visible chrome is rendered *inside* Excalidraw
-// via its native extension points:
-//   • `<MainMenu>` (top-left, native hamburger) — actions, theme,
-//     navigation. Provided by the page through the `chrome` prop.
-//   • `renderTopRightUI` (native top-right slot, sibling of Library) —
-//     a `<SceneContextStrip>` showing scene name + save status. Wired
-//     internally; pages don't need to know.
+// provide load/save/saveThumb closures, a `chrome` slot for
+// `<MainMenu>`, and an optional `back` affordance — all visible chrome
+// is rendered *inside* Excalidraw via its native extension points:
+//   • `<MainMenu>` (relocated to top-right, sibling of Library) —
+//     actions, theme. Provided by the page through the `chrome` prop.
+//   • `renderTopLeftUI` (patched-in slot, see
+//     `patches/@excalidraw__excalidraw@0.18.1.patch`) — a
+//     `<SceneTopLeftStrip>` showing back button + scene name +
+//     icon-only save status. Wired internally; pages just provide
+//     the `back` config (or `null` to hide).
+//
+// The MainMenu hamburger lives on the top-right because our patch
+// moves the `MainMenuTunnel.Out` from `.App-menu_top__left` (left
+// column) to inside `.layer-ui__wrapper__top-right`. The `chrome`
+// children of `<Excalidraw>` are unchanged; only the trigger's DOM
+// position is.
 //
 // Lifecycle:
 //   1. Page calls `load()` once on mount and passes `loaded` here.
@@ -18,6 +26,16 @@
 //
 // On a 409 we re-fetch the scene and reset state. (For a single-user instance
 // this is rare; it shows up if the same scene is open in two tabs.)
+//
+// Unsaved-changes guard: while save state is dirty/saving/error and the
+// session is writable, both the top-left back button (via a wrapped
+// click handler that shows our own <AlertDialog>) and tab close / hard
+// reload (via `beforeunload`, which triggers the native browser prompt)
+// confirm with the user before leaving. Browser back/forward popstate
+// is intentionally not intercepted: the app uses `<BrowserRouter>`
+// rather than a data router, so `useBlocker` isn't available, and the
+// back button covers the only in-app departure path from the editor.
+// Read-only sessions bypass the guard entirely.
 
 import { Excalidraw, exportToSvg } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -28,15 +46,26 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDebounced } from "@/hooks/useDebounced";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import { SceneContextStrip } from "./SceneContextStrip";
+import { SceneTopLeftStrip } from "./SceneTopLeftStrip";
 
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -60,11 +89,27 @@ export interface SceneEditorProps {
   /**
    * Slot rendered as children of `<Excalidraw>` so consumers can mount
    * native Excalidraw UI: `<MainMenu>` for the hamburger, optionally
-   * `<Sidebar>` or `<Footer>`. The save-status / scene-name strip in
-   * the top-right is rendered internally via `renderTopRightUI`; pages
-   * don't need to (and shouldn't) duplicate it here.
+   * `<Sidebar>` or `<Footer>`. The back button / scene-name / save-status
+   * capsule in the top-left is rendered internally via
+   * `renderTopLeftUI`; pages don't need to (and shouldn't) duplicate
+   * it here.
    */
   chrome?: ReactNode;
+  /**
+   * Optional back affordance shown on the left side of the top bar.
+   * Pass `null` (or omit) to hide — e.g. on a top-level share token
+   * landing where there's no parent to navigate to. The page owns the
+   * navigation target because owner / shared / folder-share routes
+   * each have a different "back" semantic.
+   */
+  back?: { onClick: () => void; label: string } | null;
+  /**
+   * Owner-only: opens the rename dialog. When provided, the top-left
+   * strip's scene-name region becomes a double-click target. Pages
+   * own the dialog itself (so they can update their working copy on
+   * success) — this is just the request hook.
+   */
+  onRequestRename?: () => void;
 }
 
 // ─── Internal context for status / readOnly so chrome consumers can subscribe
@@ -74,6 +119,8 @@ interface SceneEditorContextValue {
   status: SaveStatus;
   errorMessage: string | null;
   readOnly: boolean;
+  /** Owner-only: opens the rename dialog. `null` on read-only / shared sessions. */
+  onRequestRename: (() => void) | null;
 }
 
 const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
@@ -81,14 +128,14 @@ const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
 /**
  * Read save status / read-only state from inside a `<SceneEditor>`.
  * Returns the inert default outside the provider so consumers can be
- * mounted defensively (e.g. by Excalidraw's `renderTopRightUI` which
+ * mounted defensively (e.g. by Excalidraw's `renderTopLeftUI` which
  * runs inside a portal-ish render path).
  *
- * Currently only consumed by `SceneContextStrip`.
+ * Currently only consumed by `SceneTopLeftStrip`.
  */
 export function useSceneEditorContext(): SceneEditorContextValue {
   const ctx = useContext(SceneEditorContext);
-  return ctx ?? { status: "idle", errorMessage: null, readOnly: false };
+  return ctx ?? { status: "idle", errorMessage: null, readOnly: false, onRequestRename: null };
 }
 
 export default function SceneEditor({
@@ -99,6 +146,8 @@ export default function SceneEditor({
   onReload,
   reload,
   chrome,
+  back = null,
+  onRequestRename,
 }: SceneEditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -302,20 +351,79 @@ export default function SceneEditor({
   // QueryClient is mounted at the app root, not here. On true
   // `beforeunload` (tab close) the fetch may be killed mid-flight; that's
   // the same risk as `debouncedSave` and we accept it.
+  //
+  // While unsaved (`isDirty`), `beforeunload` also fires the native
+  // browser prompt so the user can cancel a tab close / hard reload
+  // before their pending edits are lost. We read the live value through
+  // a ref so the listener doesn't have to re-bind on every status tick.
+  const isDirty = !readOnly && (status === "dirty" || status === "saving" || status === "error");
+  const isDirtyRef = useRef(isDirty);
   useEffect(() => {
-    const onHide = () => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      debouncedSave.flush();
+      debouncedThumb.flush();
+      if (isDirtyRef.current) {
+        e.preventDefault();
+        // Modern browsers ignore the string but require `returnValue` to
+        // be set to anything to trigger their built-in prompt.
+        e.returnValue = "";
+      }
+    };
+    const onVisibility = () => {
       debouncedSave.flush();
       debouncedThumb.flush();
     };
-    window.addEventListener("beforeunload", onHide);
-    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.removeEventListener("beforeunload", onHide);
-      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
       debouncedSave.flush();
       debouncedThumb.flush();
     };
   }, [debouncedSave, debouncedThumb]);
+
+  // In-app navigation guard. The app uses `<BrowserRouter>` rather
+  // than a data router, so `useBlocker` isn't available; instead we
+  // wrap the only in-app exit path from the editor — the top-left
+  // back button — to surface a confirm dialog. `pendingBackRef` holds
+  // the awaited continuation between "the user clicked back" and
+  // "the user picked an action in the dialog".
+  const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
+  const pendingBackRef = useRef<(() => void) | null>(null);
+  const requestBack = useCallback(() => {
+    if (!back) return;
+    if (!isDirty) {
+      back.onClick();
+      return;
+    }
+    pendingBackRef.current = back.onClick;
+    setConfirmLeaveOpen(true);
+  }, [back, isDirty]);
+  const confirmLeave = useCallback(() => {
+    debouncedSave.flush();
+    debouncedThumb.flush();
+    setConfirmLeaveOpen(false);
+    const cont = pendingBackRef.current;
+    pendingBackRef.current = null;
+    cont?.();
+  }, [debouncedSave, debouncedThumb]);
+  const cancelLeave = useCallback(() => {
+    pendingBackRef.current = null;
+    setConfirmLeaveOpen(false);
+  }, []);
+
+  // The strip's back button calls `requestBack`, not `back.onClick`
+  // directly. Memoised so `renderTopLeftUI`'s deps stay shallow —
+  // a fresh object literal each render would re-create the
+  // `renderTopLeftUI` callback on every status tick.
+  const guardedBack = useMemo(
+    () => (back ? { onClick: requestBack, label: back.label } : null),
+    [back, requestBack],
+  );
 
   const initial = {
     elements: (loaded.blob.elements as ExcalidrawElement[]) || [],
@@ -323,17 +431,29 @@ export default function SceneEditor({
     files: (loaded.blob.files as BinaryFiles) || {},
   };
 
-  // `renderTopRightUI` is invoked by Excalidraw on every render. We
-  // declare it inline so it closes over the latest `loaded.meta.name`;
-  // the strip itself reads save state from `SceneEditorContext` so the
-  // closure dependencies stay shallow.
-  const renderTopRightUI = useCallback(
-    (isMobile: boolean) => <SceneContextStrip name={loaded.meta.name} isMobile={isMobile} />,
-    [loaded.meta.name],
+  // `renderTopLeftUI` is invoked by Excalidraw on every render. We
+  // declare it inline so it closes over the latest `loaded.meta.name`
+  // / `back`; the strip itself reads save state from
+  // `SceneEditorContext` so the closure dependencies stay shallow.
+  //
+  // Slot is added by our pnpm patch on `@excalidraw/excalidraw`; see
+  // the file header.
+  const renderTopLeftUI = useCallback(
+    (isMobile: boolean) => (
+      <SceneTopLeftStrip name={loaded.meta.name} back={guardedBack} isMobile={isMobile} />
+    ),
+    [loaded.meta.name, guardedBack],
   );
 
   return (
-    <SceneEditorContext.Provider value={{ status, errorMessage: errorMsg, readOnly }}>
+    <SceneEditorContext.Provider
+      value={{
+        status,
+        errorMessage: errorMsg,
+        readOnly,
+        onRequestRename: !readOnly && onRequestRename ? onRequestRename : null,
+      }}
+    >
       <div className="relative h-full w-full">
         <div className="absolute inset-0">
           <Excalidraw
@@ -343,7 +463,7 @@ export default function SceneEditor({
             viewModeEnabled={readOnly}
             theme={themeResolved}
             name={loaded.meta.name}
-            renderTopRightUI={renderTopRightUI}
+            renderTopLeftUI={renderTopLeftUI}
             UIOptions={{
               canvasActions: {
                 loadScene: false,
@@ -366,6 +486,27 @@ export default function SceneEditor({
           </Excalidraw>
         </div>
       </div>
+      <AlertDialog
+        open={confirmLeaveOpen}
+        onOpenChange={(open) => {
+          if (!open) cancelLeave();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave with unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your latest edits haven't been saved yet. If you leave now they may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmLeave}>
+              Leave anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SceneEditorContext.Provider>
   );
 }

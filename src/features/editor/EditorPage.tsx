@@ -11,13 +11,7 @@
 // semantics that don't compose cleanly with a mutation lifecycle.
 
 import { MainMenu } from "@excalidraw/excalidraw";
-import {
-  ArrowLeft01Icon,
-  Download01Icon,
-  Edit02Icon,
-  HashtagIcon,
-  Share08Icon,
-} from "@hugeicons/core-free-icons";
+import { Download01Icon, Edit02Icon, HashtagIcon, Share08Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -154,19 +148,14 @@ export default function EditorPage() {
         onThumbSaved={onThumbSaved}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
+        back={{ onClick: () => navigate("/"), label: "Back to dashboard" }}
+        onRequestRename={() => setRenameOpen(true)}
         chrome={
           <MainMenu>
-            {/* Excalidraw owns the actual MainMenu trigger (a hamburger
-                icon at top-left) and ignores any custom <MainMenu.Trigger>.
-                The scene name + save status live in the native top-right
-                slot via `renderTopRightUI` inside SceneEditor. */}
-            <MainMenu.Item
-              icon={<HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />}
-              onSelect={() => navigate("/")}
-            >
-              Back to dashboard
-            </MainMenu.Item>
-            <MainMenu.Separator />
+            {/* The MainMenu trigger is relocated to the top-right via our
+                Excalidraw patch (see SceneEditor.tsx header). The back
+                button is provided by the dedicated icon button in the
+                top-left strip, so it's no longer duplicated here. */}
             <MainMenu.Item
               icon={<HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />}
               onSelect={() => setRenameOpen(true)}
