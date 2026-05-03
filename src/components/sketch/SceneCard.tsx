@@ -1,19 +1,25 @@
 // SceneCard — file-explorer tile for a scene.
 //
-// Visual: a flat-design paper sheet with a folded top-right corner.
-// Built from clean SVG paths — no rough/sketch strokes, no drop shadows.
+// Visual: a sheet of paper with an opaque dog-ear in the top-right
+// corner. The card reads as paper, not a flat panel:
 //
-//   - Sheet body  → `--color-card`, outlined with `--color-card-stroke`
-//   - Fold inside → `--color-accent` (primary tint — picks up the brand
-//                   warmth without competing with the thumbnail)
+//   - Sheet body  → `--color-card` with a soft drop shadow lifting it
+//                   off the desk, outlined with `--color-card-stroke`
+//   - Paper grain → `.bg-paper-grain` overlay (theme-aware multiply /
+//                   screen blend) gives the surface its "tooth". The
+//                   same utility powers `<PaperSurface>` so cards and
+//                   the desk share visual vocabulary.
+//   - Dog-ear     → a card-tinted triangular flap (color-mixed toward
+//                   `--color-foreground`) so it reads as the same
+//                   paper, just shaded. A small offset shadow behind
+//                   the flap and a crease stroke sell the fold.
 //   - Back stack  → two extra sheets that fan out from behind on hover,
-//                   suggesting "this scene has more inside"
+//                   suggesting "this scene has more inside".
 //
-// Geometry: the front sheet uses the full 200×150 viewBox with no inset.
-// SVG containers are `overflow-visible` so the ~0.7px of stroke that
-// renders outside the path isn't clipped at the box edge. The thumbnail
-// HTML layer uses a `clip-path` polygon in the same coordinate system,
-// so its edge is pixel-aligned to the sheet outline.
+// Geometry: the front sheet is a rounded rectangle covering the full
+// 200×150 viewBox. The thumbnail fills the same rectangle (clipped to
+// matching rounded corners). The dog-ear is the LAST layer painted, so
+// the thumbnail is hidden under it without any path-cutting trickery.
 //
 // Interaction model (parity with `FolderCard`):
 //   - single click  → opens the scene (`onOpen`)
@@ -37,8 +43,11 @@ import { cn } from "@/lib/utils";
 import { TapeChip } from "./TapeChip";
 import { tiltFromId } from "./tilt";
 
-// Fold-corner size in viewBox px (12% of 200 wide).
+// Dog-ear size in viewBox px (12% of 200 wide).
 const FOLD = 24;
+// Sheet path — rounded rectangle, full viewBox, 3px corner radius.
+const SHEET_PATH =
+  "M 0 3 Q 0 0 3 0 L 197 0 Q 200 0 200 3 L 200 147 Q 200 150 197 150 L 3 150 Q 0 150 0 147 Z";
 
 export interface SceneCardProps {
   id: string;
@@ -126,41 +135,25 @@ export function SceneCard({
 }
 
 /**
- * Paper-sheet silhouette with a folded top-right corner, plus two
- * stacked sheets behind that fan out on hover.
+ * Paper-sheet silhouette with an opaque dog-ear corner overlay, plus
+ * two stacked sheets behind that fan out on hover.
  *
  * Layer order (back → front):
  *   1. Back-stack sheets  (SVG, hidden at rest, inset 8px from front)
- *   2. Front sheet fill   (SVG, edge-to-edge in the box)
- *   3. Thumbnail          (HTML <img>, clipped to sheet path with `object-cover`)
- *   4. Front sheet stroke + fold edge (SVG, drawn over the thumbnail)
+ *   2. Front sheet fill   (SVG, rounded rect, with CSS drop-shadow
+ *                          lifting it off the desk)
+ *   3. Thumbnail          (HTML <img>, rounded-rect clip)
+ *   4. Paper grain        (div, .bg-paper-grain, multiply/screen blend)
+ *   5. Front sheet stroke (SVG, drawn over the thumbnail)
+ *   6. Dog-ear overlay    (SVG: shadow + tinted flap + crease)
  */
 function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: string }) {
-  // Front-sheet path runs edge-to-edge with the folded corner cut at
-  // the top-right. Tiny (3px) corner radius on the other three corners
-  // for a touch of softness; the fold takes care of the top-right.
-  const sheetPath = `M 0 3
-     Q 0 0 3 0
-     L ${200 - FOLD} 0
-     L 200 ${FOLD}
-     L 200 147
-     Q 200 150 197 150
-     L 3 150
-     Q 0 150 0 147 Z`;
-  // Inside-of-fold triangle (the small flap that exposes a different fill).
-  const foldPath = `M ${200 - FOLD} 0 L 200 ${FOLD} L ${200 - FOLD} ${FOLD} Z`;
-
-  // CSS clipPath in the same 0..100% space as the sheet path — image
-  // edges line up with the sheet outline pixel-for-pixel.
-  const foldXPct = ((200 - FOLD) / 200) * 100; // 88
-  const foldYPct = (FOLD / 150) * 100; // 16
-  const thumbClip = `polygon(
-    0% 0%,
-    ${foldXPct}% 0%,
-    100% ${foldYPct}%,
-    100% 100%,
-    0% 100%
-  )`;
+  // Card-tinted flap colour: the page hue mixed 22% toward the
+  // foreground so the flap reads as the *same* paper, just shaded.
+  // Symmetric across themes — in light it goes warm-gray, in dark it
+  // lifts slightly toward cream, both feeling like a folded paper edge
+  // rather than a separate-coloured sticker.
+  const foldFill = "color-mix(in srgb, var(--color-card) 78%, var(--color-foreground))";
 
   return (
     <div className="relative w-full" style={{ aspectRatio: "4 / 3" }} aria-hidden>
@@ -201,31 +194,39 @@ function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: strin
         />
       </svg>
 
-      {/* 2. Front sheet fill (drawn under the thumbnail so the page is
-            opaque even when there's no image). */}
+      {/* 2. Front sheet fill — a rounded rectangle with a soft drop
+            shadow so the page lifts off the desk. Two stacked shadows
+            (a tight contact shadow + a soft ambient one) read in both
+            light and dark themes. Drawn under the thumbnail so the
+            page is opaque even with no image. */}
       <svg
         viewBox="0 0 200 150"
         preserveAspectRatio="none"
         className="absolute inset-0 h-full w-full overflow-visible"
+        style={{
+          filter:
+            "drop-shadow(0 1px 1.5px rgba(0,0,0,0.22)) drop-shadow(0 6px 10px rgba(0,0,0,0.16))",
+        }}
         role="presentation"
       >
         <title>Scene paper</title>
-        <path d={sheetPath} fill="var(--color-card)" />
-        <path d={foldPath} fill="var(--color-accent)" />
+        <path d={SHEET_PATH} fill="var(--color-card)" />
       </svg>
 
-      {/* 3. Thumbnail clipped to the front-sheet silhouette. `object-cover`
-            fills the sheet area uniformly across cards; intrinsic
-            aspect-ratio differences in the source SVGs no longer cause
-            internal letterboxing. */}
-      <div className="absolute inset-0 overflow-hidden" style={{ clipPath: thumbClip }}>
+      {/* 3. Thumbnail filling the full rectangle. The dog-ear in step 6
+            paints over its top-right corner. Rounded-rect clip keeps
+            the thumbnail edges aligned with the sheet outline. */}
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{ clipPath: "inset(0 round 3px)" }}
+      >
         {hasThumb ? (
           <img
             src={thumbUrl}
             alt=""
             loading="lazy"
             draggable={false}
-            className="h-full w-full object-cover object-center"
+            className="ink-thumb-img h-full w-full object-cover object-center"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-muted-foreground/40">
@@ -234,8 +235,20 @@ function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: strin
         )}
       </div>
 
-      {/* 4. Stroke pass — drawn last so the outline crisply sits on top
-            of the thumbnail. Includes the diagonal fold edge. */}
+      {/* 4. Paper grain — reuses the same SVG-noise utility powering
+            <PaperSurface>. Sits between the thumbnail and the outline
+            so the texture lays gently over both the empty page area
+            and the strokes inside the thumbnail. Mix-blend-mode in the
+            utility flips multiply/screen per theme so it darkens light
+            paper and lightens dark paper. */}
+      <div
+        aria-hidden
+        className="bg-paper-grain pointer-events-none absolute inset-0"
+        style={{ clipPath: "inset(0 round 3px)" }}
+      />
+
+      {/* 5. Sheet outline — drawn over the grain so the rounded-rect
+            edge stays crisp regardless of thumbnail content. */}
       <svg
         viewBox="0 0 200 150"
         preserveAspectRatio="none"
@@ -244,19 +257,44 @@ function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: strin
       >
         <title>Scene outline</title>
         <path
-          d={sheetPath}
+          d={SHEET_PATH}
           fill="none"
           stroke="var(--color-card-stroke)"
           strokeWidth="1.4"
           strokeLinejoin="round"
         />
-        {/* Fold crease (the inside-edge where the corner is folded). */}
+      </svg>
+
+      {/* 6. Dog-ear overlay — painted last so it hides the thumbnail
+            in the corner. Three sub-layers sell the fold:
+              (a) shadow triangle: same flap shape, offset down-left so
+                  a thin dark sliver leaks out at the crease edge,
+                  reading as the lift cast by the corner;
+              (b) flap: card-tinted (foldFill) so it's the same paper
+                  in different light, not a coloured sticker;
+              (c) crease stroke: the hypotenuse, in card-stroke. */}
+      <svg
+        viewBox="0 0 200 150"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        role="presentation"
+      >
+        <title>Dog-ear</title>
         <path
-          d={`M ${200 - FOLD} 0 L ${200 - FOLD} ${FOLD} L 200 ${FOLD}`}
+          d={`M ${200 - FOLD - 1.5} 1.5 L 200 1.5 L 200 ${FOLD + 1.5} Z`}
+          fill="rgba(0, 0, 0, 0.22)"
+        />
+        <path
+          d={`M ${200 - FOLD} 0 L 200 0 L 200 ${FOLD} Z`}
+          fill={foldFill}
+        />
+        <path
+          d={`M ${200 - FOLD} 0 L 200 ${FOLD}`}
           fill="none"
           stroke="var(--color-card-stroke)"
           strokeWidth="1.2"
-          strokeLinejoin="round"
+          strokeLinecap="round"
+          strokeOpacity="0.7"
         />
       </svg>
     </div>

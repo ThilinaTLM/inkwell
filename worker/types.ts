@@ -134,7 +134,8 @@ export interface FolderMeta {
   tags: string[];
   sceneCount: number; // direct children only
   subfolderCount: number; // direct children only
-  /** Up to 2 most-recently-updated scenes inside this folder, newest first. */
+  /** Up to 3 most-recently-updated scenes inside this folder, newest first.
+   *  `previews[0]` is the front-most paper in the FolderCard stack. */
   previews: ScenePreview[];
   createdAt: number;
   updatedAt: number;

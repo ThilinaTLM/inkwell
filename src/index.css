@@ -276,24 +276,35 @@
    ────────────────────────────────────────────────────────────────── */
 .ink-folder__back,
 .ink-folder__front,
-.ink-folder__inner {
+.ink-folder__inner,
+.ink-folder__inner--back,
+.ink-folder__inner--mid,
+.ink-folder__inner--front {
   transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: translateY(0);
   transition:
     transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
   will-change: transform;
-}
-.ink-folder__inner {
-  transform-origin: 50% 100%;
-  transform: translateY(0);
 }
 .ink-folder__front {
   /* 3D rotation around the top edge — "opening" the pocket. */
   transform-origin: 50% 0%;
   transform: rotateX(0deg);
 }
-.group\/folder:hover .ink-folder__inner,
-.group\/folder:focus-within .ink-folder__inner {
-  transform: translateY(-14px);
+/* Three inner papers fan out by different amounts on hover: the
+   front (most recent) comes out the most, the back (oldest) least. */
+.group\/folder:hover .ink-folder__inner--back,
+.group\/folder:focus-within .ink-folder__inner--back {
+  transform: translateY(-10px);
+}
+.group\/folder:hover .ink-folder__inner--mid,
+.group\/folder:focus-within .ink-folder__inner--mid {
+  transform: translateY(-18px);
+}
+.group\/folder:hover .ink-folder__inner--front,
+.group\/folder:focus-within .ink-folder__inner--front {
+  transform: translateY(-26px);
 }
 .group\/folder:hover .ink-folder__front,
 .group\/folder:focus-within .ink-folder__front {
@@ -302,6 +313,19 @@
 .group\/folder:hover .ink-folder__back,
 .group\/folder:focus-within .ink-folder__back {
   transform: translateY(-2px);
+}
+
+/* Thumbnail images on explorer cards. In dark mode we invert + rotate
+   hue so dark strokes baked into the SVG read as light strokes on the
+   dark card body. Cheap, no migration, works on legacy white-bg SVGs
+   (the white rect inverts to near-black and blends with --color-card).
+   Color-rich scenes get a hue shift; acceptable for thumbnails. */
+.ink-thumb-img {
+  filter: none;
+  transition: filter 180ms ease-out;
+}
+.dark .ink-thumb-img {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 .ink-scene__back {
@@ -337,10 +361,16 @@
   .ink-folder__back,
   .ink-folder__front,
   .ink-folder__inner,
-  .ink-scene__back {
+  .ink-folder__inner--back,
+  .ink-folder__inner--mid,
+  .ink-folder__inner--front,
+  .ink-scene__back,
+  .ink-thumb-img {
     transition: none;
   }
-  .group\/folder:hover .ink-folder__inner,
+  .group\/folder:hover .ink-folder__inner--back,
+  .group\/folder:hover .ink-folder__inner--mid,
+  .group\/folder:hover .ink-folder__inner--front,
   .group\/folder:hover .ink-folder__front,
   .group\/folder:hover .ink-folder__back,
   .group\/scene:hover .ink-scene__back--l,

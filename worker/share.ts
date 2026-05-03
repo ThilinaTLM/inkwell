@@ -336,7 +336,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
   );
   const folderTags = await collectTagsForMany(env, "folder", folderIds);
 
-  // Compute per-folder top-2 previews (most recently updated scenes).
+  // Compute per-folder top-3 previews (most recently updated scenes).
   // The full scenes array is already in memory — doing it client-side
   // here is cheaper than another DB query.
   const previewsByFolder = new Map<string, ScenePreview[]>();
@@ -344,7 +344,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
   for (const s of sortedScenes) {
     if (!s.folder_id) continue;
     const arr = previewsByFolder.get(s.folder_id) ?? [];
-    if (arr.length >= 2) continue;
+    if (arr.length >= 3) continue;
     arr.push({
       id: s.id,
       hasThumb: s.has_thumb,

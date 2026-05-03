@@ -256,8 +256,11 @@ export default function SceneEditor({
           elements: normalizeImagesForExport(elements, files),
           appState: {
             ...appState,
-            exportBackground: true,
-            viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
+            // Transparent export: the dashboard's card body provides the
+            // paper, and dark mode applies a CSS invert filter on top of
+            // this SVG so dark strokes read as light strokes on the dark
+            // card. Baking a white background here would defeat both.
+            exportBackground: false,
           } as AppState,
           files,
           exportPadding: 12,

@@ -39,9 +39,10 @@ export interface FolderCardProps {
   name: string;
   /** Number of scenes directly inside this folder. */
   sceneCount?: number | null;
-  /** Up to 2 most-recently-updated scenes inside this folder, newest
-   *  first. Used to render thumbnails on the inner papers. The first
-   *  entry sits on top of the inner-paper stack; the second behind it. */
+  /** Up to 3 most-recently-updated scenes inside this folder, newest
+   *  first. Used to render thumbnails on the inner papers. `previews[0]`
+   *  sits on top of the inner-paper stack (front), `[1]` is the middle
+   *  sheet, `[2]` is the back. */
   previews?: ScenePreview[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
@@ -116,27 +117,34 @@ export function FolderCard({
  *
  * Layer order (back → front):
  *   1. Back panel + tab        (solid primary)
- *   2. Inner papers            (cream sheets + optional thumbnail
- *                               `<image>` overlays; peek up on hover)
+ *   2. Inner papers × 3        (cream sheets + optional thumbnail
+ *                               `<image>` overlays; peek up on hover
+ *                               with staggered offsets so the most
+ *                               recent comes out the most)
  *   3. Front pocket            (primary, slightly darker; tilts on hover)
  */
 function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
-  // Always render two paper rects (the visual depth of a stack of pages
-  // looks intentional even when there's nothing inside). Overlay each
-  // with its preview thumbnail when one is available.
+  // Always render three paper rects (the visual depth of a stack of
+  // pages looks intentional even when there's nothing inside). Overlay
+  // each with its preview thumbnail when one is available.
   //
   // `previews[0]` is the most recent → drawn on TOP of the stack
-  // (geometry: `(22, 38)`). `previews[1]` is older → drawn BEHIND it
-  // (`(32, 46)`). The two rects are deliberately offset so a sliver of
-  // the back paper peeks above the front, even with previews missing.
+  // (front, `(12, 38)`). `previews[1]` sits in the middle (`(22, 42)`).
+  // `previews[2]` is the oldest visible → drawn BEHIND the rest
+  // (`(32, 46)`). The diagonal offsets ensure each sheet's corner peeks
+  // out from behind the next, even with previews missing.
   const front = previews?.[0];
-  const back = previews?.[1];
+  const mid = previews?.[1];
+  const back = previews?.[2];
 
   // Build content-addressed thumb URLs only for previews that actually
   // have a thumbnail uploaded. SVG `<image>` rendering when `href` is
   // missing is undefined, so guard the conditional render.
   const frontThumb = front?.hasThumb
     ? `/api/scenes/${front.id}/thumb?v=${front.thumbUpdatedAt}`
+    : null;
+  const midThumb = mid?.hasThumb
+    ? `/api/scenes/${mid.id}/thumb?v=${mid.thumbUpdatedAt}`
     : null;
   const backThumb = back?.hasThumb
     ? `/api/scenes/${back.id}/thumb?v=${back.thumbUpdatedAt}`
@@ -176,26 +184,30 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
           fill="var(--color-primary)"
         />
 
-        {/* 2. Inner papers — two stacked sheets, slightly offset so the
-              top one peeks over the bottom one. They sit between the back
-              panel and the front pocket, so they're hidden at rest and
+        {/* 2. Inner papers — three stacked sheets, each in its own <g>
+              so CSS can stagger their hover offsets (front extends the
+              most, back the least). They sit between the back panel
+              and the front pocket, so they're hidden at rest and
               translate upward on hover. Each rect has an optional
               `<image>` overlay carrying the scene preview thumbnail.
               `clipPath` on the `<image>` keeps it inside the rect's
               rounded corners. */}
         <defs>
-          {/* Two named clipPaths matching each inner-paper rect. Using
-              named defs (rather than inline) so the overlay images can
-              reference them with `clip-path="url(#...)"`. */}
+          {/* Three named clipPaths matching each inner-paper rect.
+              Using named defs (rather than inline) so the overlay
+              images can reference them with `clip-path="url(#...)"`. */}
           <clipPath id="ink-folder__paper-back" clipPathUnits="userSpaceOnUse">
             <rect x="32" y="46" width="138" height="92" rx="2" />
           </clipPath>
+          <clipPath id="ink-folder__paper-mid" clipPathUnits="userSpaceOnUse">
+            <rect x="22" y="42" width="138" height="92" rx="2" />
+          </clipPath>
           <clipPath id="ink-folder__paper-front" clipPathUnits="userSpaceOnUse">
-            <rect x="22" y="38" width="138" height="92" rx="2" />
+            <rect x="12" y="38" width="138" height="92" rx="2" />
           </clipPath>
         </defs>
-        <g className="ink-folder__inner">
-          {/* Back paper (older preview). */}
+        {/* Back paper (oldest of the three). */}
+        <g className="ink-folder__inner ink-folder__inner--back">
           <rect
             x="32"
             y="46"
@@ -205,10 +217,11 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
             fill="var(--color-card)"
             stroke="var(--color-card-stroke)"
             strokeWidth="1"
-            strokeOpacity="0.55"
+            strokeOpacity="0.45"
           />
           {backThumb ? (
             <image
+              className="ink-thumb-img"
               href={backThumb}
               x="32"
               y="46"
@@ -218,9 +231,37 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
               clipPath="url(#ink-folder__paper-back)"
             />
           ) : null}
-          {/* Front paper (most recent preview). */}
+        </g>
+        {/* Middle paper. */}
+        <g className="ink-folder__inner ink-folder__inner--mid">
           <rect
             x="22"
+            y="42"
+            width="138"
+            height="92"
+            rx="2"
+            fill="var(--color-card)"
+            stroke="var(--color-card-stroke)"
+            strokeWidth="1"
+            strokeOpacity="0.6"
+          />
+          {midThumb ? (
+            <image
+              className="ink-thumb-img"
+              href={midThumb}
+              x="22"
+              y="42"
+              width="138"
+              height="92"
+              preserveAspectRatio="xMidYMid slice"
+              clipPath="url(#ink-folder__paper-mid)"
+            />
+          ) : null}
+        </g>
+        {/* Front paper (most recent preview). */}
+        <g className="ink-folder__inner ink-folder__inner--front">
+          <rect
+            x="12"
             y="38"
             width="138"
             height="92"
@@ -228,12 +269,13 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
             fill="var(--color-card)"
             stroke="var(--color-card-stroke)"
             strokeWidth="1"
-            strokeOpacity="0.7"
+            strokeOpacity="0.75"
           />
           {frontThumb ? (
             <image
+              className="ink-thumb-img"
               href={frontThumb}
-              x="22"
+              x="12"
               y="38"
               width="138"
               height="92"

@@ -126,9 +126,9 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     .where(and(eq(t.taggings.owner, owner), eq(t.taggings.target_type, "folder")))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
-  // Top-2 most recently updated scenes per folder — powers the
-  // FolderCard inner-paper previews. Single window-function query;
-  // returned newest-first within each folder.
+  // Top-3 most recently updated scenes per folder — powers the
+  // FolderCard inner-paper previews (front / mid / back). Single
+  // window-function query; returned newest-first within each folder.
   const previewRowsP = db.all<{
     folder_id: string;
     id: string;
@@ -146,7 +146,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
       FROM scenes
       WHERE owner = ${owner} AND folder_id IS NOT NULL
     )
-    SELECT folder_id, id, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 2
+    SELECT folder_id, id, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
   `);
 
   const [folderRows, sceneCounts, subCounts, tagRows, previewRows] = await Promise.all([
