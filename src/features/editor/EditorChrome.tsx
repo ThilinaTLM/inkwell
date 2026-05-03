@@ -1,34 +1,21 @@
-// Editor chrome — full-page loading and error states, plus the
-// back-to-dashboard button that floats next to Excalidraw's hamburger.
+// Editor chrome — full-page loading and error states.
 //
-// These were inline in EditorPage; lifted here so SharedEditor can
-// reuse them and EditorPage stays focused on data + actions.
+// These are page-level placeholders shown while the scene query is in
+// flight or has failed; they sit at the route level (not inside
+// `<SceneEditor>`), which is why they're standalone here rather than
+// part of SceneEditor itself. Lifted out of EditorPage so SharedEditor
+// can reuse them.
+//
+// The previous "back to scenes" floating pill lived here too; it has
+// been replaced by a native `MainMenu.Item` ("Back to dashboard") in
+// each consumer page, so there's no longer a chrome pill component
+// for this file to host.
 
 import { Alert02Icon, ArrowLeft01Icon, Loading03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
 import { Button } from "@/components/ui/button";
-
-/**
- * 36×36 paper-pill button mirroring Excalidraw's hamburger footprint,
- * surfacing the most common navigation (back to the scene list) without
- * having to open the MainMenu first.
- */
-export function BackToScenesButton() {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      title="Back to scenes"
-      aria-label="Back to scenes"
-      onClick={() => navigate("/")}
-      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-md bg-card/90 text-muted-foreground ring-1 ring-border backdrop-blur transition hover:bg-card hover:text-foreground"
-    >
-      <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} className="size-4" />
-    </button>
-  );
-}
 
 export function EditorLoadingState({ label }: { label: string }) {
   return (

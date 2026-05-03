@@ -2,33 +2,31 @@
 //   /share/:token                  → scene-share (loads /api/share/:token)
 //   /share/:token/scenes/:sceneId  → folder-share scene (loads /api/share/:token/scenes/:sceneId)
 //
-// Like Editor, this is a zero-chrome canvas page. The scene name pill (and,
-// for writeable shares, the save status pill) ride in SceneEditor's
-// `topLeftChrome` overlay next to Excalidraw's hamburger trigger. The
-// hamburger menu surfaces a reduced action set:
+// Like Editor, this is a zero-chrome canvas page. Scene name + save / read-only
+// status are rendered in Excalidraw's native top-right slot via SceneEditor's
+// internal `renderTopRightUI` wiring (see `SceneContextStrip`). The hamburger
+// menu surfaces a reduced action set:
+//   • Share-permission sub-label ("Shared · can edit" / "Shared · view only")
 //   • Back to folder (only on folder-share scene routes)
 //   • Download (only when the share grants downloads)
 //   • Default Excalidraw items (theme, save-as-image, help)
-// Read-only shares get the canvas in view mode; writeable shares additionally
-// get the save-status pill. Visitors never see rename/share-from-share since
-// they don't own the scene.
+// Read-only shares get the canvas in view mode; the top-right strip surfaces
+// the read-only state via the EyeIcon variant. Visitors never see
+// rename/share-from-share since they don't own the scene.
 
 import { MainMenu } from "@excalidraw/excalidraw";
 import {
   ArrowLeft01Icon,
   Download01Icon,
   EyeIcon,
-  Moon02Icon,
   PencilEdit02Icon,
-  Sun03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { SceneNameLabel } from "@/components/sketch";
 import { useSharedScene } from "@/features/editor/hooks";
-import SceneEditor, { EditorSaveBadge } from "@/features/editor/SceneEditor";
+import SceneEditor from "@/features/editor/SceneEditor";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
@@ -52,7 +50,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
   const sceneQuery = useSharedScene(preloaded ? "" : token, sceneId);
 
   const [loaded, setLoaded] = useState<LoadedScene | null>(preloaded ?? null);
-  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   // Seed working copy on first arrival; thereafter the editor owns it.
   useEffect(() => {
@@ -114,12 +112,12 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
         saveThumb={null}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
-        topLeftChrome={<SceneNameLabel name={loaded.meta.name} />}
-        topRightChrome={writable ? <EditorSaveBadge /> : undefined}
         chrome={
           <MainMenu>
-            {/* The scene name lives in `topLeftChrome`; here we keep just
-                the share-permission line, which has no other home. */}
+            {/* Scene name + save status / read-only state render in the
+                native top-right slot. Here we keep just the share-permission
+                line, which clarifies the *source* of any "Read-only"
+                indicator users see in the top-right strip. */}
             <MainMenu.ItemCustom>
               <div className="px-2 pb-2 pt-1">
                 <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
@@ -157,17 +155,11 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
             )}
 
             <MainMenu.Separator />
-            <MainMenu.Item
-              icon={
-                <HugeiconsIcon
-                  icon={themeResolved === "dark" ? Sun03Icon : Moon02Icon}
-                  strokeWidth={1.8}
-                />
-              }
-              onSelect={toggleTheme}
-            >
-              Toggle theme
-            </MainMenu.Item>
+            <MainMenu.DefaultItems.ToggleTheme
+              allowSystemTheme
+              theme={themeMode}
+              onSelect={setThemeMode}
+            />
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.DefaultItems.Help />
           </MainMenu>

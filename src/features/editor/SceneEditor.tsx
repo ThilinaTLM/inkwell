@@ -1,8 +1,13 @@
 // Shared Excalidraw editor used by both the owner Editor page and the
-// share-token SharedEditor page. The page-specific code only has to provide
-// load/save/saveThumb closures and a `chrome` slot — all visible chrome
-// (back/rename/share buttons, save status pill) is rendered *inside*
-// Excalidraw via its native MainMenu / Footer extension points.
+// share-token SharedEditor page. The page-specific code only has to
+// provide load/save/saveThumb closures and a `chrome` slot for
+// `<MainMenu>` — all visible chrome is rendered *inside* Excalidraw
+// via its native extension points:
+//   • `<MainMenu>` (top-left, native hamburger) — actions, theme,
+//     navigation. Provided by the page through the `chrome` prop.
+//   • `renderTopRightUI` (native top-right slot, sibling of Library) —
+//     a `<SceneContextStrip>` showing scene name + save status. Wired
+//     internally; pages don't need to know.
 //
 // Lifecycle:
 //   1. Page calls `load()` once on mount and passes `loaded` here.
@@ -18,14 +23,6 @@ import { Excalidraw, exportToSvg } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
-  Alert02Icon,
-  CheckmarkCircle02Icon,
-  EyeIcon,
-  Loading03Icon,
-  PencilEdit02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
   createContext,
   type ReactNode,
   useCallback,
@@ -39,7 +36,7 @@ import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import { cn } from "@/lib/utils";
+import { SceneContextStrip } from "./SceneContextStrip";
 
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -61,27 +58,13 @@ export interface SceneEditorProps {
   /** Function to re-fetch the scene from the server (used after a 409). */
   reload?: () => Promise<LoadedScene>;
   /**
-   * Slot rendered as children of `<Excalidraw>` so consumers can mount native
-   * Excalidraw UI (MainMenu, Sidebar). Use the `<EditorSaveBadge>` exported
-   * below inside `topLeftChrome` to surface save status; it pulls from the
-   * internal context so the badge stays in sync without prop drilling.
+   * Slot rendered as children of `<Excalidraw>` so consumers can mount
+   * native Excalidraw UI: `<MainMenu>` for the hamburger, optionally
+   * `<Sidebar>` or `<Footer>`. The save-status / scene-name strip in
+   * the top-right is rendered internally via `renderTopRightUI`; pages
+   * don't need to (and shouldn't) duplicate it here.
    */
   chrome?: ReactNode;
-  /**
-   * Rendered as an absolutely-positioned overlay anchored at top-left,
-   * after Excalidraw's hamburger trigger. Use for scene-context pills
-   * (back button, name). The wrapper is `pointer-events-none`; each child
-   * should re-enable `pointer-events-auto` for itself so canvas
-   * interactions in the surrounding area still pass through.
-   */
-  topLeftChrome?: ReactNode;
-  /**
-   * Rendered as an absolutely-positioned overlay anchored at top-right,
-   * before Excalidraw's Library button. Use for scene-context pills that
-   * mirror the left cluster (e.g. save status). Same pointer-events
-   * contract as `topLeftChrome`.
-   */
-  topRightChrome?: ReactNode;
 }
 
 // ─── Internal context for status / readOnly so chrome consumers can subscribe
@@ -95,7 +78,15 @@ interface SceneEditorContextValue {
 
 const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
 
-function useSceneEditorContext(): SceneEditorContextValue {
+/**
+ * Read save status / read-only state from inside a `<SceneEditor>`.
+ * Returns the inert default outside the provider so consumers can be
+ * mounted defensively (e.g. by Excalidraw's `renderTopRightUI` which
+ * runs inside a portal-ish render path).
+ *
+ * Currently only consumed by `SceneContextStrip`.
+ */
+export function useSceneEditorContext(): SceneEditorContextValue {
   const ctx = useContext(SceneEditorContext);
   return ctx ?? { status: "idle", errorMessage: null, readOnly: false };
 }
@@ -108,8 +99,6 @@ export default function SceneEditor({
   onReload,
   reload,
   chrome,
-  topLeftChrome,
-  topRightChrome,
 }: SceneEditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -334,6 +323,15 @@ export default function SceneEditor({
     files: (loaded.blob.files as BinaryFiles) || {},
   };
 
+  // `renderTopRightUI` is invoked by Excalidraw on every render. We
+  // declare it inline so it closes over the latest `loaded.meta.name`;
+  // the strip itself reads save state from `SceneEditorContext` so the
+  // closure dependencies stay shallow.
+  const renderTopRightUI = useCallback(
+    (isMobile: boolean) => <SceneContextStrip name={loaded.meta.name} isMobile={isMobile} />,
+    [loaded.meta.name],
+  );
+
   return (
     <SceneEditorContext.Provider value={{ status, errorMessage: errorMsg, readOnly }}>
       <div className="relative h-full w-full">
@@ -345,6 +343,7 @@ export default function SceneEditor({
             viewModeEnabled={readOnly}
             theme={themeResolved}
             name={loaded.meta.name}
+            renderTopRightUI={renderTopRightUI}
             UIOptions={{
               canvasActions: {
                 loadScene: false,
@@ -356,92 +355,8 @@ export default function SceneEditor({
             {chrome}
           </Excalidraw>
         </div>
-        {topLeftChrome ? (
-          // Anchored at top: 1rem (matches --editor-container-padding) and
-          // left: 3.75rem (1rem padding + 2.25rem hamburger + 0.5rem gap),
-          // 2.25rem tall to match Excalidraw's --lg-button-size below 1921px
-          // viewports so the cluster reads as one row with the hamburger
-          // trigger. z-10 sits above --zIndex-layerUI (4) but below modals
-          // (1000) / popups (1001).
-          <div className="pointer-events-none absolute left-[3.75rem] top-4 z-10 flex h-9 items-center gap-2">
-            {topLeftChrome}
-          </div>
-        ) : null}
-        {topRightChrome ? (
-          // Anchored to clear Excalidraw's Library button (~5.5rem wide,
-          // flush against the right edge) plus a 0.5rem gap matching the
-          // left cluster's `gap-2`, so the right pills read as a tight
-          // continuation of the Library row.
-          <div className="pointer-events-none absolute right-[6.5rem] top-4 z-10 flex h-9 items-center gap-2">
-            {topRightChrome}
-          </div>
-        ) : null}
       </div>
     </SceneEditorContext.Provider>
-  );
-}
-
-// ─── Save status badge — meant to be rendered inside `topLeftChrome`
-//
-// Reads from SceneEditorContext so it stays in sync with the parent's save
-// state without prop drilling. Styled as a paper-pill sized to match
-// Excalidraw's --lg-button-size (40px) so it lines up with the hamburger
-// trigger and the back/name pills next to it.
-// ────────────────────────────────────────────────────────────────────────────
-
-export function EditorSaveBadge() {
-  const { status, errorMessage, readOnly } = useSceneEditorContext();
-
-  let label = "";
-  let icon: React.ReactNode = null;
-  let tone = "bg-card/90 text-muted-foreground";
-
-  if (readOnly) {
-    label = "Read-only";
-    icon = <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />;
-    tone = "bg-card/90 text-muted-foreground/70";
-  } else {
-    switch (status) {
-      case "idle":
-        label = "Ready";
-        icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        tone = "bg-card/90 text-muted-foreground/70";
-        break;
-      case "dirty":
-        label = "Editing";
-        icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        tone = "bg-card/90 text-foreground";
-        break;
-      case "saving":
-        label = "Saving…";
-        icon = <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />;
-        tone = "bg-card/90 text-foreground";
-        break;
-      case "saved":
-        label = "Saved";
-        icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
-        // Success ramp — chart-5 is the green tag/success token in both themes.
-        tone = "bg-card/90 text-chart-5";
-        break;
-      case "error":
-        label = errorMessage || "Save failed";
-        icon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
-        tone = "bg-accent/80 text-destructive";
-        break;
-    }
-  }
-
-  return (
-    <div
-      title={errorMessage || undefined}
-      className={cn(
-        "pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-sans font-medium ring-1 ring-border backdrop-blur",
-        tone,
-      )}
-    >
-      <span className="[&_svg]:size-4">{icon}</span>
-      {label}
-    </div>
   );
 }
 

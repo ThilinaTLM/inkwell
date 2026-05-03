@@ -12,19 +12,17 @@
 
 import { MainMenu } from "@excalidraw/excalidraw";
 import {
+  ArrowLeft01Icon,
   Download01Icon,
   Edit02Icon,
   HashtagIcon,
-  Moon02Icon,
   Share08Icon,
-  Sun03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { SceneNameLabel } from "@/components/sketch";
 import { useScene } from "@/features/editor/hooks";
 import { useRenameScene, useSetSceneTags, useTags } from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
@@ -33,9 +31,9 @@ import { type LoadedScene, type SceneBlob, type SceneMeta, scenes } from "@/lib/
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import { BackToScenesButton, EditorErrorState, EditorLoadingState } from "./EditorChrome";
+import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { RenameSceneDialog } from "./RenameSceneDialog";
-import SceneEditor, { EditorSaveBadge } from "./SceneEditor";
+import SceneEditor from "./SceneEditor";
 
 export default function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -46,11 +44,15 @@ export default function EditorPage() {
   const renameMutation = useRenameScene();
   const setTagsMutation = useSetSceneTags();
 
+  const navigate = useNavigate();
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
+  // `mode`/`setMode` (rather than `resolved`/`toggle`) so the native
+  // `MainMenu.DefaultItems.ToggleTheme` can render the three-state
+  // light/dark/system picker our provider already supports.
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   // Seed the working copy on first arrival. After that the editor owns
   // it; we do NOT mirror further query updates here because that would
@@ -152,24 +154,30 @@ export default function EditorPage() {
         onThumbSaved={onThumbSaved}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
-        topLeftChrome={
-          <>
-            <BackToScenesButton />
-            <SceneNameLabel name={loaded.meta.name} />
-          </>
-        }
-        topRightChrome={<EditorSaveBadge />}
         chrome={
           <MainMenu>
             {/* Excalidraw owns the actual MainMenu trigger (a hamburger
                 icon at top-left) and ignores any custom <MainMenu.Trigger>.
-                The scene name lives in `topLeftChrome` next to the trigger,
-                so we don't duplicate it here. */}
+                The scene name + save status live in the native top-right
+                slot via `renderTopRightUI` inside SceneEditor. */}
+            <MainMenu.Item
+              icon={<HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />}
+              onSelect={() => navigate("/")}
+            >
+              Back to dashboard
+            </MainMenu.Item>
+            <MainMenu.Separator />
             <MainMenu.Item
               icon={<HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />}
               onSelect={() => setRenameOpen(true)}
             >
               Rename…
+            </MainMenu.Item>
+            <MainMenu.Item
+              icon={<HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />}
+              onSelect={() => setTagsOpen(true)}
+            >
+              Edit tags…
             </MainMenu.Item>
             <MainMenu.Item
               icon={<HugeiconsIcon icon={Share08Icon} strokeWidth={1.8} />}
@@ -183,25 +191,16 @@ export default function EditorPage() {
             >
               Download .excalidraw
             </MainMenu.ItemLink>
-            <MainMenu.Item
-              icon={<HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />}
-              onSelect={() => setTagsOpen(true)}
-            >
-              Edit tags…
-            </MainMenu.Item>
-            <MainMenu.Separator />
-            <MainMenu.Item
-              icon={
-                <HugeiconsIcon
-                  icon={themeResolved === "dark" ? Sun03Icon : Moon02Icon}
-                  strokeWidth={1.8}
-                />
-              }
-              onSelect={toggleTheme}
-            >
-              Toggle theme
-            </MainMenu.Item>
             <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.Separator />
+            {/* Native three-state theme item (light / dark / system).
+                Replaces the previous custom 2-state toggle and unlocks
+                the "system" preference our useTheme already models. */}
+            <MainMenu.DefaultItems.ToggleTheme
+              allowSystemTheme
+              theme={themeMode}
+              onSelect={setThemeMode}
+            />
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.DefaultItems.Help />
           </MainMenu>
