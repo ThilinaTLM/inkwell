@@ -23,7 +23,7 @@ export function BackToScenesButton() {
       title="Back to scenes"
       aria-label="Back to scenes"
       onClick={() => navigate("/")}
-      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-md bg-paper-elev/90 text-ink-soft ring-1 ring-ink-soft/15 backdrop-blur transition hover:bg-paper-elev hover:text-ink"
+      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-md bg-card/90 text-muted-foreground ring-1 ring-border backdrop-blur transition hover:bg-card hover:text-foreground"
     >
       <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} className="size-4" />
     </button>
@@ -32,7 +32,7 @@ export function BackToScenesButton() {
 
 export function EditorLoadingState({ label }: { label: string }) {
   return (
-    <PaperSurface variant="page" className="grid place-items-center text-ink-soft">
+    <PaperSurface variant="page" className="grid place-items-center text-muted-foreground">
       <div className="flex items-center gap-2 text-sm">
         <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
         {label}
@@ -45,13 +45,13 @@ export function EditorErrorState({ message }: { message: string }) {
   return (
     <PaperSurface variant="page" className="grid place-items-center px-4">
       <div
-        className="flex max-w-sm flex-col items-center gap-3 rounded-lg bg-paper-elev p-6 text-center text-ink ring-1 ring-ink-soft/15"
+        className="flex max-w-sm flex-col items-center gap-3 rounded-lg bg-card p-6 text-center text-card-foreground ring-1 ring-border"
         style={{ transform: "rotate(-0.6deg)" }}
       >
-        <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-6 text-vermillion" />
+        <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-6 text-destructive" />
         <div className="space-y-1">
           <div className="font-heading text-lg">Couldn't load this scene</div>
-          <p className="text-sm text-ink-soft">{message}</p>
+          <p className="text-sm text-muted-foreground">{message}</p>
         </div>
         <Button variant="outline" size="sm" render={<Link to="/" />}>
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />

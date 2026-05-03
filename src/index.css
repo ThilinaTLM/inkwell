@@ -38,35 +38,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Inkwell theme — single canonical palette.
+
+   We expose only the standard shadcn semantic tokens (background, foreground,
+   card, popover, primary, secondary, muted, accent, destructive, border,
+   input, ring, chart-{1..5}, sidebar-*) plus a tiny decoration namespace
+   (folder, folder-soft, card-stroke, tag-{1..5}) for visuals that have no
+   shadcn analog (manila folder silhouette, hand-drawn pen outline, the
+   five tag-chip swatches).
+
+   The visual identity (vermillion brand, paper white, warm-stone neutrals,
+   manila folder, five tag colours) is preserved verbatim — only the names
+   change. Components consume colours exclusively through these tokens.
+   ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
   /* ─── Fonts ─── */
   --font-heading: "Excalifont", "Caveat Variable", system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-hand: "Caveat Variable", "Excalifont", cursive;
 
-  /* ─── Sketchbook palette tokens (semantic) ─── */
-  --color-paper: var(--paper);
-  --color-paper-edge: var(--paper-edge);
-  --color-paper-elev: var(--paper-elev);
-  --color-ink: var(--ink);
-  --color-ink-soft: var(--ink-soft);
-  --color-ink-muted: var(--ink-muted);
-  --color-stroke-card: var(--stroke-card);
-  --color-manila: var(--manila);
-  --color-manila-edge: var(--manila-edge);
-  --color-manila-soft: var(--manila-soft);
-  --color-graphite: var(--graphite);
-  --color-graphite-soft: var(--graphite-soft);
-  --color-vermillion: var(--vermillion);
-  --color-vermillion-soft: var(--vermillion-soft);
-  --color-vermillion-dark: var(--vermillion-dark);
-  --color-tape-yellow: var(--tape-yellow);
-  --color-tape-pink: var(--tape-pink);
-  --color-tape-green: var(--tape-green);
-  --color-tape-blue: var(--tape-blue);
-  --color-tape-purple: var(--tape-purple);
-
-  /* ─── Shadcn token mappings (so existing primitives keep working) ─── */
+  /* ─── shadcn semantic tokens (used by every component) ─── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -75,6 +67,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -82,9 +75,15 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -93,6 +92,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ─── Decoration namespace (no shadcn analog) ─── */
+  --color-folder: var(--folder);
+  --color-folder-soft: var(--folder-soft);
+  --color-card-stroke: var(--card-stroke);
+  --color-tag-1: var(--tag-1);
+  --color-tag-2: var(--tag-2);
+  --color-tag-3: var(--tag-3);
+  --color-tag-4: var(--tag-4);
+  --color-tag-5: var(--tag-5);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -104,117 +113,118 @@
 
 /* ─── Paper (light) ─────────────────────────────────────────────────────── */
 :root {
-  /* Sketchbook tokens */
-  --paper: #ffffff; /* matches Excalidraw default-bg / surface-lowest */
-  --paper-edge: #ececec; /* neutral cool gray (Excalidraw uses #f1f0ff, lavender-tinted; we drop the tint to keep vermillion accent on-brand) */
-  --paper-elev: #ffffff; /* matches Excalidraw island-bg — differentiation comes from borders/shadows, not shade */
-  --ink: #1c1814;
-  --ink-soft: #5b5044;
-  --ink-muted: #8a7e6b;
-  --stroke-card: #5b5044; /* dedicated card-outline ink — same as ink-soft on paper, brighter on dark */
-  --manila: #e8c77a;
-  --manila-edge: #c9a659;
-  --manila-soft: #f3e3b6;
-  --graphite: #3e5f8a;
-  --graphite-soft: #b9c8de;
-  --vermillion: #d5482e;
-  --vermillion-soft: #f3c8be;
-  --vermillion-dark: #a8351f;
-  --tape-yellow: #f4d77a;
-  --tape-pink: #e88484;
-  --tape-green: #9bbf7b;
-  --tape-blue: #7fa9d1;
-  --tape-purple: #b89bd6;
+  /* shadcn semantic tokens */
+  --background: #ffffff;
+  --foreground: #1c1814; /* warm dark "ink" */
 
-  /* Shadcn aliases mapped to sketchbook tokens */
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--paper-elev);
-  --card-foreground: var(--ink);
-  --popover: var(--paper-elev);
-  --popover-foreground: var(--ink);
-  --primary: var(--vermillion);
-  --primary-foreground: #fdf6e8;
-  --secondary: var(--manila-soft);
-  --secondary-foreground: var(--ink);
-  --muted: var(--paper-edge);
-  --muted-foreground: var(--ink-soft);
-  --accent: var(--manila-soft);
-  --accent-foreground: var(--ink);
-  --destructive: var(--vermillion-dark);
+  --card: #ffffff;
+  --card-foreground: #1c1814;
+  --popover: #ffffff;
+  --popover-foreground: #1c1814;
+
+  --primary: #d5482e; /* vermillion */
+  --primary-foreground: #fdf6e8; /* warm cream — readable on vermillion */
+  --primary-hover: #a8351f; /* darker vermillion for primary hover */
+
+  --secondary: #ececec; /* neutral cool gray surface */
+  --secondary-foreground: #1c1814;
+
+  --muted: #ececec; /* same value as secondary; semantic intent differs */
+  --muted-foreground: #5b5044; /* warm-stone secondary text */
+
+  --accent: #f3c8be; /* vermillion-soft — interactive highlight */
+  --accent-foreground: #a8351f; /* vermillion-dark — text on accent */
+
+  --destructive: #a8351f; /* vermillion-dark */
+  --destructive-foreground: #fdf6e8;
+
   --border: oklch(0 0 0 / 12%);
   --input: oklch(0 0 0 / 18%);
-  --ring: var(--vermillion);
-  --chart-1: var(--vermillion);
-  --chart-2: var(--graphite);
-  --chart-3: var(--manila-edge);
-  --chart-4: var(--ink-soft);
-  --chart-5: var(--tape-green);
+  --ring: #d5482e;
+
+  --chart-1: #d5482e; /* primary */
+  --chart-2: #3e5f8a; /* graphite (cool ramp) */
+  --chart-3: #c9a659; /* warning / pending ramp */
+  --chart-4: #5b5044; /* muted-foreground */
+  --chart-5: #9bbf7b; /* success / active ramp */
+
   --radius: 0.5rem;
-  --sidebar: var(--paper-elev);
-  --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--vermillion);
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1814;
+  --sidebar-primary: #d5482e;
   --sidebar-primary-foreground: #fdf6e8;
-  --sidebar-accent: var(--manila-soft);
-  --sidebar-accent-foreground: var(--ink);
+  --sidebar-accent: #ececec;
+  --sidebar-accent-foreground: #1c1814;
   --sidebar-border: oklch(0 0 0 / 10%);
-  --sidebar-ring: var(--vermillion);
+  --sidebar-ring: #d5482e;
+
+  /* Decoration namespace — used only where no shadcn token applies. */
+  --folder: #e8c77a; /* manila — folder back panel */
+  --folder-soft: #f3e3b6; /* manila-soft — folder front pocket, scene fold corner */
+  --card-stroke: #5b5044; /* hand-drawn outline for RoughBox silhouettes */
+
+  --tag-1: #f4d77a; /* yellow */
+  --tag-2: #e88484; /* pink */
+  --tag-3: #9bbf7b; /* green */
+  --tag-4: #7fa9d1; /* blue */
+  --tag-5: #b89bd6; /* purple */
 }
 
 /* ─── Chalkboard (dark) ────────────────────────────────────────────────── */
 .dark {
-  --paper: #121212; /* matches Excalidraw default-bg / surface-lowest */
-  --paper-edge: #2a2a2e; /* neutral cool dark gray (Excalidraw's surface-high is indigo-tinted #2f2f3c; neutralized to keep vermillion on-brand) */
-  --paper-elev: #232329; /* matches Excalidraw island-bg exactly */
-  --ink: #efe9dc; /* chalk */
-  --ink-soft: #b9b0a0;
-  --ink-muted: #8a826f;
-  --stroke-card: #d8cdb8; /* brighter chalk-on-slate for card outlines */
-  --manila: #d4b25c; /* manila reads warmer on slate */
-  --manila-edge: #a88945;
-  --manila-soft: #4a3f25;
-  --graphite: #7da3cf;
-  --graphite-soft: #2f4565;
-  --vermillion: #e8593f; /* slightly brighter on dark */
-  --vermillion-soft: #4a2018;
-  --vermillion-dark: #f56b51;
-  --tape-yellow: #c9ad5c;
-  --tape-pink: #c66a6a;
-  --tape-green: #7ea267;
-  --tape-blue: #6890b3;
-  --tape-purple: #9d83bc;
+  --background: #121212;
+  --foreground: #efe9dc; /* chalk */
 
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--paper-elev);
-  --card-foreground: var(--ink);
-  --popover: var(--paper-elev);
-  --popover-foreground: var(--ink);
-  --primary: var(--vermillion);
+  --card: #232329; /* matches Excalidraw island-bg */
+  --card-foreground: #efe9dc;
+  --popover: #232329;
+  --popover-foreground: #efe9dc;
+
+  --primary: #e8593f; /* vermillion (brighter on dark) */
   --primary-foreground: #1c1814;
-  --secondary: var(--paper-edge);
-  --secondary-foreground: var(--ink);
-  --muted: var(--paper-edge);
-  --muted-foreground: var(--ink-soft);
-  --accent: var(--paper-edge);
-  --accent-foreground: var(--ink);
-  --destructive: var(--vermillion-dark);
+  --primary-hover: #f56b51;
+
+  --secondary: #2a2a2e; /* neutral cool dark surface */
+  --secondary-foreground: #efe9dc;
+
+  --muted: #2a2a2e;
+  --muted-foreground: #b9b0a0;
+
+  --accent: #4a2018; /* vermillion-soft on dark */
+  --accent-foreground: #f3c8be;
+
+  --destructive: #f56b51;
+  --destructive-foreground: #1c1814;
+
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 18%);
-  --ring: var(--vermillion);
-  --chart-1: var(--vermillion);
-  --chart-2: var(--graphite);
-  --chart-3: var(--manila);
-  --chart-4: var(--ink-soft);
-  --chart-5: var(--tape-green);
-  --sidebar: var(--paper-elev);
-  --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--vermillion);
+  --ring: #e8593f;
+
+  --chart-1: #e8593f;
+  --chart-2: #7da3cf;
+  --chart-3: #d4b25c;
+  --chart-4: #b9b0a0;
+  --chart-5: #7ea267;
+
+  --sidebar: #232329;
+  --sidebar-foreground: #efe9dc;
+  --sidebar-primary: #e8593f;
   --sidebar-primary-foreground: #1c1814;
-  --sidebar-accent: var(--paper-edge);
-  --sidebar-accent-foreground: var(--ink);
+  --sidebar-accent: #2a2a2e;
+  --sidebar-accent-foreground: #efe9dc;
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: var(--vermillion);
+  --sidebar-ring: #e8593f;
+
+  --folder: #d4b25c; /* manila reads warmer on slate */
+  --folder-soft: #4a3f25;
+  --card-stroke: #d8cdb8; /* brighter chalk-on-slate */
+
+  --tag-1: #c9ad5c;
+  --tag-2: #c66a6a;
+  --tag-3: #7ea267;
+  --tag-4: #6890b3;
+  --tag-5: #9d83bc;
 }
 
 @layer base {
@@ -256,4 +266,72 @@
 .dark .bg-paper-grain {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.06'/></svg>");
   mix-blend-mode: screen;
+}
+
+/* ─── Excalidraw chrome — derived from inkwell's shadcn palette ──────────
+   Bind every Excalidraw library variable that drives editor chrome to an
+   inkwell semantic token, so the editor reads as one continuous surface
+   with the rest of the app and there is no second accent to leak.
+
+   Both selectors share the same map — light/dark colour swap happens at
+   the inkwell-token layer (via `<html>.dark`), so we don't repeat values.
+   Two selectors at matching specificity: Excalidraw's lib defines
+   `.excalidraw.theme--dark { --color-primary: ...; }` (specificity 0,2,0)
+   which would beat plain `.excalidraw` (0,1,0).
+
+   We deliberately do NOT override `--theme-filter`; Excalidraw uses it to
+   invert canvas content for dark mode and replacing it would break canvas
+   rendering. */
+.excalidraw,
+.excalidraw.theme--dark {
+  /* Brand ramp — focus rings, slider thumbs, brand buttons */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-darker: var(--primary-hover);
+  --color-primary-darkest: var(--destructive);
+  --color-primary-light: var(--accent);
+  --color-primary-light-darker: var(--accent);
+  --color-brand-active: var(--primary-hover);
+  --color-brand-hover: var(--primary-hover);
+
+  /* Material 3 "primary container" — selected stroke-width / font-size
+     / alignment / edges radio buttons and similar "this option is
+     active" pills. */
+  --color-surface-primary-container: var(--accent);
+  --color-on-primary-container: var(--accent-foreground);
+
+  /* Surface ramp. The key fix here is `--color-surface-high`: it backs
+     `--button-hover-bg` which drives hover for menu items, the
+     hamburger trigger, the library button, and toolbar buttons.
+     Excalidraw's default (#f1f0ff / #2e2d39) is lavender-tinted; binding
+     it to --secondary makes every neutral hover read as one warm-stone
+     surface, while selected/active states keep --accent (peach) via
+     --color-primary-light above. */
+  --color-surface-high: var(--secondary);
+  --color-surface-mid: var(--card);
+  --color-surface-low: var(--muted);
+  --color-surface-lowest: var(--background);
+  --color-on-surface: var(--foreground);
+
+  /* Borders, outlines, and the dialog frame */
+  --color-border-outline: var(--border);
+  --color-border-outline-variant: var(--border);
+  --default-border-color: var(--border);
+  --dialog-border-color: var(--border);
+
+  /* Surfaces inside the editor */
+  --island-bg-color: var(--card);
+  --default-bg-color: var(--background);
+  --popup-bg-color: var(--popover);
+
+  /* Inputs */
+  --input-bg-color: var(--background);
+  --input-border-color: var(--input);
+  --input-hover-bg-color: var(--secondary);
+  --input-label-color: var(--muted-foreground);
+
+  /* Misc */
+  --keybinding-color: var(--muted-foreground);
+  --link-color: var(--primary);
+  --link-color-hover: var(--primary-hover);
 }

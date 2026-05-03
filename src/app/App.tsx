@@ -47,9 +47,9 @@ export default function App() {
 
 function BootSplash() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-paper">
-      <div className="flex flex-col items-center gap-3 text-ink-soft">
-        <div className="font-heading text-3xl text-ink">inkwell</div>
+    <div className="grid min-h-dvh place-items-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <div className="font-heading text-3xl text-foreground">inkwell</div>
         <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
       </div>
     </div>

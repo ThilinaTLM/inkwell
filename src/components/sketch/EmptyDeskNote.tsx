@@ -30,9 +30,9 @@ export function EmptyDeskNote({
         <RoughBox
           shape="card"
           seed={seed}
-          stroke="var(--color-stroke-card)"
+          stroke="var(--color-card-stroke)"
           strokeWidth={1.4}
-          fill="var(--color-paper-elev)"
+          fill="var(--color-card)"
           fillStyle="solid"
           roughness={1.4}
           bowing={2}
@@ -45,8 +45,10 @@ export function EmptyDeskNote({
         {/* Wrap content in a `relative` block so it paints above the
             absolute-positioned RoughBox card silhouette. */}
         <div className="relative">
-          <h3 className="font-heading text-2xl text-ink">{title}</h3>
-          {body && <div className="mt-2 font-hand text-lg/relaxed text-ink-soft">{body}</div>}
+          <h3 className="font-heading text-2xl text-foreground">{title}</h3>
+          {body && (
+            <div className="mt-2 font-hand text-lg/relaxed text-muted-foreground">{body}</div>
+          )}
           {action && <div className="mt-5 flex justify-center">{action}</div>}
         </div>
       </div>

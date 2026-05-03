@@ -70,7 +70,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
     <nav
       aria-label="Folder path"
       className={cn(
-        "flex items-center text-ink-soft",
+        "flex items-center text-muted-foreground",
         isHeading && "min-w-0 gap-1.5 font-heading text-2xl",
         isCompact && "gap-1 text-xs",
         !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm",
@@ -81,9 +81,9 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
         onClick={() => onJump(null)}
         aria-current={atRoot ? "page" : undefined}
         className={cn(
-          "inline-flex items-center rounded transition-colors hover:text-ink",
+          "inline-flex items-center rounded transition-colors hover:text-foreground",
           isHeading ? "gap-2 px-0.5" : "gap-1.5 px-1 py-0.5",
-          atRoot && "text-ink",
+          atRoot && "text-foreground",
         )}
       >
         <HugeiconsIcon
@@ -106,7 +106,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
                     collapsed.length === 1 ? "" : "s"
                   }`}
                   className={cn(
-                    "inline-flex items-center justify-center rounded text-ink-muted hover:bg-manila-soft/50 hover:text-ink",
+                    "inline-flex items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground",
                     isHeading ? "size-8" : "size-6",
                   )}
                 />
@@ -138,7 +138,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
               <span
                 aria-current="page"
                 className={cn(
-                  "min-w-0 truncate rounded text-ink",
+                  "min-w-0 truncate rounded text-foreground",
                   isHeading ? "px-0.5" : "px-1 py-0.5",
                 )}
                 title={f.name}
@@ -150,7 +150,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
                 type="button"
                 onClick={() => onJump(f.id)}
                 className={cn(
-                  "min-w-0 truncate rounded transition-colors hover:text-ink",
+                  "min-w-0 truncate rounded transition-colors hover:text-foreground",
                   isHeading ? "px-0.5" : "px-1 py-0.5",
                 )}
                 title={f.name}

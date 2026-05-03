@@ -128,7 +128,9 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                         <Badge variant="destructive">Disabled</Badge>
                       ) : (
                         <Badge variant="secondary" className="gap-1">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
+                          {/* Active = success ramp; chart-5 is the green tag/
+                              success token in both themes. */}
+                          <span className="size-1.5 rounded-full bg-chart-5" />
                           Active
                         </Badge>
                       )}

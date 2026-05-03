@@ -11,7 +11,9 @@ export function StatusPill({ status }: { status: InviteStatus }) {
     case "pending":
       return (
         <Badge variant="secondary" className="gap-1">
-          <span className="size-1.5 rounded-full bg-amber-400" />
+          {/* Pending = warning ramp; chart-3 is the warm-yellow accent
+              tuned for both themes. */}
+          <span className="size-1.5 rounded-full bg-chart-3" />
           Pending
         </Badge>
       );

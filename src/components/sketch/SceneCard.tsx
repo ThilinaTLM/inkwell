@@ -67,7 +67,7 @@ export function SceneCard({
       className={cn(
         "group/scene relative flex flex-col items-center gap-2 rounded-md transition-shadow duration-150",
         "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
-        "focus-within:ring-2 focus-within:ring-vermillion/60",
+        "focus-within:ring-2 focus-within:ring-ring/60",
         className,
       )}
       style={{ transform: `rotate(${tilt}deg)` }}
@@ -85,7 +85,7 @@ export function SceneCard({
         <SceneGlyph id={id} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
         <div className="w-full min-w-0 text-center">
-          <div className="truncate font-heading text-sm text-ink" title={name}>
+          <div className="truncate font-heading text-sm text-foreground" title={name}>
             {name}
           </div>
           {tags.length > 0 ? (
@@ -94,7 +94,7 @@ export function SceneCard({
                 <TapeChip key={t} label={t} size="sm" asStatic active />
               ))}
               {tags.length > 3 ? (
-                <span className="text-xs text-ink-muted">+{tags.length - 3}</span>
+                <span className="text-xs text-muted-foreground/70">+{tags.length - 3}</span>
               ) : null}
             </div>
           ) : null}
@@ -126,9 +126,9 @@ function SceneGlyph({
       <RoughBox
         shape="paper-sheet"
         seed={`scene-sheet:${id}`}
-        stroke="var(--color-stroke-card)"
+        stroke="var(--color-card-stroke)"
         strokeWidth={1.4}
-        fill="var(--color-paper-elev)"
+        fill="var(--color-card)"
         fillStyle="solid"
         roughness={0.9}
         bowing={1}
@@ -151,12 +151,12 @@ function SceneGlyph({
             className="h-full w-full object-contain"
           />
         ) : (
-          <div className="grid h-full w-full place-items-center text-ink-muted/50">
+          <div className="grid h-full w-full place-items-center text-muted-foreground/40">
             <HugeiconsIcon icon={Image01Icon} strokeWidth={1.4} className="size-10" />
           </div>
         )}
       </div>
-      {/* Underside of the folded corner (small triangle, manila tone). */}
+      {/* Underside of the folded corner (small triangle, folder-soft tone). */}
       <svg
         viewBox={`0 0 ${FOLD_PX} ${FOLD_PX}`}
         width={FOLD_PX}
@@ -168,8 +168,8 @@ function SceneGlyph({
         <title>Folded paper corner</title>
         <path
           d={`M0,0 L${FOLD_PX},${FOLD_PX} L0,${FOLD_PX} Z`}
-          fill="var(--color-manila-soft)"
-          stroke="var(--color-stroke-card)"
+          fill="var(--color-folder-soft)"
+          stroke="var(--color-card-stroke)"
           strokeWidth={1}
         />
       </svg>

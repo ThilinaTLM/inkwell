@@ -107,7 +107,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
     : shares.downloadUrl(token);
 
   return (
-    <div className="h-dvh w-dvw bg-paper">
+    <div className="h-dvh w-dvw bg-background">
       <SceneEditor
         loaded={loaded}
         save={writable ? save : async () => ({ version: loaded.meta.version })}
@@ -122,7 +122,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
                 the share-permission line, which has no other home. */}
             <MainMenu.ItemCustom>
               <div className="px-2 pb-2 pt-1">
-                <span className="flex items-center gap-1 text-xs text-ink-muted">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
                   {writable ? (
                     <>
                       <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={1.8} className="size-3" />

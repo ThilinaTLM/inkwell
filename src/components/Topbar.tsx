@@ -26,10 +26,10 @@ interface TopbarProps {
 
 export function Topbar({ user, leading, center, actions }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-soft/15 bg-paper/85 px-5 backdrop-blur supports-backdrop-filter:bg-paper/70">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-5 backdrop-blur supports-backdrop-filter:bg-background/70">
       <Link
         to="/"
-        className="font-heading text-xl text-ink transition-opacity hover:opacity-70"
+        className="font-heading text-xl text-foreground transition-opacity hover:opacity-70"
         aria-label="Inkwell home"
       >
         inkwell

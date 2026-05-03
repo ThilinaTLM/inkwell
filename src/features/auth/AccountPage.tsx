@@ -65,8 +65,10 @@ export default function AccountPage() {
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <header className="mb-6">
-          <h1 className="font-heading text-3xl text-ink">Account</h1>
-          <p className="mt-1 text-sm text-ink-soft">Manage your profile and security settings.</p>
+          <h1 className="font-heading text-3xl text-foreground">Account</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your profile and security settings.
+          </p>
         </header>
 
         <div className="flex flex-col gap-4">
@@ -76,7 +78,7 @@ export default function AccountPage() {
                 <HugeiconsIcon
                   icon={UserCircleIcon}
                   strokeWidth={1.8}
-                  className="size-5 text-ink-soft"
+                  className="size-5 text-muted-foreground"
                 />
                 Profile
               </CardTitle>
@@ -109,7 +111,7 @@ export default function AccountPage() {
                 <HugeiconsIcon
                   icon={SecurityCheckIcon}
                   strokeWidth={1.8}
-                  className="size-5 text-ink-soft"
+                  className="size-5 text-muted-foreground"
                 />
                 Change password
               </CardTitle>

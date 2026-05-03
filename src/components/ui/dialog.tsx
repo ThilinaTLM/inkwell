@@ -33,6 +33,9 @@ function DialogOverlay({
       data-slot="dialog-overlay"
       className={cn(
         // Warm ink wash, not pure black, so the paper feel doesn't break.
+        // The literal oklch is intentional — there is no inkwell token for
+        // a translucent overlay tint, and reusing --foreground would shift
+        // hue on the dark theme. Sole exception to the no-literal rule.
         "fixed inset-0 isolate z-50 bg-[oklch(0.18_0.012_60_/_0.55)] duration-150 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
@@ -55,9 +58,11 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          // A sheet of paper laid on the desk: paper-elev fill, ink hairline,
-          // soft offset shadow, slight tilt-on-open animation.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-paper-elev p-5 font-sans text-sm text-ink ring-1 ring-ink-soft/20 shadow-[0_24px_60px_-20px_rgba(28,24,20,0.45)] duration-150 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // A sheet of paper laid on the desk: popover fill, hairline ring,
+          // soft offset shadow, slight tilt-on-open animation. The shadow
+          // literal is preserved — it mixes the warm ink colour and there
+          // is no token utility for it.
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-5 font-sans text-sm text-popover-foreground ring-1 ring-border shadow-[0_24px_60px_-20px_rgba(28,24,20,0.45)] duration-150 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -124,7 +129,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-sans text-lg font-semibold tracking-tight text-ink", className)}
+      className={cn("font-sans text-lg font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   )
@@ -138,7 +143,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-sm text-ink-soft *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-vermillion",
+        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-primary",
         className
       )}
       {...props}

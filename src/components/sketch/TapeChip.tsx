@@ -3,19 +3,20 @@
 //   inactive — toggleable (translucent tape outline)
 //
 // Color is deterministic per tag name (FNV hash → palette index) so users
-// recognize their tags by color over time.
+// recognize their tags by color over time. The five swatches live in the
+// theme decoration namespace as --color-tag-1…--color-tag-5.
 
 import type * as React from "react";
 import { RoughBox } from "@/components/rough";
 import { cn } from "@/lib/utils";
 import { pickFromPalette, tiltFromId } from "./tilt";
 
-const TAPE_PALETTE = [
-  "var(--color-tape-yellow)",
-  "var(--color-tape-pink)",
-  "var(--color-tape-green)",
-  "var(--color-tape-blue)",
-  "var(--color-tape-purple)",
+const TAG_PALETTE = [
+  "var(--color-tag-1)",
+  "var(--color-tag-2)",
+  "var(--color-tag-3)",
+  "var(--color-tag-4)",
+  "var(--color-tag-5)",
 ] as const;
 
 export interface TapeChipProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
@@ -37,7 +38,7 @@ export function TapeChip({
   className,
   ...rest
 }: TapeChipProps) {
-  const tape = color ?? pickFromPalette(label, TAPE_PALETTE);
+  const tape = color ?? pickFromPalette(label, TAG_PALETTE);
   const tilt = tiltFromId(label, 0.8);
 
   const inner = (
@@ -45,14 +46,14 @@ export function TapeChip({
       className={cn(
         "relative inline-flex items-center justify-center font-sans select-none whitespace-nowrap",
         size === "sm" ? "px-2.5 py-0.5 text-[0.6875rem]" : "px-3 py-1 text-xs",
-        active ? "text-ink font-medium" : "text-ink-soft",
+        active ? "text-foreground font-medium" : "text-muted-foreground",
       )}
       style={{ transform: `rotate(${tilt}deg)` }}
     >
       <RoughBox
         shape="rect"
         seed={`tape:${label}:${active ? "on" : "off"}`}
-        stroke={active ? "var(--color-ink)" : "var(--color-stroke-card)"}
+        stroke={active ? "var(--color-foreground)" : "var(--color-card-stroke)"}
         strokeWidth={active ? 1.4 : 1}
         fill={active ? tape : "transparent"}
         fillStyle="solid"

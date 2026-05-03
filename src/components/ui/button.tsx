@@ -3,9 +3,11 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-// Paper-language button. Variants use the sketchbook tokens directly so
-// every button reads as ink-on-paper. The press microshift (translateY 1px)
-// is preserved from shadcn — feels tactile against the paper background.
+// Paper-language button. Variants are expressed entirely through shadcn
+// semantic tokens (primary / secondary / accent / destructive / ring) so
+// the editor chrome and the rest of the app share one palette. The press
+// microshift (translateY 1px) is preserved from shadcn — feels tactile
+// against the paper background.
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-sans font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -14,21 +16,22 @@ const buttonVariants = cva(
       variant: {
         // Vermillion ink stamp — primary CTA.
         default:
-          "bg-vermillion text-[#fdf6e8] hover:bg-vermillion-dark focus-visible:ring-vermillion/40",
-        // Paper card with ink hairline border.
+          "bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-ring/40",
+        // Paper card with ink hairline border. Hover is a neutral surface
+        // tint; aria-expanded (popup is open) becomes the brand accent.
         outline:
-          "border-ink-soft/40 text-ink hover:bg-manila-soft/60 hover:border-ink-soft/60 aria-expanded:bg-manila-soft aria-expanded:text-ink",
-        // Manila-soft fill; for "secondary" calls to action.
+          "border-input text-foreground hover:bg-accent hover:border-foreground/30 aria-expanded:bg-accent aria-expanded:text-accent-foreground",
+        // Neutral fill secondary action; brand only when its popup is open.
         secondary:
-          "bg-manila-soft text-ink hover:bg-manila/80 aria-expanded:bg-manila aria-expanded:text-ink",
-        // No fill until hover; lifts paper-edge tint.
+          "bg-secondary text-secondary-foreground hover:bg-secondary/70 aria-expanded:bg-accent aria-expanded:text-accent-foreground",
+        // No fill until hover; quiet neutral tint, brand only when open.
         ghost:
-          "text-ink hover:bg-manila-soft/60 aria-expanded:bg-manila-soft/80 aria-expanded:text-ink",
-        // Restrained destructive — vermillion-dark text on a soft tinted fill.
+          "text-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-accent-foreground",
+        // Restrained destructive — destructive text on a soft accent fill.
         destructive:
-          "bg-vermillion-soft/70 text-vermillion-dark hover:bg-vermillion-soft focus-visible:ring-vermillion/30 dark:bg-vermillion-soft/40 dark:text-[#f3c8be] dark:hover:bg-vermillion-soft/60",
-        // Inline link — vermillion underline on hover.
-        link: "text-vermillion underline-offset-4 hover:underline",
+          "bg-accent/70 text-destructive hover:bg-accent focus-visible:ring-ring/30 dark:bg-accent/40 dark:text-accent-foreground dark:hover:bg-accent/60",
+        // Inline link — primary underline on hover.
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default:

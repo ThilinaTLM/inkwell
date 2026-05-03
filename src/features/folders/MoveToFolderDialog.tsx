@@ -79,13 +79,13 @@ export function MoveToFolderDialog({
             <HugeiconsIcon
               icon={FolderAddIcon}
               strokeWidth={1.8}
-              className="size-5 text-ink-soft"
+              className="size-5 text-muted-foreground"
             />
             {title}
           </DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-ink-soft/20 bg-paper/50 p-1.5">
+        <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border bg-background/50 p-1.5">
           <FolderTree
             folders={folders}
             selectedId={selected}

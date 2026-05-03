@@ -365,38 +365,39 @@ export function EditorSaveBadge() {
 
   let label = "";
   let icon: React.ReactNode = null;
-  let tone = "bg-paper-elev/90 text-ink-soft";
+  let tone = "bg-card/90 text-muted-foreground";
 
   if (readOnly) {
     label = "Read-only";
     icon = <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />;
-    tone = "bg-paper-elev/90 text-ink-muted";
+    tone = "bg-card/90 text-muted-foreground/70";
   } else {
     switch (status) {
       case "idle":
         label = "Ready";
         icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        tone = "bg-paper-elev/90 text-ink-muted";
+        tone = "bg-card/90 text-muted-foreground/70";
         break;
       case "dirty":
         label = "Editing";
         icon = <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />;
-        tone = "bg-paper-elev/90 text-ink";
+        tone = "bg-card/90 text-foreground";
         break;
       case "saving":
         label = "Saving…";
         icon = <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />;
-        tone = "bg-paper-elev/90 text-ink";
+        tone = "bg-card/90 text-foreground";
         break;
       case "saved":
         label = "Saved";
         icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
-        tone = "bg-paper-elev/90 text-emerald-700 dark:text-emerald-300";
+        // Success ramp — chart-5 is the green tag/success token in both themes.
+        tone = "bg-card/90 text-chart-5";
         break;
       case "error":
         label = errorMessage || "Save failed";
         icon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
-        tone = "bg-vermillion-soft/80 text-vermillion-dark";
+        tone = "bg-accent/80 text-destructive";
         break;
     }
   }
@@ -405,7 +406,7 @@ export function EditorSaveBadge() {
     <div
       title={errorMessage || undefined}
       className={cn(
-        "pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-sans font-medium ring-1 ring-ink-soft/15 backdrop-blur",
+        "pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-sans font-medium ring-1 ring-border backdrop-blur",
         tone,
       )}
     >

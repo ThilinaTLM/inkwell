@@ -83,7 +83,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
     return (
       <PaperSurface variant="page" className="px-6 py-6">
         <div className="space-y-4">
-          <div className="h-10 w-2/3 max-w-sm animate-pulse rounded-md bg-paper-edge/60" />
+          <div className="h-10 w-2/3 max-w-sm animate-pulse rounded-md bg-muted/60" />
           <SkeletonGrid count={6} />
         </div>
       </PaperSurface>
@@ -94,13 +94,13 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
     <PaperSurface variant="page">
       {/* Banner */}
       <header className="flex flex-wrap items-center gap-3 px-6 pt-6 pb-2">
-        <div className="font-heading text-2xl text-ink">{payload.root.name}</div>
+        <div className="font-heading text-2xl text-foreground">{payload.root.name}</div>
         <div
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-xs ring-1",
             writable
-              ? "bg-manila-soft text-ink ring-manila/40"
-              : "bg-paper-elev text-ink-soft ring-ink-soft/20",
+              ? "bg-folder-soft text-foreground ring-folder/40"
+              : "bg-card text-muted-foreground ring-border",
           )}
         >
           <HugeiconsIcon
@@ -111,12 +111,12 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
           {writable ? "Shared · can edit" : "Shared · view only"}
         </div>
         {payload.share.label ? (
-          <span className="text-sm text-ink-muted">"{payload.share.label}"</span>
+          <span className="text-sm text-muted-foreground/70">"{payload.share.label}"</span>
         ) : null}
       </header>
 
       <div className="px-6">
-        <div className="border-t border-ink-soft/15" />
+        <div className="border-t border-border" />
       </div>
 
       <main className="px-6 pb-16 pt-3">
@@ -134,7 +134,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
           <div className="space-y-6">
             {subfolders.length > 0 && (
               <section aria-label="Subfolders">
-                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">Folders</h3>
+                <h3 className="px-6 pb-2 font-heading text-lg text-muted-foreground">Folders</h3>
                 <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {subfolders.map((f) => (
                     <FolderCard
@@ -151,7 +151,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
 
             {visibleScenes.length > 0 && (
               <section aria-label="Scenes">
-                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">Scenes</h3>
+                <h3 className="px-6 pb-2 font-heading text-lg text-muted-foreground">Scenes</h3>
                 <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {visibleScenes.map((s) => (
                     <SharedSceneCard
@@ -182,7 +182,7 @@ function Breadcrumb({
   return (
     <nav
       aria-label="Folder path"
-      className="flex items-center gap-1 px-6 py-2 text-sm text-ink-soft"
+      className="flex items-center gap-1 px-6 py-2 text-sm text-muted-foreground"
     >
       {breadcrumb.map((f, i) => (
         <span key={f.id} className="flex items-center gap-1">
@@ -197,8 +197,8 @@ function Breadcrumb({
             type="button"
             onClick={() => onJump(f.id)}
             className={cn(
-              "rounded px-1 py-0.5 transition-colors hover:text-ink",
-              i === breadcrumb.length - 1 && "text-ink",
+              "rounded px-1 py-0.5 transition-colors hover:text-foreground",
+              i === breadcrumb.length - 1 && "text-foreground",
             )}
           >
             {f.name}
@@ -237,7 +237,7 @@ function SharedSceneCard({
             download
             aria-label={`Download ${s.name}`}
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex size-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft hover:text-ink"
+            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="size-3.5" />
           </a>

@@ -34,9 +34,9 @@ export function PaperSurface({
     <div
       className={cn(
         "relative isolate",
-        variant === "page" && "min-h-dvh bg-paper text-ink",
-        variant === "card" && "bg-paper-elev text-ink",
-        variant === "banner" && "bg-paper text-ink",
+        variant === "page" && "min-h-dvh bg-background text-foreground",
+        variant === "card" && "bg-card text-card-foreground",
+        variant === "banner" && "bg-background text-foreground",
         className,
       )}
       {...rest}

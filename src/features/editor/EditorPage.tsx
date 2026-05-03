@@ -133,7 +133,7 @@ export default function EditorPage() {
   if (!loaded) return <EditorLoadingState label="Loading scene…" />;
 
   return (
-    <div className="h-dvh w-dvw bg-paper">
+    <div className="h-dvh w-dvw bg-background">
       <SceneEditor
         loaded={loaded}
         save={save}

@@ -9,16 +9,16 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-vermillion text-[#fdf6e8] [a]:hover:bg-vermillion-dark",
+        default: "bg-primary text-primary-foreground [a]:hover:bg-primary-hover",
         secondary:
-          "bg-manila-soft text-ink [a]:hover:bg-manila/80",
+          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/70",
         destructive:
-          "bg-vermillion-soft/70 text-vermillion-dark [a]:hover:bg-vermillion-soft",
+          "bg-accent/70 text-destructive [a]:hover:bg-accent",
         outline:
-          "border-ink-soft/40 bg-paper-elev/60 text-ink [a]:hover:bg-manila-soft/60",
+          "border-input bg-card/60 text-foreground [a]:hover:bg-accent",
         ghost:
-          "hover:bg-manila-soft/60 hover:text-ink",
-        link: "text-vermillion underline-offset-4 hover:underline",
+          "hover:bg-accent hover:text-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {

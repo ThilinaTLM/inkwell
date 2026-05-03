@@ -82,8 +82,8 @@ export function FolderTree({
           <div
             data-active={selectedId === null}
             className={cn(
-              "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
-              "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium",
+              "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+              "data-[active=true]:bg-accent data-[active=true]:text-accent-foreground data-[active=true]:font-medium",
             )}
             style={{ paddingLeft: "4px" }}
           >
@@ -150,8 +150,8 @@ function FolderNode({
         data-active={active}
         data-disabled={disabled}
         className={cn(
-          "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
-          "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium",
+          "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+          "data-[active=true]:bg-accent data-[active=true]:text-accent-foreground data-[active=true]:font-medium",
           "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40",
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
@@ -161,7 +161,7 @@ function FolderNode({
           aria-label={open ? "Collapse" : "Expand"}
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "grid size-4 place-items-center rounded text-ink-muted hover:bg-ink-soft/15",
+            "grid size-4 place-items-center rounded text-muted-foreground/70 hover:bg-border",
             !hasChildren && "invisible",
           )}
         >
@@ -183,7 +183,9 @@ function FolderNode({
           />
           <span className="truncate">{folder.name}</span>
           {showCounts && folder.sceneCount > 0 ? (
-            <span className="ml-auto shrink-0 text-xs text-ink-muted">{folder.sceneCount}</span>
+            <span className="ml-auto shrink-0 text-xs text-muted-foreground/70">
+              {folder.sceneCount}
+            </span>
           ) : null}
         </button>
         {renderAction ? (

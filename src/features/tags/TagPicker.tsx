@@ -86,14 +86,17 @@ export function TagPicker({
           to the contained <input> natively, with no JS or a11y workaround. */}
       <label
         className={cn(
-          "flex flex-wrap items-center gap-1 rounded-md border border-ink-soft/30 bg-paper-elev px-2 py-1.5 transition-colors focus-within:border-vermillion/60 focus-within:ring-2 focus-within:ring-vermillion/20",
+          "flex flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20",
           disabled && "pointer-events-none opacity-60",
         )}
       >
         {normalized.map((tag) => (
           <span
             key={tag}
-            className={cn("inline-flex items-center rounded-full bg-manila-soft text-ink", chipCls)}
+            className={cn(
+              "inline-flex items-center rounded-full bg-folder-soft text-foreground",
+              chipCls,
+            )}
           >
             <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-70" />
             <span className="truncate max-w-[10rem]">{tag}</span>
@@ -104,7 +107,7 @@ export function TagPicker({
                 e.stopPropagation();
                 remove(tag);
               }}
-              className="ml-0.5 rounded-full p-0.5 text-ink-soft hover:bg-ink-soft/15 hover:text-ink"
+              className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-border hover:text-foreground"
             >
               <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-2.5" />
             </button>
@@ -120,7 +123,7 @@ export function TagPicker({
           }}
           placeholder={normalized.length === 0 ? placeholder : ""}
           disabled={disabled || normalized.length >= MAX_TAGS}
-          className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 font-sans text-sm text-ink outline-none placeholder:text-ink-muted"
+          className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 font-sans text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
         />
       </label>
       {filteredSuggestions.length > 0 ? (
@@ -131,7 +134,7 @@ export function TagPicker({
               type="button"
               onClick={() => add(s)}
               className={cn(
-                "inline-flex items-center rounded-full border border-ink-soft/30 bg-paper-elev text-ink-soft hover:border-ink-soft/50 hover:text-ink hover:bg-manila-soft/40",
+                "inline-flex items-center rounded-full border border-input bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground hover:bg-accent",
                 chipCls,
               )}
             >
@@ -141,7 +144,7 @@ export function TagPicker({
           ))}
         </div>
       ) : null}
-      <div className="text-xs text-ink-muted">
+      <div className="text-xs text-muted-foreground/70">
         Press Enter or comma to add. Up to {MAX_TAGS} tags.
       </div>
     </div>

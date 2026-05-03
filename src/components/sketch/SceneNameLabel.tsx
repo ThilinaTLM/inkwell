@@ -19,16 +19,16 @@ export function SceneNameLabel({ name, className }: SceneNameLabelProps) {
     <div
       title={name}
       className={cn(
-        "pointer-events-auto inline-flex h-9 max-w-[18rem] items-center gap-1.5 rounded-md bg-paper-elev/90 px-3 ring-1 ring-ink-soft/15 backdrop-blur",
+        "pointer-events-auto inline-flex h-9 max-w-[18rem] items-center gap-1.5 rounded-md bg-card/90 px-3 ring-1 ring-border backdrop-blur",
         className,
       )}
     >
       <HugeiconsIcon
         icon={BookOpen01Icon}
         strokeWidth={1.6}
-        className="size-4 shrink-0 text-ink-soft"
+        className="size-4 shrink-0 text-muted-foreground"
       />
-      <span className="truncate font-heading text-sm leading-none text-ink">{name}</span>
+      <span className="truncate font-heading text-sm leading-none text-foreground">{name}</span>
     </div>
   );
 }

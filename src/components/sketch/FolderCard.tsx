@@ -59,7 +59,7 @@ export function FolderCard({
       className={cn(
         "group/folder relative flex flex-col items-center gap-2 rounded-md transition-shadow duration-150",
         "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
-        "focus-within:ring-2 focus-within:ring-vermillion/60",
+        "focus-within:ring-2 focus-within:ring-ring/60",
         className,
       )}
       style={{ transform: `rotate(${tilt}deg)` }}
@@ -77,10 +77,12 @@ export function FolderCard({
         <FolderGlyph id={id} />
 
         <div className="w-full min-w-0 text-center">
-          <div className="truncate font-heading text-sm text-ink" title={name}>
+          <div className="truncate font-heading text-sm text-foreground" title={name}>
             {name}
           </div>
-          {countLabel ? <div className="truncate text-xs text-ink-muted">{countLabel}</div> : null}
+          {countLabel ? (
+            <div className="truncate text-xs text-muted-foreground/70">{countLabel}</div>
+          ) : null}
         </div>
       </button>
 
@@ -101,9 +103,9 @@ function FolderGlyph({ id }: { id: string }) {
       <RoughBox
         shape="folder-tab"
         seed={`folder-back:${id}`}
-        stroke="var(--color-stroke-card)"
+        stroke="var(--color-card-stroke)"
         strokeWidth={1.4}
-        fill="var(--color-manila)"
+        fill="var(--color-folder)"
         fillStyle="solid"
         roughness={0.9}
         bowing={1}
@@ -117,9 +119,9 @@ function FolderGlyph({ id }: { id: string }) {
         <RoughBox
           shape="rounded"
           seed={`folder-front:${id}`}
-          stroke="var(--color-stroke-card)"
+          stroke="var(--color-card-stroke)"
           strokeWidth={1.4}
-          fill="var(--color-manila-soft)"
+          fill="var(--color-folder-soft)"
           fillStyle="solid"
           roughness={0.9}
           bowing={1}

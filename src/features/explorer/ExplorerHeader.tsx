@@ -42,7 +42,7 @@ export function ExplorerHeader({ user }: ExplorerHeaderProps) {
                 onClick={() => navigate("/admin")}
                 aria-label="Manage users"
                 className={cn(
-                  "grid size-8 place-items-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft/50 hover:text-ink",
+                  "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                 )}
               />

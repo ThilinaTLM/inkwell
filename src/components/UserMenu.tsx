@@ -63,20 +63,22 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
           />
         }
       >
-        <Avatar size="sm" className="size-7 ring-1 ring-ink-soft/30">
-          <AvatarFallback className="bg-manila text-ink text-[0.7rem] font-medium uppercase">
+        <Avatar size="sm" className="size-7 ring-1 ring-border">
+          <AvatarFallback className="text-[0.7rem] font-medium uppercase">
             {initials}
           </AvatarFallback>
         </Avatar>
-        <span className="hidden max-w-[10rem] truncate font-sans text-xs text-ink md:inline">
+        <span className="hidden max-w-[10rem] truncate font-sans text-xs text-foreground md:inline">
           {fullName}
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col gap-0.5">
-            <span className="truncate text-sm font-medium text-ink">{fullName}</span>
-            <span className="truncate font-sans text-[0.6875rem] text-ink-muted">{user.email}</span>
+            <span className="truncate text-sm font-medium text-foreground">{fullName}</span>
+            <span className="truncate font-sans text-[0.6875rem] text-muted-foreground/70">
+              {user.email}
+            </span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

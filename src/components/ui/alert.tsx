@@ -8,9 +8,9 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-paper-elev border-ink-soft/20 text-ink",
+        default: "bg-card border-border text-card-foreground",
         destructive:
-          "bg-vermillion-soft/40 border-vermillion/30 text-vermillion-dark *:data-[slot=alert-description]:text-vermillion-dark/90 *:[svg]:text-current",
+          "bg-accent/40 border-destructive/30 text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
       },
     },
     defaultVariants: {
@@ -39,7 +39,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-sans text-sm font-semibold tracking-tight group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-vermillion",
+        "font-sans text-sm font-semibold tracking-tight group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-primary",
         className
       )}
       {...props}
@@ -55,7 +55,7 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "text-xs text-balance text-ink-soft md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-vermillion [&_p:not(:last-child)]:mb-4",
+        "text-xs text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-primary [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
