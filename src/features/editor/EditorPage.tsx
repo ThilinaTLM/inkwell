@@ -10,11 +10,7 @@
 // autosave loop has its own dedup ref and 409-reload-and-reset
 // semantics that don't compose cleanly with a mutation lifecycle.
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { MainMenu } from "@excalidraw/excalidraw";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Download01Icon,
   Edit02Icon,
@@ -23,33 +19,23 @@ import {
   Share08Icon,
   Sun03Icon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-
-import {
-  scenes,
-  type LoadedScene,
-  type SceneBlob,
-  type SceneMeta,
-} from "@/lib/api/client";
-import { keys } from "@/lib/api/query-keys";
 import { SceneNameLabel } from "@/components/sketch";
 import { useScene } from "@/features/editor/hooks";
-import {
-  useRenameScene,
-  useSetSceneTags,
-  useTags,
-} from "@/features/explorer/hooks";
+import { useRenameScene, useSetSceneTags, useTags } from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
+import { type LoadedScene, type SceneBlob, type SceneMeta, scenes } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import SceneEditor, { EditorSaveBadge } from "./SceneEditor";
-import {
-  BackToScenesButton,
-  EditorErrorState,
-  EditorLoadingState,
-} from "./EditorChrome";
+import { BackToScenesButton, EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { RenameSceneDialog } from "./RenameSceneDialog";
+import SceneEditor, { EditorSaveBadge } from "./SceneEditor";
 
 export default function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -129,10 +115,7 @@ export default function EditorPage() {
     [id, qc],
   );
 
-  const saveThumb = useCallback(
-    (svg: string) => scenes.putThumb(id, svg),
-    [id],
-  );
+  const saveThumb = useCallback((svg: string) => scenes.putThumb(id, svg), [id]);
 
   // Lazy tag-set lookup: when the user opens "Edit tags" we need this
   // scene's current tags. The LoadedScene meta doesn't include them, so
@@ -142,11 +125,7 @@ export default function EditorPage() {
   const sceneTags = useSceneTagsLazy(id, tagsOpen);
 
   if (sceneQuery.isError) {
-    return (
-      <EditorErrorState
-        message={errorMessage(sceneQuery.error, "load failed")}
-      />
-    );
+    return <EditorErrorState message={errorMessage(sceneQuery.error, "load failed")} />;
   }
   if (!loaded) return <EditorLoadingState label="Loading scene…" />;
 
@@ -221,9 +200,7 @@ export default function EditorPage() {
         onRename={async (next) => {
           try {
             const m = await renameMutation.mutateAsync({ id, name: next });
-            setLoaded((prev) =>
-              prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev,
-            );
+            setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
             toast.success(`Renamed to "${m.name}".`);
             setRenameOpen(false);
           } catch (e) {
@@ -279,11 +256,14 @@ export default function EditorPage() {
 function useSceneTagsLazy(
   id: string,
   enabled: boolean,
-): { status: "idle" } | { status: "loading" } | {
-  status: "ok";
-  tags: string[];
-  write: (next: string[]) => void;
-} {
+):
+  | { status: "idle" }
+  | { status: "loading" }
+  | {
+      status: "ok";
+      tags: string[];
+      write: (next: string[]) => void;
+    } {
   const qc = useQueryClient();
   const [tags, setTags] = useState<string[] | null>(null);
 

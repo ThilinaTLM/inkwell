@@ -14,8 +14,8 @@
 // the canvas always renders the same theme as the rest of the app.
 
 import {
-  ReactNode,
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -109,9 +109,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [mode, resolved, setMode, toggle],
   );
 
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {

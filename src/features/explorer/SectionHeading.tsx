@@ -12,12 +12,8 @@ interface SectionHeadingProps {
 export function SectionHeading({ label, count }: SectionHeadingProps) {
   return (
     <div className="flex items-baseline gap-3 px-6 pb-2 pt-4">
-      <h2 className="font-heading text-sm uppercase tracking-wide text-ink-soft">
-        {label}
-      </h2>
-      {count != null ? (
-        <span className="text-xs text-ink-muted">{count}</span>
-      ) : null}
+      <h2 className="font-heading text-sm uppercase tracking-wide text-ink-soft">{label}</h2>
+      {count != null ? <span className="text-xs text-ink-muted">{count}</span> : null}
       <div className="ml-2 flex-1 border-t border-ink-soft/15" />
     </div>
   );

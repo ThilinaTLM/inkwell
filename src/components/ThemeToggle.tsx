@@ -10,12 +10,8 @@
 // Visual style mirrors the admin "Users" button in ExplorerHeader
 // so the Topbar reads as one consistent action cluster.
 
+import { LaptopIcon, Moon02Icon, Sun03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  LaptopIcon,
-  Moon02Icon,
-  Sun03Icon,
-} from "@hugeicons/core-free-icons";
 
 import {
   DropdownMenu,
@@ -24,7 +20,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useTheme, type ThemeMode } from "@/lib/theme";
+import { type ThemeMode, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -53,32 +49,17 @@ export function ThemeToggle({ className }: { className?: string }) {
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
-        <DropdownMenuRadioGroup
-          value={mode}
-          onValueChange={(v) => setMode(v as ThemeMode)}
-        >
+        <DropdownMenuRadioGroup value={mode} onValueChange={(v) => setMode(v as ThemeMode)}>
           <DropdownMenuRadioItem value="light">
-            <HugeiconsIcon
-              icon={Sun03Icon}
-              strokeWidth={1.8}
-              className="size-3.5"
-            />
+            <HugeiconsIcon icon={Sun03Icon} strokeWidth={1.8} className="size-3.5" />
             Light
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">
-            <HugeiconsIcon
-              icon={Moon02Icon}
-              strokeWidth={1.8}
-              className="size-3.5"
-            />
+            <HugeiconsIcon icon={Moon02Icon} strokeWidth={1.8} className="size-3.5" />
             Dark
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system">
-            <HugeiconsIcon
-              icon={LaptopIcon}
-              strokeWidth={1.8}
-              className="size-3.5"
-            />
+            <HugeiconsIcon icon={LaptopIcon} strokeWidth={1.8} className="size-3.5" />
             System
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

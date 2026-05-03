@@ -114,7 +114,11 @@ export interface FolderSharePayload {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public payload?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public payload?: unknown,
+  ) {
     super(message);
   }
 }
@@ -122,7 +126,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const resp = await fetch(path, { credentials: "include", ...init });
   if (!resp.ok) {
-    let payload: unknown = undefined;
+    let payload: unknown;
     try {
       payload = await resp.json();
     } catch {
@@ -175,32 +179,28 @@ export const auth = {
 // ─── Invites (public side) ────────────────────────────────────────────
 export const invites = {
   /** Validates an invite token before showing the signup form. */
-  peek: (token: string) =>
-    request<{ ok: true; expiresAt: number | null }>(`/api/invites/${token}`),
+  peek: (token: string) => request<{ ok: true; expiresAt: number | null }>(`/api/invites/${token}`),
   /** Accepts an invite and creates the user. Sets the session cookie on success. */
   accept: (
     token: string,
-    body: { email: string; password: string; firstName: string; lastName: string }
+    body: { email: string; password: string; firstName: string; lastName: string },
   ) => postJson<User>(`/api/invites/${token}/accept`, body),
 };
 
 // ─── Admin ────────────────────────────────────────────────────────────
 export const admin = {
-  listUsers: () =>
-    request<{ users: AdminUser[] }>("/api/admin/users").then((r) => r.users),
+  listUsers: () => request<{ users: AdminUser[] }>("/api/admin/users").then((r) => r.users),
   updateUser: (
     id: string,
-    patch: Partial<{ isAdmin: boolean; disabled: boolean; firstName: string; lastName: string }>
+    patch: Partial<{ isAdmin: boolean; disabled: boolean; firstName: string; lastName: string }>,
   ) => patchJson<AdminUser>(`/api/admin/users/${id}`, patch),
-  deleteUser: (id: string) =>
-    request<{ ok: true }>(`/api/admin/users/${id}`, { method: "DELETE" }),
+  deleteUser: (id: string) => request<{ ok: true }>(`/api/admin/users/${id}`, { method: "DELETE" }),
 
-  listInvites: () =>
-    request<{ invites: Invite[] }>("/api/admin/invites").then((r) => r.invites),
+  listInvites: () => request<{ invites: Invite[] }>("/api/admin/invites").then((r) => r.invites),
   createInvite: (expiresInHours: number | null) =>
     postJson<{ token: string; url: string; expiresAt: number | null; createdAt: number }>(
       "/api/admin/invites",
-      { expiresInHours }
+      { expiresInHours },
     ),
   revokeInvite: (token: string) =>
     request<{ ok: true }>(`/api/admin/invites/${token}`, { method: "DELETE" }),
@@ -208,16 +208,12 @@ export const admin = {
 
 // ─── Folders ──────────────────────────────────────────────────────────
 export const folders = {
-  list: () =>
-    request<{ folders: FolderMeta[] }>("/api/folders").then((r) => r.folders),
+  list: () => request<{ folders: FolderMeta[] }>("/api/folders").then((r) => r.folders),
   create: (body: { name: string; parentId?: string | null; tags?: string[] }) =>
     postJson<FolderMeta>("/api/folders", body),
-  update: (
-    id: string,
-    body: { name?: string; parentId?: string | null; tags?: string[] }
-  ) => patchJson<FolderMeta>(`/api/folders/${id}`, body),
-  delete: (id: string) =>
-    request<{ ok: true }>(`/api/folders/${id}`, { method: "DELETE" }),
+  update: (id: string, body: { name?: string; parentId?: string | null; tags?: string[] }) =>
+    patchJson<FolderMeta>(`/api/folders/${id}`, body),
+  delete: (id: string) => request<{ ok: true }>(`/api/folders/${id}`, { method: "DELETE" }),
 
   listShares: (id: string) =>
     request<{ tokens: Share[] }>(`/api/folders/${id}/shares`).then((r) => r.tokens),
@@ -228,7 +224,7 @@ export const folders = {
       allowDownload?: boolean;
       expiresAt?: number | null;
       label?: string | null;
-    }
+    },
   ) => postJson<Share>(`/api/folders/${id}/shares`, body),
   revokeShare: (id: string, token: string) =>
     request<{ ok: true }>(`/api/folders/${id}/shares/${token}`, { method: "DELETE" }),
@@ -239,8 +235,7 @@ export const tags = {
   list: () => request<{ tags: Tag[] }>("/api/tags").then((r) => r.tags),
   rename: (id: string, name: string) =>
     patchJson<{ id: string; name: string }>(`/api/tags/${id}`, { name }),
-  delete: (id: string) =>
-    request<{ ok: true }>(`/api/tags/${id}`, { method: "DELETE" }),
+  delete: (id: string) => request<{ ok: true }>(`/api/tags/${id}`, { method: "DELETE" }),
 };
 
 // ─── Scene listing query ──────────────────────────────────────────────
@@ -271,18 +266,16 @@ function buildScenesUrl(q: ScenesQuery): string {
 export const scenes = {
   list: (query: ScenesQuery = {}) =>
     request<{ scenes: SceneMeta[] }>(buildScenesUrl(query)).then((r) => r.scenes),
-  create: (
-    body: { name?: string; folderId?: string | null; tags?: string[] } = {}
-  ) => postJson<SceneMeta>("/api/scenes", body),
+  create: (body: { name?: string; folderId?: string | null; tags?: string[] } = {}) =>
+    postJson<SceneMeta>("/api/scenes", body),
   rename: (id: string, name: string) => patchJson<SceneMeta>(`/api/scenes/${id}`, { name }),
   /** Move a scene. `folderId === null` moves to the root level. */
   move: (id: string, folderId: string | null) =>
     patchJson<SceneMeta>(`/api/scenes/${id}`, { folderId }),
   setTags: (id: string, tagList: string[]) =>
-    putJson<{ id: string; tags: string[]; updatedAt: number }>(
-      `/api/scenes/${id}/tags`,
-      { tags: tagList }
-    ),
+    putJson<{ id: string; tags: string[]; updatedAt: number }>(`/api/scenes/${id}/tags`, {
+      tags: tagList,
+    }),
   delete: (id: string) => request<{ ok: true }>(`/api/scenes/${id}`, { method: "DELETE" }),
 
   /** Loads a scene the current user owns. */
@@ -304,7 +297,7 @@ export const scenes = {
       body: JSON.stringify(blob),
     });
     if (!resp.ok) {
-      let payload: any = null;
+      let payload: { error?: string } | null = null;
       try {
         payload = await resp.json();
       } catch {
@@ -341,7 +334,7 @@ export const scenes = {
       allowDownload?: boolean;
       expiresAt?: number | null;
       label?: string | null;
-    }
+    },
   ) => postJson<Share>(`/api/scenes/${id}/shares`, body),
   revokeShare: (id: string, token: string) =>
     request<{ ok: true }>(`/api/scenes/${id}/shares/${token}`, { method: "DELETE" }),
@@ -351,8 +344,7 @@ export const scenes = {
 export const shares = {
   /** All of caller's active shares (scenes + folders), with target name. */
   listAll: () => request<{ shares: Share[] }>("/api/shares").then((r) => r.shares),
-  revoke: (token: string) =>
-    request<{ ok: true }>(`/api/shares/${token}`, { method: "DELETE" }),
+  revoke: (token: string) => request<{ ok: true }>(`/api/shares/${token}`, { method: "DELETE" }),
 
   // ── Public token operations (scene shares) ────────────────────────
   async load(token: string): Promise<LoadedScene> {
@@ -371,7 +363,7 @@ export const shares = {
       body: JSON.stringify(blob),
     });
     if (!resp.ok) {
-      let payload: any = null;
+      let payload: { error?: string } | null = null;
       try {
         payload = await resp.json();
       } catch {
@@ -388,9 +380,10 @@ export const shares = {
    * Resolves a token without committing to scene/folder semantics. The
    * `targetType` header from the worker tells us which page to render.
    */
-  async peek(token: string): Promise<
-    | { type: "scene"; scene: LoadedScene }
-    | { type: "folder"; payload: FolderSharePayload }
+  async peek(
+    token: string,
+  ): Promise<
+    { type: "scene"; scene: LoadedScene } | { type: "folder"; payload: FolderSharePayload }
   > {
     const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
@@ -406,8 +399,7 @@ export const shares = {
   },
 
   // ── Public token operations (folder shares) ───────────────────────
-  loadFolder: (token: string) =>
-    request<FolderSharePayload>(`/api/share/${token}`),
+  loadFolder: (token: string) => request<FolderSharePayload>(`/api/share/${token}`),
 
   async loadFolderScene(token: string, sceneId: string): Promise<LoadedScene> {
     const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
@@ -423,7 +415,7 @@ export const shares = {
     token: string,
     sceneId: string,
     version: number,
-    blob: SceneBlob
+    blob: SceneBlob,
   ): Promise<SceneMeta> {
     const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
       method: "PUT",
@@ -432,7 +424,7 @@ export const shares = {
       body: JSON.stringify(blob),
     });
     if (!resp.ok) {
-      let payload: any = null;
+      let payload: { error?: string } | null = null;
       try {
         payload = await resp.json();
       } catch {
@@ -454,7 +446,7 @@ export const shares = {
 async function readSceneResponse(
   resp: Response,
   permission: "read" | "write",
-  allowDownload: boolean
+  allowDownload: boolean,
 ): Promise<LoadedScene> {
   const id = resp.headers.get("x-scene-id") || "";
   const name = decodeURIComponent(resp.headers.get("x-scene-name") || "Untitled");

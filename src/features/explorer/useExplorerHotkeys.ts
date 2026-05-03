@@ -32,7 +32,7 @@ export interface ExplorerItemFocus {
 
 export function useExplorerHotkeys(
   containerRef: React.RefObject<HTMLElement | null>,
-  handlers: ExplorerHotkeyHandlers
+  handlers: ExplorerHotkeyHandlers,
 ) {
   useEffect(() => {
     const el = containerRef.current;

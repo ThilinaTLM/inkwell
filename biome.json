@@ -14,7 +14,7 @@
       "!pnpm-lock.yaml",
       "!worker-configuration.d.ts",
       "!**/*.tsbuildinfo",
-      "!src/components/ui/**"
+      "!src/components/ui"
     ]
   },
   "formatter": {
@@ -37,6 +37,14 @@
     "formatter": {
       "enabled": true,
       "trailingCommas": "none"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "enabled": true
     }
   },
   "linter": {

@@ -5,16 +5,15 @@
 // table only owns path-to-component mapping and the admin guard.
 
 import { Navigate, Route, Routes } from "react-router-dom";
-
-import LoginPage from "@/features/auth/LoginPage";
-import AccountPage from "@/features/auth/AccountPage";
-import InviteAcceptPage from "@/features/auth/InviteAcceptPage";
 import AdminPage from "@/features/admin/AdminPage";
-import DashboardPage from "@/features/explorer/DashboardPage";
+import AccountPage from "@/features/auth/AccountPage";
+import { useMe } from "@/features/auth/hooks";
+import InviteAcceptPage from "@/features/auth/InviteAcceptPage";
+import LoginPage from "@/features/auth/LoginPage";
 import EditorPage from "@/features/editor/EditorPage";
 import SharedEditorPage from "@/features/editor/SharedEditorPage";
 import SharedTokenLandingPage from "@/features/editor/SharedTokenLandingPage";
-import { useMe } from "@/features/auth/hooks";
+import DashboardPage from "@/features/explorer/DashboardPage";
 
 export function AppRoutes() {
   return (

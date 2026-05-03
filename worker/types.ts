@@ -7,7 +7,7 @@
 // deliberate act.
 
 import type { InferSelectModel } from "drizzle-orm";
-import * as t from "./db/schema";
+import type * as t from "./db/schema";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -73,12 +73,12 @@ export type InviteStatus = "pending" | "used" | "revoked" | "expired";
 export interface InvitePublic {
   token: string;
   status: InviteStatus;
-  createdBy: string;            // user id of creator
-  createdByEmail?: string;      // joined for admin listing
+  createdBy: string; // user id of creator
+  createdByEmail?: string; // joined for admin listing
   createdAt: number;
   expiresAt: number | null;
   usedByUserId: string | null;
-  usedByEmail?: string | null;  // joined for admin listing
+  usedByEmail?: string | null; // joined for admin listing
   usedAt: number | null;
   revokedAt: number | null;
 }
@@ -97,10 +97,7 @@ export type InviteAdminRow = InviteRow & {
   used_by_email: string | null;
 };
 
-export function rowToInvitePublic(
-  r: InviteRow | InviteAdminRow,
-  nowMs: number
-): InvitePublic {
+export function rowToInvitePublic(r: InviteRow | InviteAdminRow, nowMs: number): InvitePublic {
   const out: InvitePublic = {
     token: r.token,
     status: inviteStatus(r, nowMs),
@@ -126,15 +123,15 @@ export interface FolderMeta {
   parentId: string | null;
   name: string;
   tags: string[];
-  sceneCount: number;          // direct children only
-  subfolderCount: number;      // direct children only
+  sceneCount: number; // direct children only
+  subfolderCount: number; // direct children only
   createdAt: number;
   updatedAt: number;
 }
 
 export function rowToFolderMeta(
   r: FolderRow,
-  extras: { tags?: string[]; sceneCount?: number; subfolderCount?: number } = {}
+  extras: { tags?: string[]; sceneCount?: number; subfolderCount?: number } = {},
 ): FolderMeta {
   return {
     id: r.id,
@@ -212,7 +209,7 @@ export interface SharePublic {
   token: string;
   targetType: ShareTargetType;
   targetId: string;
-  targetName?: string;           // joined for listing
+  targetName?: string; // joined for listing
   permission: SharePermission;
   allowDownload: boolean;
   label: string | null;

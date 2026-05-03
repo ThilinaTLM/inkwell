@@ -2,9 +2,8 @@
 // move-scene mutation.
 
 import { toast } from "sonner";
-
-import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import { useMoveScene } from "@/features/explorer/hooks";
+import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import type { FolderMeta, SceneMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 
@@ -14,11 +13,7 @@ interface SceneMoveDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function SceneMoveDialog({
-  scene,
-  folders,
-  onOpenChange,
-}: SceneMoveDialogProps) {
+export function SceneMoveDialog({ scene, folders, onOpenChange }: SceneMoveDialogProps) {
   const move = useMoveScene();
   if (!scene) return null;
   return (

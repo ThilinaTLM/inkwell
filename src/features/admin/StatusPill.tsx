@@ -1,10 +1,7 @@
 // Invite status badge.
 
+import { Alert02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Alert02Icon,
-  CheckmarkCircle02Icon,
-} from "@hugeicons/core-free-icons";
 
 import { Badge } from "@/components/ui/badge";
 import type { InviteStatus } from "@/lib/api/client";

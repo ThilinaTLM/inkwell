@@ -14,228 +14,233 @@
    loads its fonts inside the canvas iframe-ish layout-ui wrapper.
    ─────────────────────────────────────────────────────────────────────── */
 @font-face {
-    font-family: "Excalifont";
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url("./assets/fonts/Excalifont/Excalifont-Regular-Latin.woff2") format("woff2");
-    unicode-range: U+20-7e, U+a0-a3, U+a5-a6, U+a8-ab, U+ad-b1, U+b4, U+b6-b8,
-        U+ba-ff, U+131, U+152-153, U+2bc, U+2c6, U+2da, U+2dc, U+304, U+308,
-        U+2013-2014, U+2018-201a, U+201c-201e, U+2020, U+2022, U+2024-2026,
-        U+2030, U+2039-203a, U+20ac, U+2122, U+2212;
+  font-family: "Excalifont";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Excalifont/Excalifont-Regular-Latin.woff2") format("woff2");
+  unicode-range:
+    U+20-7e, U+a0-a3, U+a5-a6, U+a8-ab, U+ad-b1, U+b4, U+b6-b8,
+    U+ba-ff, U+131, U+152-153, U+2bc, U+2c6, U+2da, U+2dc, U+304, U+308,
+    U+2013-2014, U+2018-201a, U+201c-201e, U+2020, U+2022, U+2024-2026,
+    U+2030, U+2039-203a, U+20ac, U+2122, U+2212;
 }
 @font-face {
-    font-family: "Excalifont";
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url("./assets/fonts/Excalifont/Excalifont-Regular-LatinExt.woff2") format("woff2");
-    unicode-range: U+100-130, U+132-137, U+139-149, U+14c-151, U+154-17e, U+192,
-        U+1fc-1ff, U+218-21b, U+237, U+1e80-1e85, U+1ef2-1ef3, U+2113;
+  font-family: "Excalifont";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Excalifont/Excalifont-Regular-LatinExt.woff2") format("woff2");
+  unicode-range:
+    U+100-130, U+132-137, U+139-149, U+14c-151, U+154-17e, U+192, U+1fc-1ff, U+218-21b, U+237,
+    U+1e80-1e85, U+1ef2-1ef3, U+2113;
 }
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    /* ─── Fonts ─── */
-    --font-heading: "Excalifont", "Caveat Variable", system-ui, sans-serif;
-    --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-    --font-hand: "Caveat Variable", "Excalifont", cursive;
+  /* ─── Fonts ─── */
+  --font-heading: "Excalifont", "Caveat Variable", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-hand: "Caveat Variable", "Excalifont", cursive;
 
-    /* ─── Sketchbook palette tokens (semantic) ─── */
-    --color-paper: var(--paper);
-    --color-paper-edge: var(--paper-edge);
-    --color-paper-elev: var(--paper-elev);
-    --color-ink: var(--ink);
-    --color-ink-soft: var(--ink-soft);
-    --color-ink-muted: var(--ink-muted);
-    --color-stroke-card: var(--stroke-card);
-    --color-manila: var(--manila);
-    --color-manila-edge: var(--manila-edge);
-    --color-manila-soft: var(--manila-soft);
-    --color-graphite: var(--graphite);
-    --color-graphite-soft: var(--graphite-soft);
-    --color-vermillion: var(--vermillion);
-    --color-vermillion-soft: var(--vermillion-soft);
-    --color-vermillion-dark: var(--vermillion-dark);
-    --color-tape-yellow: var(--tape-yellow);
-    --color-tape-pink: var(--tape-pink);
-    --color-tape-green: var(--tape-green);
-    --color-tape-blue: var(--tape-blue);
-    --color-tape-purple: var(--tape-purple);
+  /* ─── Sketchbook palette tokens (semantic) ─── */
+  --color-paper: var(--paper);
+  --color-paper-edge: var(--paper-edge);
+  --color-paper-elev: var(--paper-elev);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-stroke-card: var(--stroke-card);
+  --color-manila: var(--manila);
+  --color-manila-edge: var(--manila-edge);
+  --color-manila-soft: var(--manila-soft);
+  --color-graphite: var(--graphite);
+  --color-graphite-soft: var(--graphite-soft);
+  --color-vermillion: var(--vermillion);
+  --color-vermillion-soft: var(--vermillion-soft);
+  --color-vermillion-dark: var(--vermillion-dark);
+  --color-tape-yellow: var(--tape-yellow);
+  --color-tape-pink: var(--tape-pink);
+  --color-tape-green: var(--tape-green);
+  --color-tape-blue: var(--tape-blue);
+  --color-tape-purple: var(--tape-purple);
 
-    /* ─── Shadcn token mappings (so existing primitives keep working) ─── */
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
+  /* ─── Shadcn token mappings (so existing primitives keep working) ─── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
 }
 
 /* ─── Paper (light) ─────────────────────────────────────────────────────── */
 :root {
-    /* Sketchbook tokens */
-    --paper: #f4ecda; /* warm cream */
-    --paper-edge: #e9deba; /* slightly darker cream for borders/dividers */
-    --paper-elev: #fbf6e8; /* slightly lighter for cards */
-    --ink: #1c1814;
-    --ink-soft: #5b5044;
-    --ink-muted: #8a7e6b;
-    --stroke-card: #5b5044; /* dedicated card-outline ink — same as ink-soft on paper, brighter on dark */
-    --manila: #e8c77a;
-    --manila-edge: #c9a659;
-    --manila-soft: #f3e3b6;
-    --graphite: #3e5f8a;
-    --graphite-soft: #b9c8de;
-    --vermillion: #d5482e;
-    --vermillion-soft: #f3c8be;
-    --vermillion-dark: #a8351f;
-    --tape-yellow: #f4d77a;
-    --tape-pink: #e88484;
-    --tape-green: #9bbf7b;
-    --tape-blue: #7fa9d1;
-    --tape-purple: #b89bd6;
+  /* Sketchbook tokens */
+  --paper: #f4ecda; /* warm cream */
+  --paper-edge: #e9deba; /* slightly darker cream for borders/dividers */
+  --paper-elev: #fbf6e8; /* slightly lighter for cards */
+  --ink: #1c1814;
+  --ink-soft: #5b5044;
+  --ink-muted: #8a7e6b;
+  --stroke-card: #5b5044; /* dedicated card-outline ink — same as ink-soft on paper, brighter on dark */
+  --manila: #e8c77a;
+  --manila-edge: #c9a659;
+  --manila-soft: #f3e3b6;
+  --graphite: #3e5f8a;
+  --graphite-soft: #b9c8de;
+  --vermillion: #d5482e;
+  --vermillion-soft: #f3c8be;
+  --vermillion-dark: #a8351f;
+  --tape-yellow: #f4d77a;
+  --tape-pink: #e88484;
+  --tape-green: #9bbf7b;
+  --tape-blue: #7fa9d1;
+  --tape-purple: #b89bd6;
 
-    /* Shadcn aliases mapped to sketchbook tokens */
-    --background: var(--paper);
-    --foreground: var(--ink);
-    --card: var(--paper-elev);
-    --card-foreground: var(--ink);
-    --popover: var(--paper-elev);
-    --popover-foreground: var(--ink);
-    --primary: var(--vermillion);
-    --primary-foreground: #fdf6e8;
-    --secondary: var(--manila-soft);
-    --secondary-foreground: var(--ink);
-    --muted: var(--paper-edge);
-    --muted-foreground: var(--ink-soft);
-    --accent: var(--manila-soft);
-    --accent-foreground: var(--ink);
-    --destructive: var(--vermillion-dark);
-    --border: oklch(0 0 0 / 12%);
-    --input: oklch(0 0 0 / 18%);
-    --ring: var(--vermillion);
-    --chart-1: var(--vermillion);
-    --chart-2: var(--graphite);
-    --chart-3: var(--manila-edge);
-    --chart-4: var(--ink-soft);
-    --chart-5: var(--tape-green);
-    --radius: 0.5rem;
-    --sidebar: var(--paper-elev);
-    --sidebar-foreground: var(--ink);
-    --sidebar-primary: var(--vermillion);
-    --sidebar-primary-foreground: #fdf6e8;
-    --sidebar-accent: var(--manila-soft);
-    --sidebar-accent-foreground: var(--ink);
-    --sidebar-border: oklch(0 0 0 / 10%);
-    --sidebar-ring: var(--vermillion);
+  /* Shadcn aliases mapped to sketchbook tokens */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-elev);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-elev);
+  --popover-foreground: var(--ink);
+  --primary: var(--vermillion);
+  --primary-foreground: #fdf6e8;
+  --secondary: var(--manila-soft);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-edge);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--manila-soft);
+  --accent-foreground: var(--ink);
+  --destructive: var(--vermillion-dark);
+  --border: oklch(0 0 0 / 12%);
+  --input: oklch(0 0 0 / 18%);
+  --ring: var(--vermillion);
+  --chart-1: var(--vermillion);
+  --chart-2: var(--graphite);
+  --chart-3: var(--manila-edge);
+  --chart-4: var(--ink-soft);
+  --chart-5: var(--tape-green);
+  --radius: 0.5rem;
+  --sidebar: var(--paper-elev);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--vermillion);
+  --sidebar-primary-foreground: #fdf6e8;
+  --sidebar-accent: var(--manila-soft);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: oklch(0 0 0 / 10%);
+  --sidebar-ring: var(--vermillion);
 }
 
 /* ─── Chalkboard (dark) ────────────────────────────────────────────────── */
 .dark {
-    --paper: #1f2428; /* deep slate */
-    --paper-edge: #2a3036;
-    --paper-elev: #262c31;
-    --ink: #efe9dc; /* chalk */
-    --ink-soft: #b9b0a0;
-    --ink-muted: #8a826f;
-    --stroke-card: #d8cdb8; /* brighter chalk-on-slate for card outlines */
-    --manila: #d4b25c; /* manila reads warmer on slate */
-    --manila-edge: #a88945;
-    --manila-soft: #4a3f25;
-    --graphite: #7da3cf;
-    --graphite-soft: #2f4565;
-    --vermillion: #e8593f; /* slightly brighter on dark */
-    --vermillion-soft: #4a2018;
-    --vermillion-dark: #f56b51;
-    --tape-yellow: #c9ad5c;
-    --tape-pink: #c66a6a;
-    --tape-green: #7ea267;
-    --tape-blue: #6890b3;
-    --tape-purple: #9d83bc;
+  --paper: #1f2428; /* deep slate */
+  --paper-edge: #2a3036;
+  --paper-elev: #262c31;
+  --ink: #efe9dc; /* chalk */
+  --ink-soft: #b9b0a0;
+  --ink-muted: #8a826f;
+  --stroke-card: #d8cdb8; /* brighter chalk-on-slate for card outlines */
+  --manila: #d4b25c; /* manila reads warmer on slate */
+  --manila-edge: #a88945;
+  --manila-soft: #4a3f25;
+  --graphite: #7da3cf;
+  --graphite-soft: #2f4565;
+  --vermillion: #e8593f; /* slightly brighter on dark */
+  --vermillion-soft: #4a2018;
+  --vermillion-dark: #f56b51;
+  --tape-yellow: #c9ad5c;
+  --tape-pink: #c66a6a;
+  --tape-green: #7ea267;
+  --tape-blue: #6890b3;
+  --tape-purple: #9d83bc;
 
-    --background: var(--paper);
-    --foreground: var(--ink);
-    --card: var(--paper-elev);
-    --card-foreground: var(--ink);
-    --popover: var(--paper-elev);
-    --popover-foreground: var(--ink);
-    --primary: var(--vermillion);
-    --primary-foreground: #1c1814;
-    --secondary: var(--paper-edge);
-    --secondary-foreground: var(--ink);
-    --muted: var(--paper-edge);
-    --muted-foreground: var(--ink-soft);
-    --accent: var(--paper-edge);
-    --accent-foreground: var(--ink);
-    --destructive: var(--vermillion-dark);
-    --border: oklch(1 0 0 / 14%);
-    --input: oklch(1 0 0 / 18%);
-    --ring: var(--vermillion);
-    --chart-1: var(--vermillion);
-    --chart-2: var(--graphite);
-    --chart-3: var(--manila);
-    --chart-4: var(--ink-soft);
-    --chart-5: var(--tape-green);
-    --sidebar: var(--paper-elev);
-    --sidebar-foreground: var(--ink);
-    --sidebar-primary: var(--vermillion);
-    --sidebar-primary-foreground: #1c1814;
-    --sidebar-accent: var(--paper-edge);
-    --sidebar-accent-foreground: var(--ink);
-    --sidebar-border: oklch(1 0 0 / 12%);
-    --sidebar-ring: var(--vermillion);
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-elev);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-elev);
+  --popover-foreground: var(--ink);
+  --primary: var(--vermillion);
+  --primary-foreground: #1c1814;
+  --secondary: var(--paper-edge);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-edge);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--paper-edge);
+  --accent-foreground: var(--ink);
+  --destructive: var(--vermillion-dark);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: var(--vermillion);
+  --chart-1: var(--vermillion);
+  --chart-2: var(--graphite);
+  --chart-3: var(--manila);
+  --chart-4: var(--ink-soft);
+  --chart-5: var(--tape-green);
+  --sidebar: var(--paper-elev);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--vermillion);
+  --sidebar-primary-foreground: #1c1814;
+  --sidebar-accent: var(--paper-edge);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: var(--vermillion);
 }
 
 @layer base {
-    * {
-        @apply border-border outline-ring/50;
-    }
-    html {
-        font-family: var(--font-sans);
-    }
-    body {
-        @apply bg-background text-foreground;
-        font-family: var(--font-sans);
-        font-feature-settings: "ss01", "cv11"; /* IBM Plex stylistic alts where supported */
-    }
-    h1, h2, h3, h4 {
-        font-family: var(--font-heading);
-        font-weight: 400; /* Excalifont only ships regular */
-        letter-spacing: 0.005em;
-    }
-    button:not(:disabled),
-    [role="button"]:not(:disabled) {
-        cursor: pointer;
-    }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11"; /* IBM Plex stylistic alts where supported */
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    font-weight: 400; /* Excalifont only ships regular */
+    letter-spacing: 0.005em;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* ─── Paper grain overlay (used by <PaperSurface>) ───────────────────────
@@ -244,13 +249,11 @@
    image file. Opacity is tuned per theme.
    ─────────────────────────────────────────────────────────────────────── */
 .bg-paper-grain {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.11  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.18'/></svg>");
-    background-size: 160px 160px;
-    mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.11  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.18'/></svg>");
+  background-size: 160px 160px;
+  mix-blend-mode: multiply;
 }
 .dark .bg-paper-grain {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 0.30 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.10'/></svg>");
-    mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 0.30 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.10'/></svg>");
+  mix-blend-mode: screen;
 }
-
-

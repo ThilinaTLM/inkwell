@@ -2,9 +2,9 @@
 // when a search returns nothing, or as a placeholder for any zero-state.
 // Caveat font on a small RoughBox card with a slightly torn rotation.
 
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import type * as React from "react";
 import { RoughBox } from "@/components/rough";
+import { cn } from "@/lib/utils";
 
 export interface EmptyDeskNoteProps {
   title: string;
@@ -46,14 +46,8 @@ export function EmptyDeskNote({
             absolute-positioned RoughBox card silhouette. */}
         <div className="relative">
           <h3 className="font-heading text-2xl text-ink">{title}</h3>
-          {body && (
-            <div className="mt-2 font-hand text-lg/relaxed text-ink-soft">
-              {body}
-            </div>
-          )}
-          {action && (
-            <div className="mt-5 flex justify-center">{action}</div>
-          )}
+          {body && <div className="mt-2 font-hand text-lg/relaxed text-ink-soft">{body}</div>}
+          {action && <div className="mt-5 flex justify-center">{action}</div>}
         </div>
       </div>
     </div>

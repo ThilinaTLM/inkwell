@@ -11,27 +11,22 @@
 //     own responsive grid. The whole body is the empty-area
 //     `<ItemContextMenu>` target so right-click anywhere creates new.
 
+import { FolderAddIcon, Image01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  FolderAddIcon,
-  Image01Icon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
-
-import type { FolderMeta } from "@/lib/api/client";
-import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
-import { folderPath } from "@/features/folders/FolderTree";
+import { Button } from "@/components/ui/button";
 import { useScenes } from "@/features/explorer/hooks";
+import { folderPath } from "@/features/folders/FolderTree";
+import type { FolderMeta } from "@/lib/api/client";
 import { relTime } from "@/lib/format";
 
 import { Breadcrumb } from "../Breadcrumb";
 import { ExplorerPageHeader } from "../ExplorerPageHeader";
-import { SectionHeading } from "../SectionHeading";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
+import { SectionHeading } from "../SectionHeading";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
@@ -46,12 +41,7 @@ interface BrowseViewProps {
 const GRID_CLASSES =
   "grid grid-cols-2 gap-3 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7";
 
-export function BrowseView({
-  folderId,
-  onChangeFolder,
-  folders,
-  actions,
-}: BrowseViewProps) {
+export function BrowseView({ folderId, onChangeFolder, folders, actions }: BrowseViewProps) {
   const scenesQuery = useScenes({ folderId: folderId ?? "root" });
   const navigate = useNavigate();
   const scenes = scenesQuery.data ?? null;
@@ -60,9 +50,7 @@ export function BrowseView({
     if (!folders) return [];
     return folders
       .filter((f) => (f.parentId ?? null) === folderId)
-      .sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-      );
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }, [folders, folderId]);
 
   const breadcrumb = useMemo(() => {
@@ -102,19 +90,14 @@ export function BrowseView({
   });
 
   const isLoading = scenes === null || folders === null;
-  const isEmpty =
-    !isLoading && subfolders.length === 0 && (scenes?.length ?? 0) === 0;
+  const isEmpty = !isLoading && subfolders.length === 0 && (scenes?.length ?? 0) === 0;
 
   // Heading-variant breadcrumb doubles as the page title: at root it
   // renders just "Home"; inside a folder it renders "Home › Parent ›
   // Current" at title size, with ancestors clickable. This avoids the
   // duplicate "breadcrumb on top, folder name below" stutter.
-  const titleNode = (
-    <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />
-  );
-  const subtitle = isLoading
-    ? undefined
-    : buildSubtitle(subfolders.length, scenes?.length ?? 0);
+  const titleNode = <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />;
+  const subtitle = isLoading ? undefined : buildSubtitle(subfolders.length, scenes?.length ?? 0);
 
   const body = (
     <ItemContextMenu
@@ -129,9 +112,7 @@ export function BrowseView({
           </div>
         ) : isEmpty ? (
           <CenteredEmpty
-            folderName={
-              breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null
-            }
+            folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
             onCreateScene={() => actions.createSceneIn(folderId)}
             onCreateFolder={() => actions.createFolderIn(folderId)}
           />
@@ -160,9 +141,9 @@ export function BrowseView({
             )}
             {(scenes?.length ?? 0) > 0 && (
               <>
-                <SectionHeading label="Scenes" count={scenes!.length} />
+                <SectionHeading label="Scenes" count={scenes?.length} />
                 <div className={GRID_CLASSES}>
-                  {scenes!.map((s) => (
+                  {scenes?.map((s) => (
                     <ItemContextMenu
                       key={s.id}
                       target={{ kind: "scene", scene: s }}
@@ -193,19 +174,12 @@ export function BrowseView({
   );
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-1 flex-col min-h-0"
-      tabIndex={-1}
-    >
+    <div ref={containerRef} className="flex flex-1 flex-col min-h-0" tabIndex={-1}>
       <ExplorerPageHeader
         title={titleNode}
         subtitle={subtitle}
         secondaryAction={
-          <Button
-            variant="outline"
-            onClick={() => actions.createFolderIn(folderId)}
-          >
+          <Button variant="outline" onClick={() => actions.createFolderIn(folderId)}>
             <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
             New folder
           </Button>

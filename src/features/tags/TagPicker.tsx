@@ -6,9 +6,9 @@
 // max 20 tags. The component does the cosmetic dedupe + length cap so
 // callers don't have to.
 
-import { KeyboardEvent, useMemo, useRef, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon, HashtagIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -41,16 +41,14 @@ export function TagPicker({
 
   const normalized = useMemo(
     () => value.map((v) => v.trim().toLowerCase()).filter(Boolean),
-    [value]
+    [value],
   );
 
   const filteredSuggestions = useMemo(() => {
     const q = draft.trim().toLowerCase();
     if (!q) return [];
     const used = new Set(normalized);
-    return suggestions
-      .filter((s) => !used.has(s) && s.includes(q))
-      .slice(0, 6);
+    return suggestions.filter((s) => !used.has(s) && s.includes(q)).slice(0, 6);
   }, [draft, suggestions, normalized]);
 
   function add(raw: string) {
@@ -80,26 +78,22 @@ export function TagPicker({
   }
 
   const chipCls =
-    size === "sm"
-      ? "h-5 gap-1 px-1.5 text-[0.625rem]"
-      : "h-6 gap-1 px-2 text-[0.6875rem]";
+    size === "sm" ? "h-5 gap-1 px-1.5 text-[0.625rem]" : "h-6 gap-1 px-2 text-[0.6875rem]";
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <div
+      {/* The wrapper is a <label> so clicks on chip whitespace forward focus
+          to the contained <input> natively, with no JS or a11y workaround. */}
+      <label
         className={cn(
           "flex flex-wrap items-center gap-1 rounded-md border border-ink-soft/30 bg-paper-elev px-2 py-1.5 transition-colors focus-within:border-vermillion/60 focus-within:ring-2 focus-within:ring-vermillion/20",
-          disabled && "pointer-events-none opacity-60"
+          disabled && "pointer-events-none opacity-60",
         )}
-        onClick={() => inputRef.current?.focus()}
       >
         {normalized.map((tag) => (
           <span
             key={tag}
-            className={cn(
-              "inline-flex items-center rounded-full bg-manila-soft text-ink",
-              chipCls
-            )}
+            className={cn("inline-flex items-center rounded-full bg-manila-soft text-ink", chipCls)}
           >
             <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-70" />
             <span className="truncate max-w-[10rem]">{tag}</span>
@@ -128,7 +122,7 @@ export function TagPicker({
           disabled={disabled || normalized.length >= MAX_TAGS}
           className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 font-sans text-sm text-ink outline-none placeholder:text-ink-muted"
         />
-      </div>
+      </label>
       {filteredSuggestions.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {filteredSuggestions.map((s) => (
@@ -138,7 +132,7 @@ export function TagPicker({
               onClick={() => add(s)}
               className={cn(
                 "inline-flex items-center rounded-full border border-ink-soft/30 bg-paper-elev text-ink-soft hover:border-ink-soft/50 hover:text-ink hover:bg-manila-soft/40",
-                chipCls
+                chipCls,
               )}
             >
               <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} className="size-2.5 opacity-60" />

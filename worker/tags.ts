@@ -16,8 +16,8 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import type { Env, TagPublic, TagTargetType } from "./types";
 import { getDb, t } from "./db/client";
+import type { Env, TagPublic, TagTargetType } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 
 type SqliteBatchItem = BatchItem<"sqlite">;
@@ -76,19 +76,14 @@ export async function listTags(env: Env, owner: string): Promise<Response> {
 export async function listTagsFor(
   env: Env,
   targetType: TagTargetType,
-  targetId: string
+  targetId: string,
 ): Promise<string[]> {
   const db = getDb(env);
   const rows = await db
     .select({ name: t.tags.name })
     .from(t.taggings)
     .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
-    .where(
-      and(
-        eq(t.taggings.target_type, targetType),
-        eq(t.taggings.target_id, targetId)
-      )
-    )
+    .where(and(eq(t.taggings.target_type, targetType), eq(t.taggings.target_id, targetId)))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
   return rows.map((r) => r.name);
@@ -98,7 +93,7 @@ export async function listTagsFor(
 export async function collectTagsForMany(
   env: Env,
   targetType: TagTargetType,
-  targetIds: string[]
+  targetIds: string[],
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (targetIds.length === 0) return out;
@@ -107,12 +102,7 @@ export async function collectTagsForMany(
     .select({ id: t.taggings.target_id, name: t.tags.name })
     .from(t.taggings)
     .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
-    .where(
-      and(
-        eq(t.taggings.target_type, targetType),
-        inArray(t.taggings.target_id, targetIds)
-      )
-    )
+    .where(and(eq(t.taggings.target_type, targetType), inArray(t.taggings.target_id, targetIds)))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
   for (const r of rows) {
@@ -131,7 +121,7 @@ export async function replaceTagsFor(
   owner: string,
   targetType: TagTargetType,
   targetId: string,
-  raw: unknown
+  raw: unknown,
 ): Promise<string[]> {
   const desired = normalizeTagSet(raw);
   const db = getDb(env);
@@ -149,10 +139,7 @@ export async function replaceTagsFor(
       .get();
     if (!row) {
       const id = newId();
-      await db
-        .insert(t.tags)
-        .values({ id, owner, name, created_at: ts })
-        .run();
+      await db.insert(t.tags).values({ id, owner, name, created_at: ts }).run();
       row = { id };
     }
     tagIds.push(row.id);
@@ -163,12 +150,7 @@ export async function replaceTagsFor(
   // race the previous implementation had.
   const head: SqliteBatchItem = db
     .delete(t.taggings)
-    .where(
-      and(
-        eq(t.taggings.target_type, targetType),
-        eq(t.taggings.target_id, targetId)
-      )
-    );
+    .where(and(eq(t.taggings.target_type, targetType), eq(t.taggings.target_id, targetId)));
   const inserts: SqliteBatchItem[] = tagIds.map((tagId) =>
     db
       .insert(t.taggings)
@@ -179,15 +161,17 @@ export async function replaceTagsFor(
         owner,
         created_at: ts,
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing(),
   );
   // Garbage-collect tags that no longer have any taggings.
-  const gc: SqliteBatchItem = db.delete(t.tags).where(
-    and(
-      eq(t.tags.owner, owner),
-      sql`${t.tags.id} NOT IN (SELECT DISTINCT ${t.taggings.tag_id} FROM ${t.taggings} WHERE ${t.taggings.owner} = ${owner})`
-    )
-  );
+  const gc: SqliteBatchItem = db
+    .delete(t.tags)
+    .where(
+      and(
+        eq(t.tags.owner, owner),
+        sql`${t.tags.id} NOT IN (SELECT DISTINCT ${t.taggings.tag_id} FROM ${t.taggings} WHERE ${t.taggings.owner} = ${owner})`,
+      ),
+    );
   await db.batch([head, ...inserts, gc]);
   return desired;
 }
@@ -197,7 +181,7 @@ export async function renameTag(
   req: Request,
   env: Env,
   owner: string,
-  id: string
+  id: string,
 ): Promise<Response> {
   const db = getDb(env);
   const tag = await db
@@ -230,7 +214,7 @@ export async function renameTag(
       db.run(
         sql`INSERT OR IGNORE INTO ${t.taggings} (tag_id, target_type, target_id, owner, created_at)
             SELECT ${existing.id}, target_type, target_id, owner, created_at
-            FROM ${t.taggings} WHERE ${t.taggings.tag_id} = ${id}`
+            FROM ${t.taggings} WHERE ${t.taggings.tag_id} = ${id}`,
       ),
       db.delete(t.tags).where(eq(t.tags.id, id)),
     ]);

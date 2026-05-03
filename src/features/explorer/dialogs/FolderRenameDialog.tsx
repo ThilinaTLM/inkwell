@@ -12,10 +12,7 @@ interface FolderRenameDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function FolderRenameDialog({
-  folder,
-  onOpenChange,
-}: FolderRenameDialogProps) {
+export function FolderRenameDialog({ folder, onOpenChange }: FolderRenameDialogProps) {
   const update = useUpdateFolder();
   return (
     <RenameDialog

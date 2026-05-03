@@ -17,8 +17,7 @@ export function createQueryClient(): QueryClient {
         refetchOnWindowFocus: false,
         retry: (count, e) => {
           if (e instanceof ApiError) {
-            if (e.status === 401 || e.status === 403 || e.status === 404)
-              return false;
+            if (e.status === 401 || e.status === 403 || e.status === 404) return false;
           }
           return count < 2;
         },

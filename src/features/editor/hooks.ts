@@ -12,12 +12,7 @@
 // `queryClient.fetchQuery` from the page.
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  ApiError,
-  scenes,
-  shares,
-  type LoadedScene,
-} from "@/lib/api/client";
+import { type ApiError, type LoadedScene, scenes, shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
 export function useScene(id: string) {
@@ -40,8 +35,7 @@ export function useScene(id: string) {
 export function useSharedScene(token: string, sceneId?: string) {
   return useQuery<LoadedScene, ApiError>({
     queryKey: keys.publicShare.token(token, sceneId),
-    queryFn: () =>
-      sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token),
+    queryFn: () => (sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token)),
     enabled: !!token,
     retry: false,
     staleTime: Infinity,

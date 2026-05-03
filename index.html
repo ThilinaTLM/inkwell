@@ -11,14 +11,14 @@
       src/lib/theme.tsx (ThemeProvider).
     -->
     <script>
-      (function () {
+      (() => {
         try {
-          var stored = localStorage.getItem("inkwell:theme");
-          var mode =
+          const stored = localStorage.getItem("inkwell:theme");
+          const mode =
             stored === "light" || stored === "dark" || stored === "system"
               ? stored
               : "system";
-          var resolved =
+          const resolved =
             mode === "system"
               ? window.matchMedia("(prefers-color-scheme: dark)").matches
                 ? "dark"

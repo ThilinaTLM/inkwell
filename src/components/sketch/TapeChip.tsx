@@ -5,9 +5,9 @@
 // Color is deterministic per tag name (FNV hash → palette index) so users
 // recognize their tags by color over time.
 
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import type * as React from "react";
 import { RoughBox } from "@/components/rough";
+import { cn } from "@/lib/utils";
 import { pickFromPalette, tiltFromId } from "./tilt";
 
 const TAPE_PALETTE = [
@@ -18,8 +18,7 @@ const TAPE_PALETTE = [
   "var(--color-tape-purple)",
 ] as const;
 
-export interface TapeChipProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
+export interface TapeChipProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
   label: string;
   active?: boolean;
   /** Render as a non-interactive span (e.g. inside a card). */
@@ -45,10 +44,8 @@ export function TapeChip({
     <span
       className={cn(
         "relative inline-flex items-center justify-center font-sans select-none whitespace-nowrap",
-        size === "sm"
-          ? "px-2.5 py-0.5 text-[0.6875rem]"
-          : "px-3 py-1 text-xs",
-        active ? "text-ink font-medium" : "text-ink-soft"
+        size === "sm" ? "px-2.5 py-0.5 text-[0.6875rem]" : "px-3 py-1 text-xs",
+        active ? "text-ink font-medium" : "text-ink-soft",
       )}
       style={{ transform: `rotate(${tilt}deg)` }}
     >
@@ -75,7 +72,7 @@ export function TapeChip({
       type="button"
       className={cn(
         "inline-block transition-transform duration-150 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded",
-        className
+        className,
       )}
       {...rest}
     >

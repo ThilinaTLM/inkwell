@@ -12,12 +12,7 @@
 // reacts without a manual refetch.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ApiError,
-  auth,
-  type MeResponse,
-  type User,
-} from "@/lib/api/client";
+import { type ApiError, auth, type MeResponse, type User } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
 export function useMe() {
@@ -61,11 +56,7 @@ export function useLogout() {
 }
 
 export function useChangePassword() {
-  return useMutation<
-    { ok: true },
-    ApiError,
-    { currentPassword: string; newPassword: string }
-  >({
+  return useMutation<{ ok: true }, ApiError, { currentPassword: string; newPassword: string }>({
     mutationFn: ({ currentPassword, newPassword }) =>
       auth.changePassword(currentPassword, newPassword),
   });

@@ -1,21 +1,16 @@
-import { FormEvent, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Alert02Icon, Loading03Icon, MailAdd02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Alert02Icon,
-  Loading03Icon,
-  MailAdd02Icon,
-} from "@hugeicons/core-free-icons";
-
-import { invites, type ApiError, type MeResponse, type User } from "@/lib/api/client";
-import { keys } from "@/lib/api/query-keys";
-import { AuthShell } from "@/features/auth/AuthShell";
-import { useInvitePeek } from "@/features/admin/hooks";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useInvitePeek } from "@/features/admin/hooks";
+import { AuthShell } from "@/features/auth/AuthShell";
+import { type ApiError, invites, type MeResponse, type User } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 
 export default function InviteAcceptPage() {
@@ -35,7 +30,10 @@ export default function InviteAcceptPage() {
       lastName: string;
     }
   >({
-    mutationFn: (body) => invites.accept(token!, body),
+    mutationFn: (body) => {
+      if (!token) throw new Error("missing invite token");
+      return invites.accept(token, body);
+    },
     onSuccess: (user) => {
       qc.setQueryData<MeResponse>(keys.me, (prev) => ({
         ...(prev ?? ({} as MeResponse)),
@@ -79,11 +77,7 @@ export default function InviteAcceptPage() {
     return (
       <AuthShell title="Checking invite" description="Just a moment…">
         <div className="flex items-center justify-center py-6 text-muted-foreground">
-          <HugeiconsIcon
-            icon={Loading03Icon}
-            strokeWidth={2}
-            className="size-4 animate-spin"
-          />
+          <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
         </div>
       </AuthShell>
     );
@@ -97,15 +91,9 @@ export default function InviteAcceptPage() {
       >
         <Alert variant="destructive">
           <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-          <AlertDescription>
-            {errorMessage(peek.error, "invite unavailable")}
-          </AlertDescription>
+          <AlertDescription>{errorMessage(peek.error, "invite unavailable")}</AlertDescription>
         </Alert>
-        <Button
-          variant="outline"
-          className="mt-3 w-full"
-          onClick={() => navigate("/login")}
-        >
+        <Button variant="outline" className="mt-3 w-full" onClick={() => navigate("/login")}>
           Go to sign in
         </Button>
       </AuthShell>
@@ -204,11 +192,7 @@ export default function InviteAcceptPage() {
           className="mt-1"
         >
           {busy ? (
-            <HugeiconsIcon
-              icon={Loading03Icon}
-              strokeWidth={2}
-              className="animate-spin"
-            />
+            <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
           ) : (
             <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
           )}

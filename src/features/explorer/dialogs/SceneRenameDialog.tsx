@@ -13,10 +13,7 @@ interface SceneRenameDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function SceneRenameDialog({
-  scene,
-  onOpenChange,
-}: SceneRenameDialogProps) {
+export function SceneRenameDialog({ scene, onOpenChange }: SceneRenameDialogProps) {
   const rename = useRenameScene();
   return (
     <RenameDialog

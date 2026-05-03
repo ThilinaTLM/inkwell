@@ -3,8 +3,6 @@
 // Generate single-use invite links with a chosen expiry, copy them to
 // the clipboard, and revoke pending invites.
 
-import { useMemo, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Copy01Icon,
   Delete02Icon,
@@ -12,17 +10,13 @@ import {
   MailAdd02Icon,
   MoreHorizontalIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,17 +41,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  useCreateInvite,
-  useInvites,
-  useRevokeInvite,
-} from "@/features/admin/hooks";
-import { StatusPill } from "./StatusPill";
-import { TableSkeleton } from "./TableSkeleton";
+import { useCreateInvite, useInvites, useRevokeInvite } from "@/features/admin/hooks";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
 import { fmtDateTime } from "@/lib/format";
 import { inviteUrl } from "@/lib/url";
+import { StatusPill } from "./StatusPill";
+import { TableSkeleton } from "./TableSkeleton";
 
 const EXPIRY_OPTIONS: {
   label: string;
@@ -77,22 +67,16 @@ export function InvitesPanel() {
   const revokeInvite = useRevokeInvite();
 
   const [expiryValue, setExpiryValue] = useState("168");
-  const [latest, setLatest] = useState<{ url: string; token: string } | null>(
-    null,
-  );
+  const [latest, setLatest] = useState<{ url: string; token: string } | null>(null);
 
   async function generate() {
     const opt = EXPIRY_OPTIONS.find((o) => o.value === expiryValue);
     try {
       const inv = await createInvite.mutateAsync(opt?.hours ?? null);
-      const absolute = inv.url.startsWith("http")
-        ? inv.url
-        : `${window.location.origin}${inv.url}`;
+      const absolute = inv.url.startsWith("http") ? inv.url : `${window.location.origin}${inv.url}`;
       setLatest({ url: absolute, token: inv.token });
       const copied = await copyToClipboard(absolute);
-      toast.success(
-        copied ? "Invite created and copied to clipboard." : "Invite created.",
-      );
+      toast.success(copied ? "Invite created and copied to clipboard." : "Invite created.");
     } catch (e) {
       toast.error(errorMessage(e, "could not create invite"));
     }
@@ -115,9 +99,7 @@ export function InvitesPanel() {
 
   const sorted = useMemo(
     () =>
-      invitesQuery.data
-        ? [...invitesQuery.data].sort((a, b) => b.createdAt - a.createdAt)
-        : null,
+      invitesQuery.data ? [...invitesQuery.data].sort((a, b) => b.createdAt - a.createdAt) : null,
     [invitesQuery.data],
   );
   const busy = createInvite.isPending || revokeInvite.isPending;
@@ -130,9 +112,7 @@ export function InvitesPanel() {
             <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
             Generate invite link
           </CardTitle>
-          <CardDescription>
-            Single-use links new members exchange for an account.
-          </CardDescription>
+          <CardDescription>Single-use links new members exchange for an account.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-end gap-2">
@@ -157,11 +137,7 @@ export function InvitesPanel() {
             </div>
             <Button onClick={generate} disabled={busy}>
               {createInvite.isPending ? (
-                <HugeiconsIcon
-                  icon={Loading03Icon}
-                  strokeWidth={2}
-                  className="animate-spin"
-                />
+                <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
               ) : (
                 <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
               )}
@@ -200,9 +176,7 @@ export function InvitesPanel() {
             <span>Invites</span>
             {sorted && <Badge variant="secondary">{sorted.length}</Badge>}
           </CardTitle>
-          <CardDescription>
-            All invites issued from this workspace.
-          </CardDescription>
+          <CardDescription>All invites issued from this workspace.</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           {invitesQuery.isPending ? (
@@ -229,9 +203,7 @@ export function InvitesPanel() {
                 {sorted.map((inv) => (
                   <TableRow key={inv.token}>
                     <TableCell>
-                      <code className="font-mono text-[0.6875rem]">
-                        {inv.token.slice(0, 10)}…
-                      </code>
+                      <code className="font-mono text-[0.6875rem]">{inv.token.slice(0, 10)}…</code>
                     </TableCell>
                     <TableCell>
                       <StatusPill status={inv.status} />
@@ -258,19 +230,11 @@ export function InvitesPanel() {
                               />
                             }
                           >
-                            <HugeiconsIcon
-                              icon={MoreHorizontalIcon}
-                              strokeWidth={2}
-                            />
+                            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => copy(inviteUrl(inv.token))}
-                            >
-                              <HugeiconsIcon
-                                icon={Copy01Icon}
-                                strokeWidth={2}
-                              />
+                            <DropdownMenuItem onClick={() => copy(inviteUrl(inv.token))}>
+                              <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
                               Copy link
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -278,10 +242,7 @@ export function InvitesPanel() {
                               variant="destructive"
                               onClick={() => revoke(inv.token)}
                             >
-                              <HugeiconsIcon
-                                icon={Delete02Icon}
-                                strokeWidth={2}
-                              />
+                              <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
                               Revoke
                             </DropdownMenuItem>
                           </DropdownMenuContent>

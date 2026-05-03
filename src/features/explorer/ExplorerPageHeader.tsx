@@ -10,7 +10,7 @@
 // string or a richer node like a heading-variant breadcrumb (Browse,
 // where the breadcrumb itself is the page title).
 
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface ExplorerPageHeaderProps {
   title: ReactNode;
@@ -36,15 +36,11 @@ export function ExplorerPageHeader({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           {typeof title === "string" ? (
-            <h1 className="truncate font-heading text-2xl text-ink">
-              {title}
-            </h1>
+            <h1 className="truncate font-heading text-2xl text-ink">{title}</h1>
           ) : (
             <h1 className="min-w-0">{title}</h1>
           )}
-          {subtitle ? (
-            <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>
-          ) : null}
+          {subtitle ? <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p> : null}
         </div>
         {hasActions ? (
           <div className="flex flex-wrap items-center gap-2">

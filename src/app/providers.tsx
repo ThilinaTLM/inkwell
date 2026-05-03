@@ -4,13 +4,12 @@
 // here so that `App` itself only owns route definitions and auth status.
 // Adding a new provider should not require touching `App` or `main`.
 
-import { ReactNode, useState } from "react";
-import { BrowserRouter } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { type ReactNode, useState } from "react";
+import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/api/query-client";
 import { ThemeProvider } from "@/lib/theme";
 
@@ -26,9 +25,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <TooltipProvider>
             {children}
             <Toaster position="bottom-right" />
-            {import.meta.env.DEV && (
-              <ReactQueryDevtools buttonPosition="bottom-left" />
-            )}
+            {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
           </TooltipProvider>
         </ThemeProvider>
       </BrowserRouter>

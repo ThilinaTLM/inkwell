@@ -12,11 +12,7 @@ interface FolderCreateDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function FolderCreateDialog({
-  parentId,
-  open,
-  onOpenChange,
-}: FolderCreateDialogProps) {
+export function FolderCreateDialog({ parentId, open, onOpenChange }: FolderCreateDialogProps) {
   const create = useCreateFolder();
   return (
     <RenameDialog

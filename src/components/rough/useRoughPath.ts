@@ -17,17 +17,12 @@
 // so the wobble of a given folder/scene never reshuffles between renders.
 
 import { useMemo } from "react";
+import type { Options, PathInfo } from "roughjs/bin/core";
+import type { RoughGenerator } from "roughjs/bin/generator";
 // @ts-expect-error — roughjs ships ESM but no .d.ts for the bundled path
 import rough from "roughjs/bundled/rough.esm.js";
-import type { PathInfo, Options } from "roughjs/bin/core";
-import type { RoughGenerator } from "roughjs/bin/generator";
 
-export type RoughShape =
-  | "rect"
-  | "rounded"
-  | "card"
-  | "folder-tab"
-  | "paper-sheet";
+export type RoughShape = "rect" | "rounded" | "card" | "folder-tab" | "paper-sheet";
 
 export interface RoughPathSpec {
   width: number;
@@ -71,16 +66,27 @@ export function hashSeed(input: string): number {
   return h >>> 0;
 }
 
-function buildPathD(spec: RoughPathSpec): string {
-  const { shape, width: w, height: h } = spec;
-  const r = Math.max(0, Math.min(spec.radius ?? 12, w / 2, h / 2));
+interface BuildPathDArgs {
+  shape: RoughPathSpec["shape"];
+  width: number;
+  height: number;
+  radius?: number;
+  cornerFold?: number;
+  tabWidth?: number;
+  tabHeight?: number;
+  tabSlope?: number;
+}
+
+function buildPathD(args: BuildPathDArgs): string {
+  const { shape, width: w, height: h } = args;
+  const r = Math.max(0, Math.min(args.radius ?? 12, w / 2, h / 2));
 
   if (shape === "rect") {
     return `M0,0 L${w},0 L${w},${h} L0,${h} Z`;
   }
 
   if (shape === "rounded" || shape === "card") {
-    const radius = shape === "card" ? Math.min(spec.radius ?? 14, w / 2, h / 2) : r;
+    const radius = shape === "card" ? Math.min(args.radius ?? 14, w / 2, h / 2) : r;
     return [
       `M${radius},0`,
       `L${w - radius},0`,
@@ -96,21 +102,14 @@ function buildPathD(spec: RoughPathSpec): string {
   }
 
   if (shape === "paper-sheet") {
-    const c = Math.max(0, Math.min(spec.cornerFold ?? 14, w / 2, h / 2));
-    return [
-      `M0,0`,
-      `L${w - c},0`,
-      `L${w},${c}`,
-      `L${w},${h}`,
-      `L0,${h}`,
-      `Z`,
-    ].join(" ");
+    const c = Math.max(0, Math.min(args.cornerFold ?? 14, w / 2, h / 2));
+    return [`M0,0`, `L${w - c},0`, `L${w},${c}`, `L${w},${h}`, `L0,${h}`, `Z`].join(" ");
   }
 
   // folder-tab
-  const tw = (spec.tabWidth ?? 0.34) * w;
-  const th = spec.tabHeight ?? 22;
-  const ts = spec.tabSlope ?? 10;
+  const tw = (args.tabWidth ?? 0.34) * w;
+  const th = args.tabHeight ?? 22;
+  const ts = args.tabSlope ?? 10;
   return [
     `M0,${th}`,
     `L0,0`,
@@ -167,10 +166,18 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
       preserveVertices: true,
       disableMultiStroke: false,
     };
-    const d = buildPathD(spec);
+    const d = buildPathD({
+      shape,
+      width,
+      height,
+      radius,
+      cornerFold,
+      tabWidth,
+      tabHeight,
+      tabSlope,
+    });
     const drawable = generator().path(d, opts);
     return generator().toPaths(drawable);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     width,
     height,

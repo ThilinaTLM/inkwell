@@ -6,20 +6,16 @@
 // the consumer wiring them up. This replaces the manual `refreshTick`
 // prop that used to be plumbed from Dashboard down into each view.
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  ApiError,
-  folders,
-  scenes,
-  tags,
+  type ApiError,
   type FolderMeta,
+  folders,
   type SceneMeta,
   type ScenesQuery,
+  scenes,
   type Tag,
+  tags,
 } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
@@ -50,11 +46,7 @@ export function useScenes(query: ScenesQuery) {
 
 export function useCreateFolder() {
   const qc = useQueryClient();
-  return useMutation<
-    FolderMeta,
-    ApiError,
-    Parameters<typeof folders.create>[0]
-  >({
+  return useMutation<FolderMeta, ApiError, Parameters<typeof folders.create>[0]>({
     mutationFn: (body) => folders.create(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.folders.all });
@@ -96,11 +88,7 @@ export function useDeleteFolder() {
 
 export function useCreateScene() {
   const qc = useQueryClient();
-  return useMutation<
-    SceneMeta,
-    ApiError,
-    Parameters<typeof scenes.create>[0] | undefined
-  >({
+  return useMutation<SceneMeta, ApiError, Parameters<typeof scenes.create>[0] | undefined>({
     mutationFn: (body) => scenes.create(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.scenes.all });
@@ -122,11 +110,7 @@ export function useRenameScene() {
 
 export function useMoveScene() {
   const qc = useQueryClient();
-  return useMutation<
-    SceneMeta,
-    ApiError,
-    { id: string; folderId: string | null }
-  >({
+  return useMutation<SceneMeta, ApiError, { id: string; folderId: string | null }>({
     mutationFn: ({ id, folderId }) => scenes.move(id, folderId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.scenes.all });

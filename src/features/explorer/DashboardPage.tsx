@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import { PaperSurface } from "@/components/PaperSurface";
 import { useMe } from "@/features/auth/hooks";
+import { BrowseView, ExplorerHeader, type ItemMenuActions } from "@/features/explorer";
 import {
   useCreateScene,
   useFolders,
@@ -24,15 +25,10 @@ import {
   useTags,
   useUpdateFolder,
 } from "@/features/explorer/hooks";
-import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
-import {
-  BrowseView,
-  ExplorerHeader,
-  type ItemMenuActions,
-} from "@/features/explorer";
-import { errorMessage } from "@/lib/errors";
+import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import type { FolderMeta, SceneMeta } from "@/lib/api/client";
+import { errorMessage } from "@/lib/errors";
 
 import { FolderCreateDialog } from "./dialogs/FolderCreateDialog";
 import { FolderDeleteDialog } from "./dialogs/FolderDeleteDialog";
@@ -42,9 +38,7 @@ import { SceneDeleteDialog } from "./dialogs/SceneDeleteDialog";
 import { SceneMoveDialog } from "./dialogs/SceneMoveDialog";
 import { SceneRenameDialog } from "./dialogs/SceneRenameDialog";
 
-type ShareTarget =
-  | { kind: "scene"; scene: SceneMeta }
-  | { kind: "folder"; folder: FolderMeta };
+type ShareTarget = { kind: "scene"; scene: SceneMeta } | { kind: "folder"; folder: FolderMeta };
 
 export default function DashboardPage() {
   const me = useMe();
@@ -67,29 +61,16 @@ export default function DashboardPage() {
   }
 
   // ─── Dialog state ─────────────────────────────────────────────────
-  const [renameSceneTarget, setRenameSceneTarget] = useState<SceneMeta | null>(
-    null,
-  );
-  const [deleteSceneTarget, setDeleteSceneTarget] = useState<SceneMeta | null>(
-    null,
-  );
-  const [moveSceneTarget, setMoveSceneTarget] = useState<SceneMeta | null>(
-    null,
-  );
+  const [renameSceneTarget, setRenameSceneTarget] = useState<SceneMeta | null>(null);
+  const [deleteSceneTarget, setDeleteSceneTarget] = useState<SceneMeta | null>(null);
+  const [moveSceneTarget, setMoveSceneTarget] = useState<SceneMeta | null>(null);
   const [tagSceneTarget, setTagSceneTarget] = useState<SceneMeta | null>(null);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
-  const [folderRenameTarget, setFolderRenameTarget] =
-    useState<FolderMeta | null>(null);
-  const [folderMoveTarget, setFolderMoveTarget] = useState<FolderMeta | null>(
-    null,
-  );
-  const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(
-    null,
-  );
-  const [folderDeleteTarget, setFolderDeleteTarget] =
-    useState<FolderMeta | null>(null);
-  const [folderCreate, setFolderCreate] =
-    useState<{ parentId: string | null } | null>(null);
+  const [folderRenameTarget, setFolderRenameTarget] = useState<FolderMeta | null>(null);
+  const [folderMoveTarget, setFolderMoveTarget] = useState<FolderMeta | null>(null);
+  const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(null);
+  const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
+  const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
 
   async function newScene(parentFolderId: string | null) {
     if (createScene.isPending) return;
@@ -104,10 +85,7 @@ export default function DashboardPage() {
   }
 
   // ─── Menu actions handed to every view ────────────────────────────
-  const tagSuggestions = useMemo(
-    () => (tags.data || []).map((t) => t.name),
-    [tags.data],
-  );
+  const tagSuggestions = useMemo(() => (tags.data || []).map((t) => t.name), [tags.data]);
   const actions: ItemMenuActions = {
     openScene: (s) => navigate(`/s/${s.id}`),
     openFolder: (f) => setFolder(f.id),
@@ -182,15 +160,9 @@ export default function DashboardPage() {
           open
           onOpenChange={(o) => !o && setShareTarget(null)}
           targetType={shareTarget.kind}
-          targetId={
-            shareTarget.kind === "scene"
-              ? shareTarget.scene.id
-              : shareTarget.folder.id
-          }
+          targetId={shareTarget.kind === "scene" ? shareTarget.scene.id : shareTarget.folder.id}
           targetName={
-            shareTarget.kind === "scene"
-              ? shareTarget.scene.name
-              : shareTarget.folder.name
+            shareTarget.kind === "scene" ? shareTarget.scene.name : shareTarget.folder.name
           }
         />
       ) : null}
@@ -243,14 +215,10 @@ export default function DashboardPage() {
           }
           // Was the active folder a descendant of the deleted one?
           const wasDescendant =
-            !!folderId &&
-            folderList?.some(
-              (f) => f.id === folderId && f.parentId === deleted.id,
-            );
+            !!folderId && folderList?.some((f) => f.id === folderId && f.parentId === deleted.id);
           if (wasDescendant) setFolder(null);
         }}
       />
     </PaperSurface>
   );
 }
-

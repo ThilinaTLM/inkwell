@@ -5,7 +5,7 @@
 // (note: Admin's variant also asks for a typed phrase — that flow keeps
 // its own dialog; this primitive covers the "are you sure?" case).
 
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import {
   AlertDialog,
@@ -72,7 +72,7 @@ export function ConfirmDialog({
             }}
             disabled={busy}
           >
-            {busy ? busyLabel ?? `${confirmLabel}…` : confirmLabel}
+            {busy ? (busyLabel ?? `${confirmLabel}…`) : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

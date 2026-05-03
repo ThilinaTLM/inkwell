@@ -14,18 +14,13 @@
 // The admin "Users" icon button is a one-click jump to /admin and only
 // renders when `user.isAdmin` is true.
 
-import { useNavigate } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { UserMultipleIcon } from "@hugeicons/core-free-icons";
-
-import type { User } from "@/lib/api/client";
-import { Topbar } from "@/components/Topbar";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Topbar } from "@/components/Topbar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { User } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface ExplorerHeaderProps {
@@ -53,11 +48,7 @@ export function ExplorerHeader({ user }: ExplorerHeaderProps) {
               />
             }
           >
-            <HugeiconsIcon
-              icon={UserMultipleIcon}
-              strokeWidth={1.7}
-              className="size-4"
-            />
+            <HugeiconsIcon icon={UserMultipleIcon} strokeWidth={1.7} className="size-4" />
           </TooltipTrigger>
           <TooltipContent>Users</TooltipContent>
         </Tooltip>

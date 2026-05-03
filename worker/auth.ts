@@ -16,9 +16,9 @@
 // again if no row exists for that email.
 
 import { eq } from "drizzle-orm";
-import type { Env, UserRow } from "./types";
 import { getDb, t } from "./db/client";
 import { hashPassword, verifyPassword } from "./passwords";
+import type { Env, UserRow } from "./types";
 import { base64url, newId, now, timingSafeEqual } from "./util";
 
 const COOKIE_NAME = "inkwell_session";
@@ -38,7 +38,7 @@ async function hmac(secret: string, message: string): Promise<string> {
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign", "verify"]
+    ["sign", "verify"],
   );
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
   return base64url(new Uint8Array(sig));
@@ -50,7 +50,7 @@ export async function createSessionCookie(env: Env, userId: string): Promise<str
   const sig = await hmac(env.SESSION_SECRET, payload);
   const value = `${payload}.${sig}`;
   return `${COOKIE_NAME}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
-    SESSION_TTL_MS / 1000
+    SESSION_TTL_MS / 1000,
   )}; Secure`;
 }
 
@@ -104,11 +104,7 @@ export async function getUserById(env: Env, id: string): Promise<UserRow | null>
 
 export async function getUserByEmail(env: Env, email: string): Promise<UserRow | null> {
   const db = getDb(env);
-  const row = await db
-    .select()
-    .from(t.users)
-    .where(eq(t.users.email, email.toLowerCase()))
-    .get();
+  const row = await db.select().from(t.users).where(eq(t.users.email, email.toLowerCase())).get();
   return row ?? null;
 }
 
@@ -130,16 +126,13 @@ export type LoginResult =
 export async function loginWithPassword(
   env: Env,
   rawEmail: string,
-  password: string
+  password: string,
 ): Promise<LoginResult> {
   const email = rawEmail.trim().toLowerCase();
   if (!email || !password) return { ok: false, reason: "invalid" };
 
   // Bootstrap super-admin on demand.
-  if (
-    env.SUPER_ADMIN_EMAIL &&
-    email === env.SUPER_ADMIN_EMAIL.trim().toLowerCase()
-  ) {
+  if (env.SUPER_ADMIN_EMAIL && email === env.SUPER_ADMIN_EMAIL.trim().toLowerCase()) {
     const existing = await getUserByEmail(env, email);
     if (!existing) {
       if (!env.SUPER_ADMIN_PASSWORD) {
@@ -211,7 +204,7 @@ export async function changeOwnPassword(
   env: Env,
   userId: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<{ ok: true } | { ok: false; reason: "invalid_current" | "weak" | "missing" }> {
   if (!newPassword || newPassword.length < 8) return { ok: false, reason: "weak" };
   const user = await getUserById(env, userId);

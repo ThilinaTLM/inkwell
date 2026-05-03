@@ -16,8 +16,7 @@ export const keys = {
   folders: {
     all: ["folders"] as const,
     list: () => ["folders", "list"] as const,
-    shares: (folderId: string) =>
-      ["folders", folderId, "shares"] as const,
+    shares: (folderId: string) => ["folders", folderId, "shares"] as const,
   },
 
   tags: {
@@ -53,11 +52,6 @@ export const keys = {
  * Returns the right share-list query key for a given target. Used by the
  * sharing hooks so callers don't have to branch on `targetType`.
  */
-export function shareListKey(
-  targetType: ShareTargetType,
-  targetId: string,
-): readonly unknown[] {
-  return targetType === "folder"
-    ? keys.folders.shares(targetId)
-    : keys.scenes.shares(targetId);
+export function shareListKey(targetType: ShareTargetType, targetId: string): readonly unknown[] {
+  return targetType === "folder" ? keys.folders.shares(targetId) : keys.scenes.shares(targetId);
 }

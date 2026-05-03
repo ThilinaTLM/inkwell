@@ -13,11 +13,7 @@
 // get the save-status pill. Visitors never see rename/share-from-share since
 // they don't own the scene.
 
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { MainMenu } from "@excalidraw/excalidraw";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   Download01Icon,
@@ -26,28 +22,26 @@ import {
   PencilEdit02Icon,
   Sun03Icon,
 } from "@hugeicons/core-free-icons";
-
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { SceneNameLabel } from "@/components/sketch";
+import { useSharedScene } from "@/features/editor/hooks";
+import SceneEditor, { EditorSaveBadge } from "@/features/editor/SceneEditor";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
-import SceneEditor, { EditorSaveBadge } from "@/features/editor/SceneEditor";
-import { SceneNameLabel } from "@/components/sketch";
-import { useSharedScene } from "@/features/editor/hooks";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import {
-  EditorErrorState,
-  EditorLoadingState,
-} from "./EditorChrome";
+import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 
 interface SharedEditorProps {
   /** Optional preloaded scene; used by SharedTokenLanding to avoid a double fetch. */
   preloaded?: LoadedScene;
 }
 
-export default function SharedEditorPage({
-  preloaded,
-}: SharedEditorProps = {}) {
+export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   const params = useParams<{ token: string; sceneId?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -70,8 +64,7 @@ export default function SharedEditorPage({
   const reload = useCallback(async () => {
     const ls = await qc.fetchQuery({
       queryKey: keys.publicShare.token(token, sceneId),
-      queryFn: () =>
-        sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token),
+      queryFn: () => (sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token)),
       staleTime: 0,
     });
     setLoaded(ls);
@@ -94,18 +87,16 @@ export default function SharedEditorPage({
                 updatedAt: m.updatedAt,
               },
             }
-          : prev
+          : prev,
       );
       return { version: m.version };
     },
-    [token, sceneId]
+    [token, sceneId],
   );
 
   if (sceneQuery.isError) {
     return (
-      <EditorErrorState
-        message={errorMessage(sceneQuery.error, "could not load shared scene")}
-      />
+      <EditorErrorState message={errorMessage(sceneQuery.error, "could not load shared scene")} />
     );
   }
   if (!loaded) return <EditorLoadingState label="Loading shared scene…" />;
@@ -134,20 +125,12 @@ export default function SharedEditorPage({
                 <span className="flex items-center gap-1 text-xs text-ink-muted">
                   {writable ? (
                     <>
-                      <HugeiconsIcon
-                        icon={PencilEdit02Icon}
-                        strokeWidth={1.8}
-                        className="size-3"
-                      />
+                      <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={1.8} className="size-3" />
                       Shared · can edit
                     </>
                   ) : (
                     <>
-                      <HugeiconsIcon
-                        icon={EyeIcon}
-                        strokeWidth={1.8}
-                        className="size-3"
-                      />
+                      <HugeiconsIcon icon={EyeIcon} strokeWidth={1.8} className="size-3" />
                       Shared · view only
                     </>
                   )}
@@ -158,9 +141,7 @@ export default function SharedEditorPage({
 
             {sceneId && (
               <MainMenu.Item
-                icon={
-                  <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />
-                }
+                icon={<HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.8} />}
                 onSelect={() => navigate(`/share/${token}`)}
               >
                 Back to folder
@@ -169,9 +150,7 @@ export default function SharedEditorPage({
             {loaded.allowDownload && (
               <MainMenu.ItemLink
                 href={downloadHref}
-                icon={
-                  <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-                }
+                icon={<HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />}
               >
                 Download .excalidraw
               </MainMenu.ItemLink>

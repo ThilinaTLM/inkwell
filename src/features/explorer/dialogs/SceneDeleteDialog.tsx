@@ -12,21 +12,14 @@ interface SceneDeleteDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function SceneDeleteDialog({
-  scene,
-  onOpenChange,
-}: SceneDeleteDialogProps) {
+export function SceneDeleteDialog({ scene, onOpenChange }: SceneDeleteDialogProps) {
   const remove = useDeleteScene();
   return (
     <ConfirmDialog
       open={!!scene}
       onOpenChange={onOpenChange}
       title="Delete scene?"
-      description={
-        <>
-          "{scene?.name}" will be permanently removed. This cannot be undone.
-        </>
-      }
+      description={<>"{scene?.name}" will be permanently removed. This cannot be undone.</>}
       confirmLabel="Delete"
       busyLabel="Deleting…"
       onConfirm={async () => {

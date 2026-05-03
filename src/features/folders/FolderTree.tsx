@@ -9,14 +9,14 @@
 // dropdown menu (rename, share, delete, etc.) without coupling this
 // component to any specific menu library.
 
-import { ReactNode, useMemo, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   FolderLibraryIcon,
   FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import type { FolderMeta } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
@@ -34,9 +34,7 @@ function buildTree(folders: FolderMeta[]): TreeNode[] {
     byParent.set(f.parentId, arr);
   }
   for (const arr of byParent.values()) {
-    arr.sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-    );
+    arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
   const visit = (parentId: string | null): TreeNode[] =>
     (byParent.get(parentId) || []).map((f) => ({
@@ -85,7 +83,7 @@ export function FolderTree({
             data-active={selectedId === null}
             className={cn(
               "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
-              "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium"
+              "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium",
             )}
             style={{ paddingLeft: "4px" }}
           >
@@ -154,7 +152,7 @@ function FolderNode({
         className={cn(
           "group/folder flex items-center gap-1.5 rounded-md px-1.5 py-1.5 font-sans text-sm text-ink-soft transition-colors hover:bg-manila-soft/60 hover:text-ink",
           "data-[active=true]:bg-manila-soft data-[active=true]:text-ink data-[active=true]:font-medium",
-          "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
+          "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40",
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
@@ -164,7 +162,7 @@ function FolderNode({
           onClick={() => setOpen((o) => !o)}
           className={cn(
             "grid size-4 place-items-center rounded text-ink-muted hover:bg-ink-soft/15",
-            !hasChildren && "invisible"
+            !hasChildren && "invisible",
           )}
         >
           <HugeiconsIcon
@@ -185,9 +183,7 @@ function FolderNode({
           />
           <span className="truncate">{folder.name}</span>
           {showCounts && folder.sceneCount > 0 ? (
-            <span className="ml-auto shrink-0 text-xs text-ink-muted">
-              {folder.sceneCount}
-            </span>
+            <span className="ml-auto shrink-0 text-xs text-ink-muted">{folder.sceneCount}</span>
           ) : null}
         </button>
         {renderAction ? (

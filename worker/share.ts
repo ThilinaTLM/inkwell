@@ -28,22 +28,13 @@
 //   GET  /api/share/:token/folders               (folder-share subtree listing)
 
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import type {
-  Env,
-  FolderRow,
-  ShareRow,
-  ShareTargetType,
-  SharePermission,
-  SharePublic,
-} from "./types";
-import {
-  isShareActive,
-  rowToFolderMeta,
-  rowToMeta,
-  rowToSharePublic,
-} from "./types";
 import { getDb, t } from "./db/client";
-import { errorResponse, jsonResponse, newToken, now } from "./util";
+import {
+  folderInSubtree,
+  listSubtreeFolders,
+  loadScenesInFolders,
+  sceneInFolderSubtree,
+} from "./folders";
 import {
   createSceneInFolder,
   deleteScene as deleteOwnedScene,
@@ -52,13 +43,17 @@ import {
   streamSceneBody,
   thumbKey,
 } from "./scenes";
-import {
-  folderInSubtree,
-  listSubtreeFolders,
-  loadScenesInFolders,
-  sceneInFolderSubtree,
-} from "./folders";
 import { collectTagsForMany } from "./tags";
+import type {
+  Env,
+  FolderRow,
+  SharePermission,
+  SharePublic,
+  ShareRow,
+  ShareTargetType,
+} from "./types";
+import { isShareActive, rowToFolderMeta, rowToMeta, rowToSharePublic } from "./types";
+import { errorResponse, jsonResponse, newToken, now } from "./util";
 
 // ─── Owner-side helpers ────────────────────────────────────────────────
 async function ensureOwnsScene(env: Env, owner: string, sceneId: string): Promise<boolean> {
@@ -93,12 +88,11 @@ async function createShareRow(
   owner: string,
   targetType: ShareTargetType,
   targetId: string,
-  body: CreateShareBody
+  body: CreateShareBody,
 ): Promise<ShareRow> {
   const permission: SharePermission = body.permission === "write" ? "write" : "read";
   // Write shares always allow download; read shares default to allowing it.
-  const allowDownload =
-    permission === "write" ? true : body.allowDownload !== false;
+  const allowDownload = permission === "write" ? true : body.allowDownload !== false;
   const expiresAt =
     body.expiresAt !== undefined && body.expiresAt !== null && Number.isFinite(body.expiresAt)
       ? Number(body.expiresAt)
@@ -141,7 +135,7 @@ export async function createSceneShare(
   req: Request,
   env: Env,
   owner: string,
-  sceneId: string
+  sceneId: string,
 ): Promise<Response> {
   if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
   let body: CreateShareBody = {};
@@ -158,9 +152,10 @@ export async function createFolderShare(
   req: Request,
   env: Env,
   owner: string,
-  folderId: string
+  folderId: string,
 ): Promise<Response> {
-  if (!(await ensureOwnsFolder(env, owner, folderId))) return errorResponse(404, "folder not found");
+  if (!(await ensureOwnsFolder(env, owner, folderId)))
+    return errorResponse(404, "folder not found");
   let body: CreateShareBody = {};
   try {
     body = (await req.json()) as CreateShareBody;
@@ -171,11 +166,7 @@ export async function createFolderShare(
   return jsonResponse(rowToSharePublic(row));
 }
 
-export async function listSceneShares(
-  env: Env,
-  owner: string,
-  sceneId: string
-): Promise<Response> {
+export async function listSceneShares(env: Env, owner: string, sceneId: string): Promise<Response> {
   if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
   return await listSharesForTarget(env, owner, "scene", sceneId);
 }
@@ -183,9 +174,10 @@ export async function listSceneShares(
 export async function listFolderShares(
   env: Env,
   owner: string,
-  folderId: string
+  folderId: string,
 ): Promise<Response> {
-  if (!(await ensureOwnsFolder(env, owner, folderId))) return errorResponse(404, "folder not found");
+  if (!(await ensureOwnsFolder(env, owner, folderId)))
+    return errorResponse(404, "folder not found");
   return await listSharesForTarget(env, owner, "folder", folderId);
 }
 
@@ -193,7 +185,7 @@ async function listSharesForTarget(
   env: Env,
   owner: string,
   targetType: ShareTargetType,
-  targetId: string
+  targetId: string,
 ): Promise<Response> {
   const db = getDb(env);
   const rows = await db
@@ -203,14 +195,12 @@ async function listSharesForTarget(
       and(
         eq(t.shares.owner, owner),
         eq(t.shares.target_type, targetType),
-        eq(t.shares.target_id, targetId)
-      )
+        eq(t.shares.target_id, targetId),
+      ),
     )
     .orderBy(desc(t.shares.created_at))
     .all();
-  const tokens: SharePublic[] = rows
-    .filter((r) => !r.revoked_at)
-    .map((r) => rowToSharePublic(r));
+  const tokens: SharePublic[] = rows.filter((r) => !r.revoked_at).map((r) => rowToSharePublic(r));
   return jsonResponse({ tokens });
 }
 
@@ -226,22 +216,16 @@ export async function listAllShares(env: Env, owner: string): Promise<Response> 
       END`,
     })
     .from(t.shares)
-    .leftJoin(
-      t.scenes,
-      and(eq(t.shares.target_type, "scene"), eq(t.scenes.id, t.shares.target_id))
-    )
+    .leftJoin(t.scenes, and(eq(t.shares.target_type, "scene"), eq(t.scenes.id, t.shares.target_id)))
     .leftJoin(
       t.folders,
-      and(
-        eq(t.shares.target_type, "folder"),
-        eq(t.folders.id, t.shares.target_id)
-      )
+      and(eq(t.shares.target_type, "folder"), eq(t.folders.id, t.shares.target_id)),
     )
     .where(and(eq(t.shares.owner, owner), isNull(t.shares.revoked_at)))
     .orderBy(desc(t.shares.created_at))
     .all();
   const shares: SharePublic[] = rows.map((r) =>
-    rowToSharePublic(r.share, r.target_name ?? undefined)
+    rowToSharePublic(r.share, r.target_name ?? undefined),
   );
   return jsonResponse({ shares });
 }
@@ -249,7 +233,7 @@ export async function listAllShares(env: Env, owner: string): Promise<Response> 
 export async function revokeShareGeneric(
   env: Env,
   owner: string,
-  token: string
+  token: string,
 ): Promise<Response> {
   // Soft-revoke so we keep an audit-friendly history; cleanup happens on
   // owner delete (user deletion cascades). Hard delete also fine, but
@@ -259,13 +243,7 @@ export async function revokeShareGeneric(
   const result = await db
     .update(t.shares)
     .set({ revoked_at: ts })
-    .where(
-      and(
-        eq(t.shares.token, token),
-        eq(t.shares.owner, owner),
-        isNull(t.shares.revoked_at)
-      )
-    )
+    .where(and(eq(t.shares.token, token), eq(t.shares.owner, owner), isNull(t.shares.revoked_at)))
     .run();
   if ((result.meta?.changes ?? 0) === 0) return errorResponse(404, "share not found");
   return jsonResponse({ ok: true });
@@ -275,7 +253,7 @@ export async function revokeSceneShare(
   env: Env,
   owner: string,
   sceneId: string,
-  token: string
+  token: string,
 ): Promise<Response> {
   if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
   return await revokeShareGeneric(env, owner, token);
@@ -285,20 +263,17 @@ export async function revokeFolderShare(
   env: Env,
   owner: string,
   folderId: string,
-  token: string
+  token: string,
 ): Promise<Response> {
-  if (!(await ensureOwnsFolder(env, owner, folderId))) return errorResponse(404, "folder not found");
+  if (!(await ensureOwnsFolder(env, owner, folderId)))
+    return errorResponse(404, "folder not found");
   return await revokeShareGeneric(env, owner, token);
 }
 
 // ─── Token resolution ─────────────────────────────────────────────────
 async function resolveToken(env: Env, token: string): Promise<ShareRow | null> {
   const db = getDb(env);
-  const row = await db
-    .select()
-    .from(t.shares)
-    .where(eq(t.shares.token, token))
-    .get();
+  const row = await db.select().from(t.shares).where(eq(t.shares.token, token)).get();
   if (!row) return null;
   if (!isShareActive(row, Date.now())) return null;
   return row;
@@ -319,7 +294,7 @@ function touchAccess(env: Env, token: string, ctx: ExecutionContext | null): voi
 export async function getViaShareToken(
   env: Env,
   token: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -350,14 +325,13 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
   if (folders.length === 0) return errorResponse(404, "folder not found");
   // The first row is the root folder per `listSubtreeFolders` ordering, but
   // we don't rely on order — find by id.
-  const rootRow: FolderRow =
-    folders.find((f) => f.id === rootId) || folders[0];
+  const rootRow: FolderRow = folders.find((f) => f.id === rootId) || folders[0];
   const folderIds = folders.map((f) => f.id);
   const scenes = await loadScenesInFolders(env, owner, folderIds);
   const sceneTags = await collectTagsForMany(
     env,
     "scene",
-    scenes.map((s) => s.id)
+    scenes.map((s) => s.id),
   );
   const folderTags = await collectTagsForMany(env, "folder", folderIds);
 
@@ -371,7 +345,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
         tags: folderTags.get(f.id) ?? [],
         sceneCount: scenes.filter((s) => s.folder_id === f.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === f.id).length,
-      }
+      },
     );
   });
 
@@ -388,7 +362,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
         tags: folderTags.get(rootRow.id) ?? [],
         sceneCount: scenes.filter((s) => s.folder_id === rootRow.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === rootRow.id).length,
-      }
+      },
     ),
     folders: folderOut,
     scenes: scenes.map((s) => rowToMeta(s, sceneTags.get(s.id) ?? [])),
@@ -398,14 +372,14 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
 export async function getThumbViaShareToken(
   env: Env,
   token: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.target_type !== "scene") return errorResponse(404, "no thumbnail");
   touchAccess(env, token, ctx);
   const scene = await loadRowAnyOwner(env, tk.target_id);
-  if (!scene || !scene.has_thumb) return errorResponse(404, "no thumbnail");
+  if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
   const obj = await env.R2.get(thumbKey(scene.id));
   if (!obj) return errorResponse(404, "no thumbnail");
   return new Response(obj.body, {
@@ -419,7 +393,7 @@ export async function getThumbViaShareToken(
 export async function downloadViaShareToken(
   env: Env,
   token: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -445,7 +419,7 @@ export async function putViaShareToken(req: Request, env: Env, token: string): P
 async function ensureFolderShareCoversScene(
   env: Env,
   tk: ShareRow,
-  sceneId: string
+  sceneId: string,
 ): Promise<boolean> {
   if (tk.target_type !== "folder") return false;
   return await sceneInFolderSubtree(env, tk.owner, sceneId, tk.target_id);
@@ -455,7 +429,7 @@ export async function getFolderShareScene(
   env: Env,
   token: string,
   sceneId: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -476,7 +450,7 @@ export async function getFolderShareSceneThumb(
   env: Env,
   token: string,
   sceneId: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -485,7 +459,7 @@ export async function getFolderShareSceneThumb(
   }
   touchAccess(env, token, ctx);
   const scene = await loadRowAnyOwner(env, sceneId);
-  if (!scene || !scene.has_thumb) return errorResponse(404, "no thumbnail");
+  if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
   const obj = await env.R2.get(thumbKey(scene.id));
   if (!obj) return errorResponse(404, "no thumbnail");
   return new Response(obj.body, {
@@ -500,7 +474,7 @@ export async function downloadFolderShareScene(
   env: Env,
   token: string,
   sceneId: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -518,7 +492,7 @@ export async function putFolderShareScene(
   req: Request,
   env: Env,
   token: string,
-  sceneId: string
+  sceneId: string,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -533,7 +507,7 @@ export async function putFolderShareScene(
 export async function createSceneViaFolderShare(
   req: Request,
   env: Env,
-  token: string
+  token: string,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -557,7 +531,7 @@ export async function createSceneViaFolderShare(
 export async function deleteSceneViaFolderShare(
   env: Env,
   token: string,
-  sceneId: string
+  sceneId: string,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -572,7 +546,7 @@ export async function deleteSceneViaFolderShare(
 export async function listFolderShareFolders(
   env: Env,
   token: string,
-  ctx: ExecutionContext | null
+  ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -582,13 +556,13 @@ export async function listFolderShareFolders(
   const folderTags = await collectTagsForMany(
     env,
     "folder",
-    folders.map((f) => f.id)
+    folders.map((f) => f.id),
   );
   const out = folders.map((f) =>
     rowToFolderMeta(
       { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id },
-      { tags: folderTags.get(f.id) ?? [] }
-    )
+      { tags: folderTags.get(f.id) ?? [] },
+    ),
   );
   return jsonResponse({ folders: out });
 }

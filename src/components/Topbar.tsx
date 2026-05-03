@@ -9,11 +9,10 @@
 // Using the same `<Topbar>` everywhere keeps height, wordmark, and
 // border consistent across Dashboard, Admin, Account, etc.
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-
-import type { User } from "@/lib/api/client";
 import { UserMenu } from "@/components/UserMenu";
+import type { User } from "@/lib/api/client";
 
 interface TopbarProps {
   user: User;

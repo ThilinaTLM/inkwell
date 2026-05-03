@@ -1,14 +1,13 @@
-import { FormEvent, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
-
-import { AuthShell } from "@/features/auth/AuthShell";
-import { useLogin } from "@/features/auth/hooks";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { type FormEvent, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthShell } from "@/features/auth/AuthShell";
+import { useLogin } from "@/features/auth/hooks";
 import { errorMessage } from "@/lib/errors";
 
 export default function LoginPage() {
@@ -73,18 +72,8 @@ export default function LoginPage() {
           </Alert>
         )}
 
-        <Button
-          type="submit"
-          disabled={busy || !email || !password}
-          className="mt-1"
-        >
-          {busy && (
-            <HugeiconsIcon
-              icon={Loading03Icon}
-              strokeWidth={2}
-              className="animate-spin"
-            />
-          )}
+        <Button type="submit" disabled={busy || !email || !password} className="mt-1">
+          {busy && <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />}
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>

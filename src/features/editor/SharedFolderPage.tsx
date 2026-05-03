@@ -8,31 +8,22 @@
 // tab strip. Clicking a scene navigates to /share/:token/scenes/:sceneId
 // which mounts SharedEditor in folder-share mode.
 
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowRight01Icon,
   Download01Icon,
   EyeIcon,
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
-
-import type {
-  FolderMeta,
-  FolderSharePayload,
-  SceneMeta,
-} from "@/lib/api/client";
-import { shares } from "@/lib/api/client";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import {
-  EmptyDeskNote,
-  FolderCard,
-  SceneCard,
-} from "@/components/sketch";
+import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
 import { folderPath } from "@/features/folders/FolderTree";
 import { useSharedFolder } from "@/features/sharing/hooks";
+import type { FolderMeta, FolderSharePayload, SceneMeta } from "@/lib/api/client";
+import { shares } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -42,9 +33,7 @@ interface SharedFolderProps {
   preloaded?: FolderSharePayload;
 }
 
-export default function SharedFolderPage({
-  preloaded,
-}: SharedFolderProps = {}) {
+export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) {
   const { token = "" } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
@@ -52,9 +41,7 @@ export default function SharedFolderPage({
   const folderQuery = useSharedFolder(preloaded ? "" : token);
   const payload = preloaded ?? folderQuery.data ?? null;
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    payload?.root.id ?? null,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(payload?.root.id ?? null);
   // When the payload arrives (or changes), seed the selected folder.
   useEffect(() => {
     if (payload && !selectedId) setSelectedId(payload.root.id);
@@ -107,15 +94,13 @@ export default function SharedFolderPage({
     <PaperSurface variant="page">
       {/* Banner */}
       <header className="flex flex-wrap items-center gap-3 px-6 pt-6 pb-2">
-        <div className="font-heading text-2xl text-ink">
-          {payload.root.name}
-        </div>
+        <div className="font-heading text-2xl text-ink">{payload.root.name}</div>
         <div
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-sans text-xs ring-1",
             writable
               ? "bg-manila-soft text-ink ring-manila/40"
-              : "bg-paper-elev text-ink-soft ring-ink-soft/20"
+              : "bg-paper-elev text-ink-soft ring-ink-soft/20",
           )}
         >
           <HugeiconsIcon
@@ -126,9 +111,7 @@ export default function SharedFolderPage({
           {writable ? "Shared · can edit" : "Shared · view only"}
         </div>
         {payload.share.label ? (
-          <span className="text-sm text-ink-muted">
-            "{payload.share.label}"
-          </span>
+          <span className="text-sm text-ink-muted">"{payload.share.label}"</span>
         ) : null}
       </header>
 
@@ -137,16 +120,13 @@ export default function SharedFolderPage({
       </div>
 
       <main className="px-6 pb-16 pt-3">
-        {breadcrumb.length > 0 && (
-          <Breadcrumb breadcrumb={breadcrumb} onJump={setSelectedId} />
-        )}
+        {breadcrumb.length > 0 && <Breadcrumb breadcrumb={breadcrumb} onJump={setSelectedId} />}
 
         {subfolders.length === 0 && visibleScenes.length === 0 ? (
           <EmptyDeskNote
             seed={`shared-empty-${selectedId}`}
             title={`"${
-              payload.folders.find((f) => f.id === selectedId)?.name ??
-              payload.root.name
+              payload.folders.find((f) => f.id === selectedId)?.name ?? payload.root.name
             }" is empty`}
             body="No scenes in this folder. Try another folder above."
           />
@@ -154,9 +134,7 @@ export default function SharedFolderPage({
           <div className="space-y-6">
             {subfolders.length > 0 && (
               <section aria-label="Subfolders">
-                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
-                  Folders
-                </h3>
+                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">Folders</h3>
                 <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {subfolders.map((f) => (
                     <FolderCard
@@ -173,9 +151,7 @@ export default function SharedFolderPage({
 
             {visibleScenes.length > 0 && (
               <section aria-label="Scenes">
-                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">
-                  Scenes
-                </h3>
+                <h3 className="px-6 pb-2 font-heading text-lg text-ink-soft">Scenes</h3>
                 <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {visibleScenes.map((s) => (
                     <SharedSceneCard
@@ -183,9 +159,7 @@ export default function SharedFolderPage({
                       scene={s}
                       token={token}
                       allowDownload={allowDownload}
-                      onOpen={() =>
-                        navigate(`/share/${token}/scenes/${s.id}`)
-                      }
+                      onOpen={() => navigate(`/share/${token}/scenes/${s.id}`)}
                     />
                   ))}
                 </div>
@@ -224,7 +198,7 @@ function Breadcrumb({
             onClick={() => onJump(f.id)}
             className={cn(
               "rounded px-1 py-0.5 transition-colors hover:text-ink",
-              i === breadcrumb.length - 1 && "text-ink"
+              i === breadcrumb.length - 1 && "text-ink",
             )}
           >
             {f.name}
@@ -265,15 +239,10 @@ function SharedSceneCard({
             onClick={(e) => e.stopPropagation()}
             className="inline-flex size-7 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft hover:text-ink"
           >
-            <HugeiconsIcon
-              icon={Download01Icon}
-              strokeWidth={2}
-              className="size-3.5"
-            />
+            <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="size-3.5" />
           </a>
         ) : null
       }
     />
   );
 }
-

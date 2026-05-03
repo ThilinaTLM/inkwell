@@ -9,10 +9,10 @@
 //
 // Route definitions and individual pages live in `./routes`.
 
+import { Loading03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading03Icon } from "@hugeicons/core-free-icons";
 
 import { useMe } from "@/features/auth/hooks";
 import { AppRoutes } from "./routes";
@@ -34,10 +34,9 @@ export default function App() {
   useEffect(() => {
     if (!me.isError) return;
     if (isPublicPath(location.pathname)) return;
-    navigate(
-      `/login?next=${encodeURIComponent(location.pathname + location.search)}`,
-      { replace: true },
-    );
+    navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, {
+      replace: true,
+    });
   }, [me.isError, location.pathname, location.search, navigate]);
 
   // First boot: render splash while the session probe is in flight.
@@ -51,11 +50,7 @@ function BootSplash() {
     <div className="grid min-h-dvh place-items-center bg-paper">
       <div className="flex flex-col items-center gap-3 text-ink-soft">
         <div className="font-heading text-3xl text-ink">inkwell</div>
-        <HugeiconsIcon
-          icon={Loading03Icon}
-          strokeWidth={2}
-          className="size-4 animate-spin"
-        />
+        <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
       </div>
     </div>
   );

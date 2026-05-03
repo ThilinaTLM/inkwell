@@ -14,18 +14,12 @@
 
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
+import { createSessionCookie } from "./auth";
+import { getDb, t } from "./db/client";
 import type { Env, InviteAdminRow, InviteRow, UserRow } from "./types";
 import { rowToInvitePublic } from "./types";
-import { getDb, t } from "./db/client";
+import { createUser, emailIsTaken, isValidEmail, isValidPassword, trimName } from "./users";
 import { errorResponse, jsonResponse, newToken, now } from "./util";
-import { createSessionCookie } from "./auth";
-import {
-  createUser,
-  emailIsTaken,
-  isValidEmail,
-  isValidPassword,
-  trimName,
-} from "./users";
 
 // ─── Admin: list ──────────────────────────────────────────────────────
 export async function listInvitesAdmin(env: Env): Promise<Response> {
@@ -61,7 +55,7 @@ export async function createInviteAdmin(
   req: Request,
   env: Env,
   creatorId: string,
-  origin: string | null
+  origin: string | null,
 ): Promise<Response> {
   let body: { expiresInHours?: number | null };
   try {
@@ -106,11 +100,7 @@ export async function revokeInviteAdmin(env: Env, token: string): Promise<Respon
     .get();
   if (!row) return errorResponse(404, "invite not found");
   if (row.used_at) return errorResponse(409, "invite already used");
-  await db
-    .update(t.invites)
-    .set({ revoked_at: now() })
-    .where(eq(t.invites.token, token))
-    .run();
+  await db.update(t.invites).set({ revoked_at: now() }).where(eq(t.invites.token, token)).run();
   return jsonResponse({ ok: true });
 }
 
@@ -149,18 +139,19 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
   if (!isValidEmail(email)) return errorResponse(400, "invalid email");
   if (!isValidPassword(body.password))
     return errorResponse(400, "password must be 8\u2013200 characters");
+  const password = body.password;
   if (await emailIsTaken(env, email)) return errorResponse(409, "email already in use");
 
   let user: UserRow;
   try {
     user = await createUser(env, {
       email,
-      password: body.password!,
+      password,
       firstName: trimName(body.firstName),
       lastName: trimName(body.lastName),
       isAdmin: false,
     });
-  } catch (err) {
+  } catch (_err) {
     // Most likely a UNIQUE-constraint race — someone else just took the
     // email between our check and the insert. Map to 409.
     return errorResponse(409, "email already in use");
@@ -179,8 +170,8 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
         eq(t.invites.token, token),
         isNull(t.invites.used_at),
         isNull(t.invites.revoked_at),
-        or(isNull(t.invites.expires_at), gt(t.invites.expires_at, nowMs))
-      )
+        or(isNull(t.invites.expires_at), gt(t.invites.expires_at, nowMs)),
+      ),
     )
     .run();
 
@@ -191,11 +182,7 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
   }
 
   // Issue a session cookie immediately so the new user lands logged in.
-  await db
-    .update(t.users)
-    .set({ last_login_at: now() })
-    .where(eq(t.users.id, user.id))
-    .run();
+  await db.update(t.users).set({ last_login_at: now() }).where(eq(t.users.id, user.id)).run();
   const cookie = await createSessionCookie(env, user.id);
   return new Response(
     JSON.stringify({
@@ -211,18 +198,14 @@ export async function acceptInvite(req: Request, env: Env, token: string): Promi
         "content-type": "application/json; charset=utf-8",
         "set-cookie": cookie,
       },
-    }
+    },
   );
 }
 
 // ─── Internals ────────────────────────────────────────────────────────
 async function loadInvite(env: Env, token: string): Promise<InviteRow | null> {
   const db = getDb(env);
-  const row = await db
-    .select()
-    .from(t.invites)
-    .where(eq(t.invites.token, token))
-    .get();
+  const row = await db.select().from(t.invites).where(eq(t.invites.token, token)).get();
   return row ?? null;
 }
 

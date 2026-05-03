@@ -14,23 +14,9 @@
 // On a 409 we re-fetch the scene and reset state. (For a single-user instance
 // this is rare; it shows up if the same scene is open in two tabs.)
 
-import {
-  ReactNode,
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
 import { Excalidraw, exportToSvg } from "@excalidraw/excalidraw";
-import type {
-  ExcalidrawImperativeAPI,
-  AppState,
-  BinaryFiles,
-} from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { HugeiconsIcon } from "@hugeicons/react";
+import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   Alert02Icon,
   CheckmarkCircle02Icon,
@@ -38,11 +24,20 @@ import {
   Loading03Icon,
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
-
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useDebounced } from "@/hooks/useDebounced";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
-import { useDebounced } from "@/hooks/useDebounced";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -137,8 +132,8 @@ export default function SceneEditor({
     fingerprintScene(
       (loaded.blob.elements as ExcalidrawElement[]) || [],
       (loaded.blob.appState as Partial<AppState>) || {},
-      (loaded.blob.files as BinaryFiles) || {}
-    )
+      (loaded.blob.files as BinaryFiles) || {},
+    ),
   );
   const thumbFpRef = useRef<string | null>(null);
 
@@ -157,13 +152,13 @@ export default function SceneEditor({
     savedFpRef.current = fingerprintScene(
       (loaded.blob.elements as ExcalidrawElement[]) || [],
       (loaded.blob.appState as Partial<AppState>) || {},
-      (loaded.blob.files as BinaryFiles) || {}
+      (loaded.blob.files as BinaryFiles) || {},
     );
     thumbFpRef.current = null;
     setStatus("idle");
     setErrorMsg(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded.blob]);
+  }, [loaded.blob, loaded.meta.version]);
 
   // Keep Excalidraw's internal appState.name in sync with the canonical
   // scene name. This is purely cosmetic: it drives Excalidraw's export
@@ -184,11 +179,7 @@ export default function SceneEditor({
 
   // ─── Persist scene ──────────────────────────────────────────────────
   const doSave = useCallback(
-    async (
-      elements: readonly ExcalidrawElement[],
-      appState: AppState,
-      files: BinaryFiles
-    ) => {
+    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (readOnly) return;
 
       // Safety-net dedup: by the time the 1s debounce fires, the user may
@@ -239,18 +230,14 @@ export default function SceneEditor({
         inflightRef.current = false;
       }
     },
-    [save, reload, onReload, loaded.meta.name, readOnly]
+    [save, reload, onReload, loaded.meta.name, readOnly],
   );
 
   const debouncedSave = useDebounced(doSave, 1000);
 
   // ─── Thumbnail (debounced 30s) ──────────────────────────────────────
   const doThumb = useCallback(
-    async (
-      elements: readonly ExcalidrawElement[],
-      appState: AppState,
-      files: BinaryFiles
-    ) => {
+    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (!saveThumb || readOnly) return;
       if (elements.length === 0) return;
 
@@ -278,18 +265,14 @@ export default function SceneEditor({
         // Best-effort.
       }
     },
-    [saveThumb, readOnly]
+    [saveThumb, readOnly],
   );
 
   const debouncedThumb = useDebounced(doThumb, 30_000);
 
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
-    (
-      elements: readonly ExcalidrawElement[],
-      appState: AppState,
-      files: BinaryFiles
-    ) => {
+    (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (readOnly) return;
       // Primary dedup: drop noisy onChange events (cursor / selection /
       // zoom / pan / tool switch / hover) that don't change the persisted
@@ -301,7 +284,7 @@ export default function SceneEditor({
       debouncedSave(elements, appState, files);
       debouncedThumb(elements, appState, files);
     },
-    [debouncedSave, debouncedThumb, readOnly]
+    [debouncedSave, debouncedThumb, readOnly],
   );
 
   // Flush pending save on unmount / page hide.
@@ -323,9 +306,7 @@ export default function SceneEditor({
   };
 
   return (
-    <SceneEditorContext.Provider
-      value={{ status, errorMessage: errorMsg, readOnly }}
-    >
+    <SceneEditorContext.Provider value={{ status, errorMessage: errorMsg, readOnly }}>
       <div className="relative h-full w-full">
         <div className="absolute inset-0">
           <Excalidraw
@@ -404,20 +385,12 @@ export function EditorSaveBadge() {
         break;
       case "saving":
         label = "Saving…";
-        icon = (
-          <HugeiconsIcon
-            icon={Loading03Icon}
-            strokeWidth={2}
-            className="animate-spin"
-          />
-        );
+        icon = <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />;
         tone = "bg-paper-elev/90 text-ink";
         break;
       case "saved":
         label = "Saved";
-        icon = (
-          <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />
-        );
+        icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
         tone = "bg-paper-elev/90 text-emerald-700 dark:text-emerald-300";
         break;
       case "error":
@@ -433,7 +406,7 @@ export function EditorSaveBadge() {
       title={errorMessage || undefined}
       className={cn(
         "pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-sans font-medium ring-1 ring-ink-soft/15 backdrop-blur",
-        tone
+        tone,
       )}
     >
       <span className="[&_svg]:size-4">{icon}</span>
@@ -466,12 +439,12 @@ export function EditorSaveBadge() {
 function fingerprintScene(
   elements: readonly ExcalidrawElement[],
   appState: Partial<AppState>,
-  files: BinaryFiles
+  files: BinaryFiles,
 ): string {
   let elemHash = elements.length | 0;
   for (let i = 0; i < elements.length; i++) {
     const v = ((elements[i] as { version?: number }).version ?? 0) | 0;
-    elemHash = ((elemHash * 31) + v) | 0;
+    elemHash = (elemHash * 31 + v) | 0;
   }
   const a = appState as Partial<AppState> & Record<string, unknown>;
   const appPart = [
@@ -509,7 +482,7 @@ function fingerprintScene(
 // Strip transient appState that isn't meaningful to persist.
 function pickPersistableAppState(
   appState: AppState,
-  fallbackName: string
+  fallbackName: string,
 ): Record<string, unknown> {
   const {
     collaborators: _c,
@@ -529,8 +502,8 @@ function pickPersistableAppState(
     // Theme is owned app-side now; don't persist it on the blob.
     theme: _t,
     ...rest
-  } = appState as any;
-  return { ...rest, name: (rest as any).name || fallbackName };
+  } = appState as unknown as Record<string, unknown>;
+  return { ...rest, name: (rest.name as string | undefined) || fallbackName };
 }
 
 // Excalidraw won't render embedded images during export until their `status`
@@ -538,15 +511,13 @@ function pickPersistableAppState(
 // borrowed from ExcaliDash.)
 function normalizeImagesForExport(
   elements: readonly ExcalidrawElement[],
-  files: BinaryFiles
+  files: BinaryFiles,
 ): ExcalidrawElement[] {
   return elements.map((el) => {
     if (el.type !== "image" || typeof el.fileId !== "string") return el;
-    const file = files[el.fileId as keyof typeof files] as
-      | { dataURL?: string }
-      | undefined;
+    const file = files[el.fileId as keyof typeof files] as { dataURL?: string } | undefined;
     const hasData = !!file?.dataURL?.startsWith?.("data:image/");
-    if (!hasData || (el as any).status === "saved") return el;
+    if (!hasData || (el as { status?: string }).status === "saved") return el;
     return { ...el, status: "saved" } as ExcalidrawElement;
   });
 }

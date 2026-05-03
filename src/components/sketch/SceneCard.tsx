@@ -12,9 +12,9 @@
 //                     consumed by `useExplorerHotkeys` based on which
 //                     card has focus.
 
-import { forwardRef } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Image01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import type { Ref } from "react";
 
 import { RoughBox } from "@/components/rough";
 import { cn } from "@/lib/utils";
@@ -39,60 +39,53 @@ export interface SceneCardProps {
   /** Single click — opens the scene. */
   onOpen?: () => void;
   /** Right click — open the context menu. */
-  onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
+  onContextMenu?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
 }
 
-export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
-  function SceneCard(
-    {
-      id,
-      name,
-      hasThumb,
-      thumbUrl,
-      updatedAtLabel,
-      tags,
-      actions,
-      onOpen,
-      onContextMenu,
-      className,
-    },
-    ref
-  ) {
-    const tilt = tiltFromId(`scene:${id}`, 0.4);
+export function SceneCard({
+  id,
+  name,
+  hasThumb,
+  thumbUrl,
+  updatedAtLabel,
+  tags,
+  actions,
+  onOpen,
+  onContextMenu,
+  className,
+  ref,
+}: SceneCardProps & { ref?: Ref<HTMLDivElement> }) {
+  const tilt = tiltFromId(`scene:${id}`, 0.4);
 
-    return (
-      <div
-        ref={ref}
-        role="button"
-        tabIndex={0}
+  return (
+    <div
+      ref={ref}
+      data-explorer-item="scene"
+      data-explorer-id={id}
+      title={updatedAtLabel ? `${name} · ${updatedAtLabel}` : name}
+      className={cn(
+        "group/scene relative flex flex-col items-center gap-2 rounded-md transition-shadow duration-150",
+        "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
+        "focus-within:ring-2 focus-within:ring-vermillion/60",
+        className,
+      )}
+      style={{ transform: `rotate(${tilt}deg)` }}
+    >
+      <button
+        type="button"
         aria-label={`Scene: ${name}`}
-        data-explorer-item="scene"
-        data-explorer-id={id}
         onClick={onOpen}
         onContextMenu={onContextMenu}
-        onKeyDown={(e) => {
-          if (e.key === " " || e.key === "Enter") {
-            e.preventDefault();
-            onOpen?.();
-          }
-        }}
-        title={updatedAtLabel ? `${name} · ${updatedAtLabel}` : name}
         className={cn(
-          "group/scene relative flex flex-col items-center gap-2 rounded-md p-2 transition-shadow duration-150",
-          "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
-          className
+          "flex w-full flex-col items-center gap-2 rounded-md bg-transparent p-2",
+          "focus-visible:outline-none",
         )}
-        style={{ transform: `rotate(${tilt}deg)` }}
       >
         <SceneGlyph id={id} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
         <div className="w-full min-w-0 text-center">
-          <div
-            className="truncate font-heading text-sm text-ink"
-            title={name}
-          >
+          <div className="truncate font-heading text-sm text-ink" title={name}>
             {name}
           </div>
           {tags.length > 0 ? (
@@ -101,27 +94,21 @@ export const SceneCard = forwardRef<HTMLDivElement, SceneCardProps>(
                 <TapeChip key={t} label={t} size="sm" asStatic active />
               ))}
               {tags.length > 3 ? (
-                <span className="text-xs text-ink-muted">
-                  +{tags.length - 3}
-                </span>
+                <span className="text-xs text-ink-muted">+{tags.length - 3}</span>
               ) : null}
             </div>
           ) : null}
         </div>
+      </button>
 
-        {actions ? (
-          <div
-            className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100"
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            {actions}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-);
+      {actions ? (
+        <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100">
+          {actions}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** Paper-sheet silhouette with a folded top-right corner. */
 function SceneGlyph({
@@ -134,11 +121,7 @@ function SceneGlyph({
   thumbUrl: string;
 }) {
   return (
-    <div
-      className="relative w-full"
-      style={{ aspectRatio: "4 / 3" }}
-      aria-hidden
-    >
+    <div className="relative w-full" style={{ aspectRatio: "4 / 3" }} aria-hidden>
       {/* Sheet body */}
       <RoughBox
         shape="paper-sheet"
@@ -169,11 +152,7 @@ function SceneGlyph({
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-ink-muted/50">
-            <HugeiconsIcon
-              icon={Image01Icon}
-              strokeWidth={1.4}
-              className="size-10"
-            />
+            <HugeiconsIcon icon={Image01Icon} strokeWidth={1.4} className="size-10" />
           </div>
         )}
       </div>
@@ -184,7 +163,9 @@ function SceneGlyph({
         height={FOLD_PX}
         className="absolute right-0 top-0"
         aria-hidden
+        role="presentation"
       >
+        <title>Folded paper corner</title>
         <path
           d={`M0,0 L${FOLD_PX},${FOLD_PX} L0,${FOLD_PX} Z`}
           fill="var(--color-manila-soft)"

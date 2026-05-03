@@ -14,20 +14,16 @@
 // `parent_id IS NULL` moves children to the root level.
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { getDb, t } from "./db/client";
+import { listTagsFor, replaceTagsFor } from "./tags";
 import type { Env, FolderMeta, FolderRow, SceneRow } from "./types";
 import { rowToFolderMeta } from "./types";
-import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
-import { listTagsFor, replaceTagsFor } from "./tags";
 
 export const MAX_DEPTH = 8;
 
 // ─── Internals ─────────────────────────────────────────────────────────
-async function loadFolder(
-  env: Env,
-  owner: string,
-  id: string
-): Promise<FolderRow | null> {
+async function loadFolder(env: Env, owner: string, id: string): Promise<FolderRow | null> {
   const db = getDb(env);
   const row = await db
     .select()
@@ -40,11 +36,7 @@ async function loadFolder(
 // Recursive CTE walks stay as raw SQL — Drizzle's $with builder is
 // awkward for `WITH RECURSIVE` and the SQL is already correct. Drizzle
 // parameterizes the bound values automatically.
-async function ancestorChain(
-  env: Env,
-  owner: string,
-  startId: string
-): Promise<string[]> {
+async function ancestorChain(env: Env, owner: string, startId: string): Promise<string[]> {
   const db = getDb(env);
   const rows = await db.all<{ id: string }>(sql`
     WITH RECURSIVE up(id, parent_id, depth) AS (
@@ -65,7 +57,7 @@ async function ancestorChain(
 export async function descendantFolderIds(
   env: Env,
   owner: string,
-  rootId: string
+  rootId: string,
 ): Promise<string[]> {
   const db = getDb(env);
   const rows = await db.all<{ id: string }>(sql`
@@ -89,11 +81,7 @@ async function folderDepth(env: Env, owner: string, id: string): Promise<number>
 
 // Maximum depth reachable from `rootId` going downward. Returns 1 if the
 // root has no descendants beyond itself.
-async function maxSubtreeDepth(
-  env: Env,
-  owner: string,
-  rootId: string
-): Promise<number> {
+async function maxSubtreeDepth(env: Env, owner: string, rootId: string): Promise<number> {
   const db = getDb(env);
   const row = await db.get<{ d: number | null }>(sql`
     WITH RECURSIVE down(id, depth) AS (
@@ -135,9 +123,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     .select({ id: t.taggings.target_id, name: t.tags.name })
     .from(t.taggings)
     .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
-    .where(
-      and(eq(t.taggings.owner, owner), eq(t.taggings.target_type, "folder"))
-    )
+    .where(and(eq(t.taggings.owner, owner), eq(t.taggings.target_type, "folder")))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
 
@@ -148,12 +134,8 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     tagRowsP,
   ]);
 
-  const sceneMap = new Map(
-    sceneCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : []))
-  );
-  const subMap = new Map(
-    subCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : []))
-  );
+  const sceneMap = new Map(sceneCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
+  const subMap = new Map(subCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
   const tagMap = new Map<string, string[]>();
   for (const tg of tagRows) {
     const arr = tagMap.get(tg.id);
@@ -166,7 +148,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
       tags: tagMap.get(f.id) ?? [],
       sceneCount: sceneMap.get(f.id) ?? 0,
       subfolderCount: subMap.get(f.id) ?? 0,
-    })
+    }),
   );
   return jsonResponse({ folders: out });
 }
@@ -224,7 +206,7 @@ export async function patchFolder(
   req: Request,
   env: Env,
   owner: string,
-  id: string
+  id: string,
 ): Promise<Response> {
   const folder = await loadFolder(env, owner, id);
   if (!folder) return errorResponse(404, "folder not found");
@@ -301,7 +283,7 @@ export async function patchFolder(
       tags,
       sceneCount: sceneCountRow?.n ?? 0,
       subfolderCount: subCountRow?.n ?? 0,
-    })
+    }),
   );
 }
 
@@ -332,8 +314,8 @@ export async function deleteFolder(env: Env, owner: string, id: string): Promise
         and(
           eq(t.taggings.target_type, "folder"),
           eq(t.taggings.target_id, id),
-          eq(t.taggings.owner, owner)
-        )
+          eq(t.taggings.owner, owner),
+        ),
       ),
     // Revoke any shares targeting this folder.
     db
@@ -342,12 +324,10 @@ export async function deleteFolder(env: Env, owner: string, id: string): Promise
         and(
           eq(t.shares.target_type, "folder"),
           eq(t.shares.target_id, id),
-          eq(t.shares.owner, owner)
-        )
+          eq(t.shares.owner, owner),
+        ),
       ),
-    db
-      .delete(t.folders)
-      .where(and(eq(t.folders.id, id), eq(t.folders.owner, owner))),
+    db.delete(t.folders).where(and(eq(t.folders.id, id), eq(t.folders.owner, owner))),
   ]);
   return jsonResponse({ ok: true });
 }
@@ -358,7 +338,7 @@ export async function sceneInFolderSubtree(
   env: Env,
   owner: string,
   sceneId: string,
-  folderId: string
+  folderId: string,
 ): Promise<boolean> {
   const db = getDb(env);
   const scene = await db
@@ -366,7 +346,7 @@ export async function sceneInFolderSubtree(
     .from(t.scenes)
     .where(and(eq(t.scenes.id, sceneId), eq(t.scenes.owner, owner)))
     .get();
-  if (!scene || !scene.folder_id) return false;
+  if (!scene?.folder_id) return false;
   if (scene.folder_id === folderId) return true;
   // Walk up from scene.folder_id looking for folderId.
   const chain = await ancestorChain(env, owner, scene.folder_id);
@@ -378,7 +358,7 @@ export async function folderInSubtree(
   env: Env,
   owner: string,
   childFolderId: string,
-  rootFolderId: string
+  rootFolderId: string,
 ): Promise<boolean> {
   if (childFolderId === rootFolderId) return true;
   const chain = await ancestorChain(env, owner, childFolderId);
@@ -390,7 +370,7 @@ export async function folderInSubtree(
 export async function listSubtreeFolders(
   env: Env,
   owner: string,
-  rootId: string
+  rootId: string,
 ): Promise<FolderRow[]> {
   const db = getDb(env);
   // Use a recursive CTE to compute the subtree id set, then reselect via
@@ -420,7 +400,7 @@ export async function listSubtreeFolders(
 export async function loadScenesInFolders(
   env: Env,
   owner: string,
-  folderIds: string[]
+  folderIds: string[],
 ): Promise<SceneRow[]> {
   if (folderIds.length === 0) return [];
   const db = getDb(env);

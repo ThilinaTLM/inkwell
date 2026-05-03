@@ -16,9 +16,9 @@
 // Hover is intentionally restrained: a soft paper shadow appears, no
 // scale, no translate — the silhouette itself is the affordance.
 
-import { forwardRef } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import type { Ref } from "react";
 
 import { RoughBox } from "@/components/rough";
 import { cn } from "@/lib/utils";
@@ -33,83 +33,70 @@ export interface FolderCardProps {
   actions?: React.ReactNode;
   /** Single click — opens the folder. */
   onOpen?: () => void;
-  onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
+  onContextMenu?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
 }
 
-export const FolderCard = forwardRef<HTMLDivElement, FolderCardProps>(
-  function FolderCard(
-    { id, name, sceneCount, actions, onOpen, onContextMenu, className },
-    ref
-  ) {
-    const tilt = tiltFromId(`folder:${id}`, 0.4);
-    const countLabel =
-      sceneCount == null
-        ? null
-        : sceneCount === 1
-          ? "1 scene"
-          : `${sceneCount} scenes`;
+export function FolderCard({
+  id,
+  name,
+  sceneCount,
+  actions,
+  onOpen,
+  onContextMenu,
+  className,
+  ref,
+}: FolderCardProps & { ref?: Ref<HTMLDivElement> }) {
+  const tilt = tiltFromId(`folder:${id}`, 0.4);
+  const countLabel =
+    sceneCount == null ? null : sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`;
 
-    return (
-      <div
-        ref={ref}
-        role="button"
-        tabIndex={0}
+  return (
+    <div
+      ref={ref}
+      data-explorer-item="folder"
+      data-explorer-id={id}
+      className={cn(
+        "group/folder relative flex flex-col items-center gap-2 rounded-md transition-shadow duration-150",
+        "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
+        "focus-within:ring-2 focus-within:ring-vermillion/60",
+        className,
+      )}
+      style={{ transform: `rotate(${tilt}deg)` }}
+    >
+      <button
+        type="button"
         aria-label={`Folder: ${name}`}
-        data-explorer-item="folder"
-        data-explorer-id={id}
         onClick={onOpen}
         onContextMenu={onContextMenu}
-        onKeyDown={(e) => {
-          if (e.key === " " || e.key === "Enter") {
-            e.preventDefault();
-            onOpen?.();
-          }
-        }}
         className={cn(
-          "group/folder relative flex flex-col items-center gap-2 rounded-md p-2 transition-shadow duration-150",
-          "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vermillion/60",
-          className
+          "flex w-full flex-col items-center gap-2 rounded-md bg-transparent p-2",
+          "focus-visible:outline-none",
         )}
-        style={{ transform: `rotate(${tilt}deg)` }}
       >
         <FolderGlyph id={id} />
 
         <div className="w-full min-w-0 text-center">
-          <div
-            className="truncate font-heading text-sm text-ink"
-            title={name}
-          >
+          <div className="truncate font-heading text-sm text-ink" title={name}>
             {name}
           </div>
-          {countLabel ? (
-            <div className="truncate text-xs text-ink-muted">{countLabel}</div>
-          ) : null}
+          {countLabel ? <div className="truncate text-xs text-ink-muted">{countLabel}</div> : null}
         </div>
+      </button>
 
-        {actions ? (
-          <div
-            className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/folder:opacity-100 focus-within:opacity-100"
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            {actions}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-);
+      {actions ? (
+        <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/folder:opacity-100 focus-within:opacity-100">
+          {actions}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** Manila folder silhouette: notched-tab back panel + front pocket. */
 function FolderGlyph({ id }: { id: string }) {
   return (
-    <div
-      className="relative w-full"
-      style={{ aspectRatio: "4 / 3" }}
-      aria-hidden
-    >
+    <div className="relative w-full" style={{ aspectRatio: "4 / 3" }} aria-hidden>
       {/* Back panel: notched tab on the top-left, fills the full glyph. */}
       <RoughBox
         shape="folder-tab"

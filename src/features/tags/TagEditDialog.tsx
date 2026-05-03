@@ -4,8 +4,6 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
-import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TagPicker } from "@/features/tags/TagPicker";
+import { errorMessage } from "@/lib/errors";
 
 interface Props {
   open: boolean;

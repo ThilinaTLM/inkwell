@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef } from "react";
  */
 export function useDebounced<A extends unknown[]>(
   fn: (...args: A) => void,
-  delay: number
+  delay: number,
 ): { (...args: A): void; flush(): void; cancel(): void } {
   const fnRef = useRef(fn);
   fnRef.current = fn;
@@ -35,9 +35,9 @@ export function useDebounced<A extends unknown[]>(
       cancel();
       timer.current = window.setTimeout(() => {
         timer.current = null;
-        const a = lastArgs.current!;
+        const a = lastArgs.current;
         lastArgs.current = null;
-        fnRef.current(...a);
+        if (a) fnRef.current(...a);
       }, delay);
     };
     return Object.assign(debounced, { flush, cancel });

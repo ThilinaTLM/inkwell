@@ -28,9 +28,5 @@ export function fmtDate(ms: number): string {
 /** Locale date + short time, e.g. "11/2/2026 14:32". */
 export function fmtDateTime(ms: number): string {
   const d = new Date(ms);
-  return (
-    d.toLocaleDateString() +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }

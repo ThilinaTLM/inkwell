@@ -4,17 +4,15 @@
 // different trigger styling. Unified here on the shadcn `<Button
 // variant="ghost">` look so the two surfaces match.
 
-import { useNavigate } from "react-router-dom";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Logout03Icon,
   Settings02Icon,
   Shield01Icon,
   UserCircleIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-
-import type { User } from "@/lib/api/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLogout } from "@/features/auth/hooks";
+import type { User } from "@/lib/api/client";
 import { userDisplayName, userInitials } from "@/lib/user";
 
 interface UserMenuProps {
@@ -76,12 +75,8 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
       <DropdownMenuContent align="end" sideOffset={6} className="min-w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col gap-0.5">
-            <span className="truncate text-sm font-medium text-ink">
-              {fullName}
-            </span>
-            <span className="truncate font-sans text-[0.6875rem] text-ink-muted">
-              {user.email}
-            </span>
+            <span className="truncate text-sm font-medium text-ink">{fullName}</span>
+            <span className="truncate font-sans text-[0.6875rem] text-ink-muted">{user.email}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

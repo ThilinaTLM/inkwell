@@ -1,7 +1,7 @@
 import path from "node:path";
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // During `vite dev` we proxy /api to a locally-running Worker (`wrangler dev`).
 // In production the Worker serves the built SPA directly via the [assets] binding.

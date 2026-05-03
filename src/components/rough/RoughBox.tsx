@@ -6,10 +6,9 @@
 // path only when (width, height, shape, seed, …) actually change.
 
 import { useEffect, useRef, useState } from "react";
-import { useRoughPath, type RoughShape, type RoughPathSpec } from "./useRoughPath";
+import { type RoughPathSpec, type RoughShape, useRoughPath } from "./useRoughPath";
 
-export interface RoughBoxProps
-  extends Omit<RoughPathSpec, "width" | "height" | "shape"> {
+export interface RoughBoxProps extends Omit<RoughPathSpec, "width" | "height" | "shape"> {
   /** Pass an explicit shape (default `rounded`). */
   shape?: RoughShape;
   /** Optional className applied to the wrapping `<svg>`. */
@@ -54,6 +53,7 @@ export function RoughBox({
       ref={ref}
       className={className}
       aria-hidden={ariaHidden}
+      role={ariaHidden ? "presentation" : "img"}
       style={
         absolute
           ? {
@@ -69,9 +69,10 @@ export function RoughBox({
       viewBox={size.w > 0 && size.h > 0 ? `0 0 ${size.w} ${size.h}` : undefined}
       preserveAspectRatio="none"
     >
-      {paths.map((p, i) => (
+      <title>{`Decorative ${shape} shape`}</title>
+      {paths.map((p) => (
         <path
-          key={i}
+          key={`${p.stroke ?? ""}|${p.fill ?? ""}|${p.d}`}
           d={p.d}
           stroke={p.stroke}
           strokeWidth={p.strokeWidth}

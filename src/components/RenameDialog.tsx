@@ -7,7 +7,7 @@
 // common case. Pass `allowUnchanged` if the caller needs the submit even
 // when the value didn't change.
 
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -83,9 +83,7 @@ export function RenameDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description ? (
-            <DialogDescription>{description}</DialogDescription>
-          ) : null}
+          {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
@@ -108,7 +106,7 @@ export function RenameDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !value.trim()}>
-              {busy ? busyLabel ?? `${submitLabel}…` : submitLabel}
+              {busy ? (busyLabel ?? `${submitLabel}…`) : submitLabel}
             </Button>
           </DialogFooter>
         </form>

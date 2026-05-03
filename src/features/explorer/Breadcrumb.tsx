@@ -18,13 +18,9 @@
 //     page heading itself, replacing a separate `<h1>`. The current
 //     segment reads as the page title; ancestors are clickable links.
 
-import { Fragment } from "react";
+import { ArrowRight01Icon, Home01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowRight01Icon,
-  Home01Icon,
-  MoreHorizontalIcon,
-} from "@hugeicons/core-free-icons";
+import { Fragment } from "react";
 
 import {
   DropdownMenu,
@@ -50,11 +46,7 @@ interface BreadcrumbProps {
  *  middle of the path is collapsed into a "…" dropdown. */
 const MAX_VISIBLE = 2;
 
-export function Breadcrumb({
-  path,
-  onJump,
-  variant = "default",
-}: BreadcrumbProps) {
+export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProps) {
   // Always-visible: Home + last segment + (optionally) the parent of the
   // last segment. Anything between Home and that suffix collapses into "…".
   const atRoot = path.length === 0;
@@ -81,7 +73,7 @@ export function Breadcrumb({
         "flex items-center text-ink-soft",
         isHeading && "min-w-0 gap-1.5 font-heading text-2xl",
         isCompact && "gap-1 text-xs",
-        !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm"
+        !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm",
       )}
     >
       <button
@@ -91,16 +83,13 @@ export function Breadcrumb({
         className={cn(
           "inline-flex items-center rounded transition-colors hover:text-ink",
           isHeading ? "gap-2 px-0.5" : "gap-1.5 px-1 py-0.5",
-          atRoot && "text-ink"
+          atRoot && "text-ink",
         )}
       >
         <HugeiconsIcon
           icon={Home01Icon}
           strokeWidth={1.6}
-          className={cn(
-            "opacity-80",
-            isHeading ? "size-5" : "size-3.5"
-          )}
+          className={cn("opacity-80", isHeading ? "size-5" : "size-3.5")}
         />
         Home
       </button>
@@ -118,7 +107,7 @@ export function Breadcrumb({
                   }`}
                   className={cn(
                     "inline-flex items-center justify-center rounded text-ink-muted hover:bg-manila-soft/50 hover:text-ink",
-                    isHeading ? "size-8" : "size-6"
+                    isHeading ? "size-8" : "size-6",
                   )}
                 />
               }
@@ -150,7 +139,7 @@ export function Breadcrumb({
                 aria-current="page"
                 className={cn(
                   "min-w-0 truncate rounded text-ink",
-                  isHeading ? "px-0.5" : "px-1 py-0.5"
+                  isHeading ? "px-0.5" : "px-1 py-0.5",
                 )}
                 title={f.name}
               >
@@ -162,7 +151,7 @@ export function Breadcrumb({
                 onClick={() => onJump(f.id)}
                 className={cn(
                   "min-w-0 truncate rounded transition-colors hover:text-ink",
-                  isHeading ? "px-0.5" : "px-1 py-0.5"
+                  isHeading ? "px-0.5" : "px-1 py-0.5",
                 )}
                 title={f.name}
               >

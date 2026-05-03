@@ -1,32 +1,25 @@
-import { FormEvent, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Loading03Icon,
   SecurityCheckIcon,
   Shield01Icon,
   UserCircleIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
-
-import { useChangePassword, useMe } from "@/features/auth/hooks";
-import { Topbar } from "@/components/Topbar";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { errorMessage } from "@/lib/errors";
-import { userDisplayName } from "@/lib/user";
 import { PaperSurface } from "@/components/PaperSurface";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Topbar } from "@/components/Topbar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { useChangePassword, useMe } from "@/features/auth/hooks";
+import { errorMessage } from "@/lib/errors";
+import { userDisplayName } from "@/lib/user";
 
 export default function AccountPage() {
   const me = useMe();
@@ -73,16 +66,18 @@ export default function AccountPage() {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl text-ink">Account</h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            Manage your profile and security settings.
-          </p>
+          <p className="mt-1 text-sm text-ink-soft">Manage your profile and security settings.</p>
         </header>
 
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <HugeiconsIcon icon={UserCircleIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
+                <HugeiconsIcon
+                  icon={UserCircleIcon}
+                  strokeWidth={1.8}
+                  className="size-5 text-ink-soft"
+                />
                 Profile
               </CardTitle>
               <CardDescription>Read-only for now.</CardDescription>
@@ -111,12 +106,15 @@ export default function AccountPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <HugeiconsIcon icon={SecurityCheckIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
+                <HugeiconsIcon
+                  icon={SecurityCheckIcon}
+                  strokeWidth={1.8}
+                  className="size-5 text-ink-soft"
+                />
                 Change password
               </CardTitle>
               <CardDescription>
-                Use at least 8 characters. Sessions on other devices stay
-                signed in.
+                Use at least 8 characters. Sessions on other devices stay signed in.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -172,10 +170,7 @@ export default function AccountPage() {
                 )}
 
                 <div className="flex justify-end pt-1">
-                  <Button
-                    type="submit"
-                    disabled={busy || !current || !next || !confirm}
-                  >
+                  <Button type="submit" disabled={busy || !current || !next || !confirm}>
                     {busy && (
                       <HugeiconsIcon
                         icon={Loading03Icon}

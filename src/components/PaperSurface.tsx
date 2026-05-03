@@ -7,7 +7,7 @@
 // The grain is applied via the `.bg-paper-grain` utility from index.css —
 // kept there so it can be reused on any element without bundling an image.
 
-import * as React from "react";
+import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 export type PaperSurfaceVariant = "page" | "card" | "banner";
@@ -37,15 +37,12 @@ export function PaperSurface({
         variant === "page" && "min-h-dvh bg-paper text-ink",
         variant === "card" && "bg-paper-elev text-ink",
         variant === "banner" && "bg-paper text-ink",
-        className
+        className,
       )}
       {...rest}
     >
       {!noGrain && (
-        <div
-          aria-hidden
-          className="bg-paper-grain pointer-events-none absolute inset-0 -z-10"
-        />
+        <div aria-hidden className="bg-paper-grain pointer-events-none absolute inset-0 -z-10" />
       )}
       {children}
     </div>

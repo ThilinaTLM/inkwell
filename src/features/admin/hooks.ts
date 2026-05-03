@@ -5,18 +5,8 @@
 // because the list is small and the response shape is variable
 // (creating returns a different type than `Invite`).
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  admin,
-  ApiError,
-  invites,
-  type AdminUser,
-  type Invite,
-} from "@/lib/api/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type AdminUser, type ApiError, admin, type Invite, invites } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
 // ─── Users ────────────────────────────────────────────────────────────
@@ -104,7 +94,10 @@ export function useRevokeInvite() {
 export function useInvitePeek(token: string | undefined) {
   return useQuery({
     queryKey: keys.invitePeek(token ?? ""),
-    queryFn: () => invites.peek(token!),
+    queryFn: () => {
+      if (!token) throw new Error("missing invite token");
+      return invites.peek(token);
+    },
     enabled: !!token,
     retry: false,
     staleTime: Infinity,

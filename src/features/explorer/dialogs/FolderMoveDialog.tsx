@@ -4,9 +4,8 @@
 
 import { useMemo } from "react";
 import { toast } from "sonner";
-
-import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import { useUpdateFolder } from "@/features/explorer/hooks";
+import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import type { FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 
@@ -16,11 +15,7 @@ interface FolderMoveDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function FolderMoveDialog({
-  folder,
-  folders,
-  onOpenChange,
-}: FolderMoveDialogProps) {
+export function FolderMoveDialog({ folder, folders, onOpenChange }: FolderMoveDialogProps) {
   const update = useUpdateFolder();
 
   // BFS through the descendants of `folder.id` to find every id that
@@ -36,7 +31,8 @@ export function FolderMoveDialog({
     }
     const queue: string[] = [folder.id];
     while (queue.length) {
-      const id = queue.shift()!;
+      const id = queue.shift();
+      if (id === undefined) break;
       for (const c of childrenOf.get(id) || []) {
         if (!out.has(c.id)) {
           out.add(c.id);

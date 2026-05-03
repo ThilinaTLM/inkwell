@@ -5,11 +5,11 @@
 // menu and the keyboard hotkey contract (`F2` rename, `Delete` delete,
 // `Enter` open) via the helpers re-exported here.
 
-export { ExplorerHeader } from "./ExplorerHeader";
 export { Breadcrumb } from "./Breadcrumb";
+export { ExplorerHeader } from "./ExplorerHeader";
 export { ExplorerPageHeader } from "./ExplorerPageHeader";
-export { SectionHeading } from "./SectionHeading";
-export { BrowseView } from "./views/BrowseView";
-export { ItemContextMenu } from "./ItemContextMenu";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";
+export { ItemContextMenu } from "./ItemContextMenu";
+export { SectionHeading } from "./SectionHeading";
 export { useExplorerHotkeys } from "./useExplorerHotkeys";
+export { BrowseView } from "./views/BrowseView";

@@ -2,11 +2,9 @@
 // re-parenting a folder. Disables invalid targets when `forbidden` is set
 // (e.g. you can't move a folder into its own descendants).
 
-import { useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderAddIcon } from "@hugeicons/core-free-icons";
-
-import type { FolderMeta } from "@/lib/api/client";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FolderTree } from "@/features/folders/FolderTree";
+import type { FolderMeta } from "@/lib/api/client";
 
 interface Props {
   open: boolean;
@@ -77,7 +76,11 @@ export function MoveToFolderDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.8} className="size-5 text-ink-soft" />
+            <HugeiconsIcon
+              icon={FolderAddIcon}
+              strokeWidth={1.8}
+              className="size-5 text-ink-soft"
+            />
             {title}
           </DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}

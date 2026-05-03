@@ -4,25 +4,19 @@
 // login. Promotes/demotes to admin, toggles disabled, deletes (via the
 // confirm-phrase dialog).
 
-import { useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Delete02Icon,
   MoreHorizontalIcon,
   Shield01Icon,
   SquareLockIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,16 +32,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  useAdminUsers,
-  useUpdateAdminUser,
-} from "@/features/admin/hooks";
-import { DeleteUserDialog } from "./DeleteUserDialog";
-import { TableSkeleton } from "./TableSkeleton";
+import { useAdminUsers, useUpdateAdminUser } from "@/features/admin/hooks";
 import type { AdminUser } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { fmtDateTime } from "@/lib/format";
 import { userDisplayName } from "@/lib/user";
+import { DeleteUserDialog } from "./DeleteUserDialog";
+import { TableSkeleton } from "./TableSkeleton";
 
 export function UsersPanel({ selfId }: { selfId: string }) {
   const usersQuery = useAdminUsers();
@@ -77,9 +68,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
           <span>Users</span>
           {users && <Badge variant="secondary">{users.length}</Badge>}
         </CardTitle>
-        <CardDescription>
-          Promote, disable, or remove members of your workspace.
-        </CardDescription>
+        <CardDescription>Promote, disable, or remove members of your workspace.</CardDescription>
       </CardHeader>
       <CardContent className="px-0">
         {usersQuery.isPending ? (
@@ -87,9 +76,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
             <TableSkeleton rows={4} cols={6} />
           </div>
         ) : !users || users.length === 0 ? (
-          <div className="px-4 pb-4 text-center text-xs text-muted-foreground">
-            No users yet.
-          </div>
+          <div className="px-4 pb-4 text-center text-xs text-muted-foreground">No users yet.</div>
         ) : (
           <Table>
             <TableHeader>
@@ -117,10 +104,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">{name}</span>
                         {isSelf && (
-                          <Badge
-                            variant="outline"
-                            className="h-4 text-[0.5625rem]"
-                          >
+                          <Badge variant="outline" className="h-4 text-[0.5625rem]">
                             you
                           </Badge>
                         )}
@@ -168,10 +152,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                               />
                             }
                           >
-                            <HugeiconsIcon
-                              icon={MoreHorizontalIcon}
-                              strokeWidth={2}
-                            />
+                            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
@@ -185,29 +166,19 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                                 )
                               }
                             >
-                              <HugeiconsIcon
-                                icon={Shield01Icon}
-                                strokeWidth={2}
-                              />
-                              {u.isAdmin
-                                ? "Demote to user"
-                                : "Promote to admin"}
+                              <HugeiconsIcon icon={Shield01Icon} strokeWidth={2} />
+                              {u.isAdmin ? "Demote to user" : "Promote to admin"}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
                                 patch(
                                   u,
                                   { disabled: !u.disabled },
-                                  u.disabled
-                                    ? `Enabled ${u.email}.`
-                                    : `Disabled ${u.email}.`,
+                                  u.disabled ? `Enabled ${u.email}.` : `Disabled ${u.email}.`,
                                 )
                               }
                             >
-                              <HugeiconsIcon
-                                icon={SquareLockIcon}
-                                strokeWidth={2}
-                              />
+                              <HugeiconsIcon icon={SquareLockIcon} strokeWidth={2} />
                               {u.disabled ? "Enable" : "Disable"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -215,10 +186,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                               variant="destructive"
                               onClick={() => setConfirmDelete(u)}
                             >
-                              <HugeiconsIcon
-                                icon={Delete02Icon}
-                                strokeWidth={2}
-                              />
+                              <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>

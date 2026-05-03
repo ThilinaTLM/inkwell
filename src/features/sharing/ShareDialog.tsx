@@ -6,8 +6,6 @@
 // is gone; the sharing hooks pick the right endpoint from
 // `targetType`.
 
-import { useEffect, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Copy01Icon,
   Delete02Icon,
@@ -16,12 +14,9 @@ import {
   Link01Icon,
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
-import type {
-  SharePermission,
-  ShareTargetType,
-} from "@/lib/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,11 +30,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useCreateShare,
-  useRevokeShare,
-  useShareList,
-} from "@/features/sharing/hooks";
+import { useCreateShare, useRevokeShare, useShareList } from "@/features/sharing/hooks";
+import type { SharePermission, ShareTargetType } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
 import { fmtDateTime } from "@/lib/format";
@@ -84,7 +76,7 @@ export function ShareDialog({
     setAllowDownload(true);
     setExpiryIdx(0);
     setLabel("");
-  }, [open, targetId, targetType]);
+  }, [open]);
 
   async function create() {
     const expiresMs = EXPIRY_OPTIONS[expiryIdx].ms;
@@ -134,11 +126,8 @@ export function ShareDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            Anyone with the link can{" "}
-            {perm === "write" ? "view and edit" : "view"}
-            {targetType === "folder"
-              ? " everything inside this folder."
-              : " this scene."}
+            Anyone with the link can {perm === "write" ? "view and edit" : "view"}
+            {targetType === "folder" ? " everything inside this folder." : " this scene."}
           </DialogDescription>
         </DialogHeader>
 
@@ -151,9 +140,7 @@ export function ShareDialog({
               <Skeleton className="h-9 w-full" />
             </div>
           ) : !items || items.length === 0 ? (
-            <p className="text-[0.6875rem] text-muted-foreground">
-              No active links yet.
-            </p>
+            <p className="text-[0.6875rem] text-muted-foreground">No active links yet.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {items.map((sh) => (
@@ -161,13 +148,9 @@ export function ShareDialog({
                   key={sh.token}
                   className="flex items-center gap-2 rounded-md border border-border bg-input/10 px-2 py-1.5"
                 >
-                  <Badge
-                    variant={sh.permission === "write" ? "secondary" : "outline"}
-                  >
+                  <Badge variant={sh.permission === "write" ? "secondary" : "outline"}>
                     <HugeiconsIcon
-                      icon={
-                        sh.permission === "write" ? PencilEdit02Icon : EyeIcon
-                      }
+                      icon={sh.permission === "write" ? PencilEdit02Icon : EyeIcon}
                       strokeWidth={2}
                     />
                     {sh.permission === "write" ? "Edit" : "View"}
@@ -184,9 +167,7 @@ export function ShareDialog({
                     </div>
                     <div className="text-[0.625rem] text-muted-foreground">
                       Created {fmtDateTime(sh.createdAt)}
-                      {sh.expiresAt
-                        ? ` · expires ${fmtDateTime(sh.expiresAt)}`
-                        : null}
+                      {sh.expiresAt ? ` · expires ${fmtDateTime(sh.expiresAt)}` : null}
                       {sh.lastAccessedAt
                         ? ` · last opened ${fmtDateTime(sh.lastAccessedAt)}`
                         : null}

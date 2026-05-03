@@ -13,19 +13,12 @@
 // the client can decide whether to retry or surface the conflict.
 
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { getDb, t } from "./db/client";
+import { descendantFolderIds, loadScenesInFolders } from "./folders";
+import { collectTagsForMany, listTagsFor, replaceTagsFor } from "./tags";
 import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
 import { rowToMeta } from "./types";
-import { getDb, t } from "./db/client";
 import { errorResponse, jsonResponse, newId, now } from "./util";
-import {
-  descendantFolderIds,
-  loadScenesInFolders,
-} from "./folders";
-import {
-  collectTagsForMany,
-  listTagsFor,
-  replaceTagsFor,
-} from "./tags";
 
 const MAX_SCENE_BYTES = 25 * 1024 * 1024; // 25 MB; embedded images live in `files`
 const MAX_THUMB_BYTES = 1 * 1024 * 1024; // 1 MB SVG ceiling
@@ -54,7 +47,10 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
 
   const folderParam = params.get("folderId");
   const recursive = params.get("recursive") === "1";
-  const tagFilters = params.getAll("tag").map((t) => t.trim().toLowerCase()).filter(Boolean);
+  const tagFilters = params
+    .getAll("tag")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
   const q = (params.get("q") || "").trim();
 
   const db = getDb(env);
@@ -101,7 +97,7 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
   const tagMap = await collectTagsForMany(
     env,
     "scene",
-    rows.map((r) => r.id)
+    rows.map((r) => r.id),
   );
 
   // AND-filter by tags (intersection).
@@ -207,7 +203,7 @@ export async function getScene(env: Env, owner: string, id: string): Promise<Res
 export async function streamSceneBody(
   env: Env,
   row: SceneRow,
-  opts: { download?: boolean } = {}
+  opts: { download?: boolean } = {},
 ): Promise<Response> {
   const obj = await env.R2.get(r2SceneKey(row.id));
   if (!obj) return errorResponse(404, "scene blob missing in R2");
@@ -227,7 +223,9 @@ export async function streamSceneBody(
 }
 
 function safeFilename(name: string): string {
-  // Strip path-unsafe characters; keep it ASCII-friendly.
+  // Strip path-unsafe characters; keep it ASCII-friendly. Stripping the ASCII
+  // control range \x00-\x1F is the explicit intent of this filter.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: see comment above
   const base = name.replace(/[\\/:*?"<>|\x00-\x1F]/g, "_").trim() || "scene";
   return base.slice(0, 80);
 }
@@ -239,7 +237,12 @@ export async function downloadScene(env: Env, owner: string, id: string): Promis
 }
 
 // ─── Update (full body) ───────────────────────────────────────────────
-export async function putScene(req: Request, env: Env, owner: string, id: string): Promise<Response> {
+export async function putScene(
+  req: Request,
+  env: Env,
+  owner: string,
+  id: string,
+): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
 
@@ -253,7 +256,7 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
       const tags = await listTagsFor(env, "scene", id);
       return jsonResponse(
         { error: "version mismatch", current: rowToMeta(row, tags) },
-        { status: 409 }
+        { status: 409 },
       );
     }
   }
@@ -313,7 +316,12 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
 }
 
 // ─── Patch (rename / move / retag) ────────────────────────────────────
-export async function patchScene(req: Request, env: Env, owner: string, id: string): Promise<Response> {
+export async function patchScene(
+  req: Request,
+  env: Env,
+  owner: string,
+  id: string,
+): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
 
@@ -377,11 +385,9 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
           ...parsed,
           appState: { ...(parsed.appState ?? {}), name: nextName },
         };
-        await env.R2.put(
-          r2SceneKey(id),
-          JSON.stringify(nextBlob),
-          { httpMetadata: { contentType: "application/json" } }
-        );
+        await env.R2.put(r2SceneKey(id), JSON.stringify(nextBlob), {
+          httpMetadata: { contentType: "application/json" },
+        });
       }
     }
   }
@@ -391,7 +397,7 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
     : await listTagsFor(env, "scene", id);
 
   return jsonResponse(
-    rowToMeta({ ...row, name: nextName, folder_id: nextFolder, updated_at: ts }, tags)
+    rowToMeta({ ...row, name: nextName, folder_id: nextFolder, updated_at: ts }, tags),
   );
 }
 
@@ -400,7 +406,7 @@ export async function putSceneTags(
   req: Request,
   env: Env,
   owner: string,
-  id: string
+  id: string,
 ): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
@@ -429,17 +435,11 @@ export async function deleteScene(env: Env, owner: string, id: string): Promise<
   // Cascade explicitly: shares + taggings (D1 doesn't enforce FKs by default).
   const db = getDb(env);
   await db.batch([
-    db
-      .delete(t.shares)
-      .where(and(eq(t.shares.target_type, "scene"), eq(t.shares.target_id, id))),
+    db.delete(t.shares).where(and(eq(t.shares.target_type, "scene"), eq(t.shares.target_id, id))),
     db
       .delete(t.taggings)
-      .where(
-        and(eq(t.taggings.target_type, "scene"), eq(t.taggings.target_id, id))
-      ),
-    db
-      .delete(t.scenes)
-      .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner))),
+      .where(and(eq(t.taggings.target_type, "scene"), eq(t.taggings.target_id, id))),
+    db.delete(t.scenes).where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner))),
   ]);
   // Best-effort R2 cleanup; swallow errors so a partial state still resolves.
   await Promise.allSettled([env.R2.delete(r2SceneKey(id)), env.R2.delete(r2ThumbKey(id))]);
@@ -447,7 +447,12 @@ export async function deleteScene(env: Env, owner: string, id: string): Promise<
 }
 
 // ─── Thumbnails ───────────────────────────────────────────────────────
-export async function putThumb(req: Request, env: Env, owner: string, id: string): Promise<Response> {
+export async function putThumb(
+  req: Request,
+  env: Env,
+  owner: string,
+  id: string,
+): Promise<Response> {
   const row = await loadRow(env, owner, id);
   if (!row) return errorResponse(404, "scene not found");
 
@@ -499,7 +504,7 @@ export async function createSceneInFolder(
   env: Env,
   owner: string,
   folderId: string,
-  name: string
+  name: string,
 ): Promise<SceneMeta> {
   const id = newId();
   const ts = now();

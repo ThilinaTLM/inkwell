@@ -17,7 +17,6 @@
 // dashboard) keeps full control of the rename/delete/share dialogs and
 // API calls. This component is purely presentational.
 
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Delete02Icon,
   Download01Icon,
@@ -30,6 +29,7 @@ import {
   Share08Icon,
   TaskDone01Icon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 import {
   ContextMenu,
@@ -38,8 +38,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { scenes } from "@/lib/api/client";
 import type { FolderMeta, SceneMeta } from "@/lib/api/client";
+import { scenes } from "@/lib/api/client";
 
 export type ItemContextMenuTarget =
   | { kind: "scene"; scene: SceneMeta }
@@ -70,12 +70,7 @@ interface ItemContextMenuProps {
   className?: string;
 }
 
-export function ItemContextMenu({
-  target,
-  actions,
-  children,
-  className,
-}: ItemContextMenuProps) {
+export function ItemContextMenu({ target, actions, children, className }: ItemContextMenuProps) {
   return (
     <ContextMenu>
       <ContextMenuTrigger className={className}>{children}</ContextMenuTrigger>
@@ -92,22 +87,14 @@ export function ItemContextMenu({
   );
 }
 
-function SceneItems({
-  scene: s,
-  actions,
-}: {
-  scene: SceneMeta;
-  actions: ItemMenuActions;
-}) {
+function SceneItems({ scene: s, actions }: { scene: SceneMeta; actions: ItemMenuActions }) {
   return (
     <>
       <ContextMenuItem onClick={() => actions.openScene(s)}>
         <HugeiconsIcon icon={TaskDone01Icon} strokeWidth={2} />
         Open
       </ContextMenuItem>
-      <ContextMenuItem
-        onClick={() => window.open(`/s/${s.id}`, "_blank", "noopener")}
-      >
+      <ContextMenuItem onClick={() => window.open(`/s/${s.id}`, "_blank", "noopener")}>
         <HugeiconsIcon icon={Link04Icon} strokeWidth={2} />
         Open in new tab
       </ContextMenuItem>
@@ -145,13 +132,7 @@ function SceneItems({
   );
 }
 
-function FolderItems({
-  folder: f,
-  actions,
-}: {
-  folder: FolderMeta;
-  actions: ItemMenuActions;
-}) {
+function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: ItemMenuActions }) {
   return (
     <>
       <ContextMenuItem onClick={() => actions.openFolder(f)}>
@@ -184,10 +165,7 @@ function FolderItems({
         Rename
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem
-        variant="destructive"
-        onClick={() => actions.deleteFolder(f)}
-      >
+      <ContextMenuItem variant="destructive" onClick={() => actions.deleteFolder(f)}>
         <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
         Delete
       </ContextMenuItem>
@@ -195,13 +173,7 @@ function FolderItems({
   );
 }
 
-function EmptyItems({
-  folderId,
-  actions,
-}: {
-  folderId: string | null;
-  actions: ItemMenuActions;
-}) {
+function EmptyItems({ folderId, actions }: { folderId: string | null; actions: ItemMenuActions }) {
   return (
     <>
       <ContextMenuItem onClick={() => actions.createSceneIn(folderId)}>

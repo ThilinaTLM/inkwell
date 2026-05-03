@@ -4,13 +4,13 @@
 // admin session (gated in worker/index.ts via `requireAdmin`).
 
 import { asc, eq, sql } from "drizzle-orm";
-import type { AdminUserRow, Env, UserRow } from "./types";
-import { rowToAdminUserPublic } from "./types";
-import { getDb, t } from "./db/client";
-import { errorResponse, jsonResponse, newId, now } from "./util";
 import { getUserByEmail } from "./auth";
+import { getDb, t } from "./db/client";
 import { hashPassword } from "./passwords";
 import { sceneKey, thumbKey } from "./scenes";
+import type { AdminUserRow, Env, UserRow } from "./types";
+import { rowToAdminUserPublic } from "./types";
+import { errorResponse, jsonResponse, newId, now } from "./util";
 
 // ─── Validation ───────────────────────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,7 +147,7 @@ export async function patchUserAdmin(
   req: Request,
   env: Env,
   selfId: string,
-  targetId: string
+  targetId: string,
 ): Promise<Response> {
   if (targetId === selfId) {
     return errorResponse(400, "cannot modify your own admin/disabled status");
@@ -165,11 +165,7 @@ export async function patchUserAdmin(
   }
 
   const db = getDb(env);
-  const target = await db
-    .select()
-    .from(t.users)
-    .where(eq(t.users.id, targetId))
-    .get();
+  const target = await db.select().from(t.users).where(eq(t.users.id, targetId)).get();
   if (!target) return errorResponse(404, "user not found");
 
   // Drizzle's `.set()` accepts a partial object; build it up from `body`
@@ -210,7 +206,7 @@ export async function patchUserAdmin(
 export async function deleteUserAdmin(
   env: Env,
   selfId: string,
-  targetId: string
+  targetId: string,
 ): Promise<Response> {
   if (targetId === selfId) {
     return errorResponse(400, "cannot delete yourself");

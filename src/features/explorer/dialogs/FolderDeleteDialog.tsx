@@ -19,11 +19,7 @@ interface FolderDeleteDialogProps {
   onDeleted?: (folder: FolderMeta) => void;
 }
 
-export function FolderDeleteDialog({
-  folder,
-  onOpenChange,
-  onDeleted,
-}: FolderDeleteDialogProps) {
+export function FolderDeleteDialog({ folder, onOpenChange, onDeleted }: FolderDeleteDialogProps) {
   const remove = useDeleteFolder();
   const destination = folder?.parentId ? "the parent folder" : "the top level";
   return (
@@ -33,9 +29,8 @@ export function FolderDeleteDialog({
       title="Delete folder?"
       description={
         <>
-          "{folder?.name}" will be removed. Its scenes and subfolders move up
-          one level (to {destination}). Active share links for this folder are
-          revoked.
+          "{folder?.name}" will be removed. Its scenes and subfolders move up one level (to{" "}
+          {destination}). Active share links for this folder are revoked.
         </>
       }
       confirmLabel="Delete"

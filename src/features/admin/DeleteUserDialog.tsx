@@ -3,7 +3,7 @@
 // is per-user (`DELETE {email}`) so muscle memory from one row can't
 // fire on another.
 
-import { ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -28,11 +28,7 @@ interface DeleteUserDialogProps {
   onDeleted?: (id: string) => void;
 }
 
-export function DeleteUserDialog({
-  target,
-  onOpenChange,
-  onDeleted,
-}: DeleteUserDialogProps) {
+export function DeleteUserDialog({ target, onOpenChange, onDeleted }: DeleteUserDialogProps) {
   const [typed, setTyped] = useState("");
   const deleteUser = useDeleteAdminUser();
   const phrase = target ? `DELETE ${target.email}` : "";
@@ -62,9 +58,8 @@ export function DeleteUserDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete user</AlertDialogTitle>
           <AlertDialogDescription>
-            This permanently deletes <strong>{target?.email}</strong>, all of
-            their scenes ({target?.sceneCount}), and any share tokens they own.
-            This cannot be undone.
+            This permanently deletes <strong>{target?.email}</strong>, all of their scenes (
+            {target?.sceneCount}), and any share tokens they own. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-1.5">
@@ -78,9 +73,7 @@ export function DeleteUserDialog({
           <Input
             id="confirm-phrase"
             value={typed}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setTyped(e.target.value)
-            }
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setTyped(e.target.value)}
             autoFocus
             disabled={busy}
           />

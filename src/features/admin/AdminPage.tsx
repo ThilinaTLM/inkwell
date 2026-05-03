@@ -1,21 +1,13 @@
 // Admin route shell. Two tabs (Users + Invites) handed off to their own
 // panels; auth context comes from `useMe`.
 
+import { MailAdd02Icon, UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  MailAdd02Icon,
-  UserMultipleIcon,
-} from "@hugeicons/core-free-icons";
 
 import { PaperSurface } from "@/components/PaperSurface";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Topbar } from "@/components/Topbar";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMe } from "@/features/auth/hooks";
 
 import { InvitesPanel } from "./InvitesPanel";

@@ -6,11 +6,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
-
-import { shares } from "@/lib/api/client";
-import { keys } from "@/lib/api/query-keys";
 import { PaperSurface } from "@/components/PaperSurface";
 import { EmptyDeskNote } from "@/components/sketch";
+import { shares } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 
 import SharedEditorPage from "./SharedEditorPage";
@@ -44,7 +43,8 @@ export default function SharedTokenLandingPage() {
     );
   }
 
-  const data = peek.data!;
+  const data = peek.data;
+  if (!data) return null;
   if (data.type === "folder") {
     return <SharedFolderPage preloaded={data.payload} />;
   }

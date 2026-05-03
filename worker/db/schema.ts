@@ -21,6 +21,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  type AnySQLiteColumn,
   check,
   index,
   integer,
@@ -28,7 +29,6 @@ import {
   sqliteTable,
   text,
   uniqueIndex,
-  type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 
 // ─── users ────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ export const users = sqliteTable(
     uniqueIndex("users_email").on(t.email),
     check("users_is_admin_bool", sql`${t.is_admin} IN (0, 1)`),
     check("users_disabled_bool", sql`${t.disabled} IN (0, 1)`),
-  ]
+  ],
 );
 
 // ─── invites ──────────────────────────────────────────────────────────
@@ -72,10 +72,7 @@ export const invites = sqliteTable(
     used_at: integer("used_at"),
     revoked_at: integer("revoked_at"),
   },
-  (t) => [
-    index("invites_created_by").on(t.created_by),
-    index("invites_unused").on(t.used_at),
-  ]
+  (t) => [index("invites_created_by").on(t.created_by), index("invites_unused").on(t.used_at)],
 );
 
 // ─── folders ──────────────────────────────────────────────────────────
@@ -101,11 +98,8 @@ export const folders = sqliteTable(
     // Hot path: list children of a folder, list roots, sort by name.
     index("folders_owner_parent").on(t.owner, t.parent_id, t.name),
     check("folders_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
-    check(
-      "folders_no_self_parent",
-      sql`${t.parent_id} IS NULL OR ${t.parent_id} <> ${t.id}`
-    ),
-  ]
+    check("folders_no_self_parent", sql`${t.parent_id} IS NULL OR ${t.parent_id} <> ${t.id}`),
+  ],
 );
 
 // ─── scenes ───────────────────────────────────────────────────────────
@@ -125,26 +119,20 @@ export const scenes = sqliteTable(
     name: text("name").notNull().default("Untitled"),
     version: integer("version").notNull().default(1),
     size_bytes: integer("size_bytes").notNull().default(0),
-    has_thumb: integer("has_thumb", { mode: "boolean" })
-      .notNull()
-      .default(false),
+    has_thumb: integer("has_thumb", { mode: "boolean" }).notNull().default(false),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
   },
   (t) => [
     // Hot path: dashboard list within a folder.
-    index("scenes_owner_folder_updated").on(
-      t.owner,
-      t.folder_id,
-      sql`${t.updated_at} DESC`
-    ),
+    index("scenes_owner_folder_updated").on(t.owner, t.folder_id, sql`${t.updated_at} DESC`),
     // "All my scenes by recency" (the 'All scenes' view).
     index("scenes_owner_updated").on(t.owner, sql`${t.updated_at} DESC`),
     // LIKE-friendly name search.
     index("scenes_owner_name").on(t.owner, t.name),
     check("scenes_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
     check("scenes_has_thumb_bool", sql`${t.has_thumb} IN (0, 1)`),
-  ]
+  ],
 );
 
 // ─── tags ─────────────────────────────────────────────────────────────
@@ -162,7 +150,7 @@ export const tags = sqliteTable(
   (t) => [
     uniqueIndex("tags_owner_name").on(t.owner, t.name),
     check("tags_name_len", sql`length(${t.name}) BETWEEN 1 AND 50`),
-  ]
+  ],
 );
 
 // ─── taggings ─────────────────────────────────────────────────────────
@@ -185,7 +173,7 @@ export const taggings = sqliteTable(
     index("taggings_target").on(t.target_type, t.target_id),
     // "All tags for this owner" — sidebar list with counts.
     index("taggings_owner_tag").on(t.owner, t.tag_id),
-  ]
+  ],
 );
 
 // ─── shares ───────────────────────────────────────────────────────────
@@ -200,9 +188,7 @@ export const shares = sqliteTable(
     target_type: text("target_type", { enum: ["scene", "folder"] }).notNull(),
     target_id: text("target_id").notNull(),
     permission: text("permission", { enum: ["read", "write"] }).notNull(),
-    allow_download: integer("allow_download", { mode: "boolean" })
-      .notNull()
-      .default(true),
+    allow_download: integer("allow_download", { mode: "boolean" }).notNull().default(true),
     label: text("label"),
     created_at: integer("created_at").notNull(),
     expires_at: integer("expires_at"),
@@ -213,5 +199,5 @@ export const shares = sqliteTable(
     index("shares_owner_created").on(t.owner, sql`${t.created_at} DESC`),
     index("shares_target").on(t.target_type, t.target_id),
     check("shares_allow_download_bool", sql`${t.allow_download} IN (0, 1)`),
-  ]
+  ],
 );

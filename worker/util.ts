@@ -33,7 +33,7 @@ export function newToken(): string {
 }
 
 export function base64url(bytes: Uint8Array): string {
-  let s = btoa(String.fromCharCode(...bytes));
+  const s = btoa(String.fromCharCode(...bytes));
   return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 

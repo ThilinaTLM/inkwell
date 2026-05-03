@@ -4,17 +4,23 @@
 // small and the bundle stays leaner without one. Anything not matching /api/*
 // is handed off to the static assets binding (the built React SPA).
 
-import type { Env } from "./types";
-import { errorResponse, jsonResponse } from "./util";
 import {
   changeOwnPassword,
   clearSessionCookie,
   createSessionCookie,
   getUserById,
   loginWithPassword,
-  validateSession,
   type Session,
+  validateSession,
 } from "./auth";
+import { createFolder, deleteFolder, listFolders, patchFolder } from "./folders";
+import {
+  acceptInvite,
+  createInviteAdmin,
+  listInvitesAdmin,
+  peekInvite,
+  revokeInviteAdmin,
+} from "./invites";
 import {
   createScene,
   deleteScene,
@@ -27,13 +33,6 @@ import {
   putSceneTags,
   putThumb,
 } from "./scenes";
-import {
-  createFolder,
-  deleteFolder,
-  listFolders,
-  patchFolder,
-} from "./folders";
-import { deleteTag, listTags, renameTag } from "./tags";
 import {
   createFolderShare,
   createSceneShare,
@@ -55,18 +54,10 @@ import {
   revokeSceneShare,
   revokeShareGeneric,
 } from "./share";
-import {
-  deleteUserAdmin,
-  listUsersAdmin,
-  patchUserAdmin,
-} from "./users";
-import {
-  acceptInvite,
-  createInviteAdmin,
-  listInvitesAdmin,
-  peekInvite,
-  revokeInviteAdmin,
-} from "./invites";
+import { deleteTag, listTags, renameTag } from "./tags";
+import type { Env } from "./types";
+import { deleteUserAdmin, listUsersAdmin, patchUserAdmin } from "./users";
+import { errorResponse, jsonResponse } from "./util";
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -97,7 +88,7 @@ async function handleApi(
   env: Env,
   ctx: ExecutionContext,
   url: URL,
-  path: string
+  path: string,
 ): Promise<Response> {
   // ─── Public: auth ─────────────────────────────────────────────────
   if (path === "/api/auth/login" && req.method === "POST") {
@@ -128,7 +119,7 @@ async function handleApi(
   }
   // /api/share/:token/scenes/:sceneId(/thumb|/download)
   const shareScene = path.match(
-    new RegExp(`^/api/share/(${TOKEN_RE})/scenes/(${ID_RE})(/thumb|/download)?$`)
+    new RegExp(`^/api/share/(${TOKEN_RE})/scenes/(${ID_RE})(/thumb|/download)?$`),
   );
   if (shareScene) {
     const tk = shareScene[1];
@@ -279,9 +270,7 @@ async function handleApi(
   }
 
   // /api/scenes/:id/shares/:token  (revoke)
-  const shareRevokeMatch = path.match(
-    new RegExp(`^/api/scenes/(${ID_RE})/shares/(${TOKEN_RE})$`)
-  );
+  const shareRevokeMatch = path.match(new RegExp(`^/api/scenes/(${ID_RE})/shares/(${TOKEN_RE})$`));
   if (shareRevokeMatch && req.method === "DELETE") {
     return revokeSceneShare(env, userId, shareRevokeMatch[1], shareRevokeMatch[2]);
   }
@@ -328,7 +317,7 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
         "content-type": "application/json; charset=utf-8",
         "set-cookie": cookie,
       },
-    }
+    },
   );
 }
 
@@ -359,10 +348,11 @@ async function handleChangePassword(req: Request, env: Env, session: Session): P
     env,
     session.userId,
     body.currentPassword || "",
-    body.newPassword || ""
+    body.newPassword || "",
   );
   if (result.ok) return jsonResponse({ ok: true });
-  if (result.reason === "weak") return errorResponse(400, "new password must be at least 8 characters");
+  if (result.reason === "weak")
+    return errorResponse(400, "new password must be at least 8 characters");
   if (result.reason === "invalid_current") return errorResponse(401, "current password incorrect");
   return errorResponse(500, "could not change password");
 }
@@ -372,7 +362,7 @@ async function handleAdmin(
   env: Env,
   url: URL,
   path: string,
-  session: Session
+  session: Session,
 ): Promise<Response> {
   if (path === "/api/admin/users" && req.method === "GET") {
     return listUsersAdmin(env);
