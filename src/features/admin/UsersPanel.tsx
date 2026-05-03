@@ -14,9 +14,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ElevatedCard } from "@/components/ElevatedCard";
+import { SectionHeading } from "@/components/SectionHeading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,21 +63,19 @@ export function UsersPanel({ selfId }: { selfId: string }) {
   const busyId = updateUser.isPending ? updateUser.variables?.id : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between font-heading text-sm font-medium">
-          <span>Users</span>
-          {users && <Badge variant="secondary">{users.length}</Badge>}
-        </CardTitle>
-        <CardDescription>Promote, disable, or remove members of your workspace.</CardDescription>
-      </CardHeader>
-      <CardContent className="px-0">
+    <ElevatedCard>
+      <SectionHeading label="Users" count={users?.length} />
+      <div className="px-6 pb-6">
+        <p className="mb-4 text-sm text-muted-foreground">
+          Promote, disable, or remove members of your workspace.
+        </p>
+
         {usersQuery.isPending ? (
-          <div className="px-4 pb-2">
-            <TableSkeleton rows={4} cols={6} />
-          </div>
+          <TableSkeleton rows={4} cols={6} />
         ) : !users || users.length === 0 ? (
-          <div className="px-4 pb-4 text-center text-xs text-muted-foreground">No users yet.</div>
+          <div className="text-center text-sm text-muted-foreground">
+            No users yet.
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -201,12 +200,12 @@ export function UsersPanel({ selfId }: { selfId: string }) {
             </TableBody>
           </Table>
         )}
-      </CardContent>
+      </div>
 
       <DeleteUserDialog
         target={confirmDelete}
         onOpenChange={(open) => !open && setConfirmDelete(null)}
       />
-    </Card>
+    </ElevatedCard>
   );
 }

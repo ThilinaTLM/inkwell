@@ -1,69 +1,45 @@
-// ThemeToggle — Topbar-resident theme switcher.
+// ThemeToggle — Topbar-resident theme cycler.
 //
-// Three-state dropdown (Light / Dark / System) matching shadcn's
-// canonical theme-toggle pattern. The trigger renders a sun or moon
-// glyph based on the *resolved* theme so users always see what's
-// currently applied; the dropdown itself shows a checkmark next to
-// the active *mode* (which may be "system" even when resolved is
-// dark/light).
-//
-// Visual style mirrors the admin "Users" button in ExplorerHeader
-// so the Topbar reads as one consistent action cluster.
+// Click to cycle: light → dark → system → light.
+// Icon reflects current *mode* so users see what they'll switch away from:
+//   light  → sun
+//   dark   → moon
+//   system → laptop
 
 import { LaptopIcon, Moon02Icon, Sun03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { type ThemeMode, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
+const MODE_ICON: Record<ThemeMode, typeof Sun03Icon> = {
+  light: Sun03Icon,
+  dark: Moon02Icon,
+  system: LaptopIcon,
+};
+
+const MODE_LABEL: Record<ThemeMode, string> = {
+  light: "Light",
+  dark: "Dark",
+  system: "System",
+};
+
 export function ThemeToggle({ className }: { className?: string }) {
-  const { mode, resolved, setMode } = useTheme();
+  const { mode, cycle } = useTheme();
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            aria-label="Toggle theme"
-            title="Theme"
-            className={cn(
-              "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              className,
-            )}
-          />
-        }
-      >
-        <HugeiconsIcon
-          icon={resolved === "dark" ? Moon02Icon : Sun03Icon}
-          strokeWidth={1.7}
-          className="size-4"
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
-        <DropdownMenuRadioGroup value={mode} onValueChange={(v) => setMode(v as ThemeMode)}>
-          <DropdownMenuRadioItem value="light">
-            <HugeiconsIcon icon={Sun03Icon} strokeWidth={1.8} className="size-3.5" />
-            Light
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <HugeiconsIcon icon={Moon02Icon} strokeWidth={1.8} className="size-3.5" />
-            Dark
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <HugeiconsIcon icon={LaptopIcon} strokeWidth={1.8} className="size-3.5" />
-            System
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type="button"
+      aria-label={`Theme: ${MODE_LABEL[mode]}. Click to switch.`}
+      title={MODE_LABEL[mode]}
+      onClick={cycle}
+      className={cn(
+        "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        className,
+      )}
+    >
+      <HugeiconsIcon icon={MODE_ICON[mode]} strokeWidth={1.7} className="size-4" />
+    </button>
   );
 }

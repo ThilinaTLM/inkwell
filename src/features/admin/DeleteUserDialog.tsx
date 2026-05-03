@@ -62,7 +62,7 @@ export function DeleteUserDialog({ target, onOpenChange, onDeleted }: DeleteUser
             {target?.sceneCount}), and any share tokens they own. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="confirm-phrase">
             Type{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">

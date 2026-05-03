@@ -1,25 +1,27 @@
 // SceneCard — file-explorer tile for a scene.
 //
-// Visual: a sheet of paper with an opaque dog-ear in the top-right
-// corner. The card reads as paper, not a flat panel:
+// Visual: a sheet of paper with the top-right corner *torn off*. The
+// card reads as paper, not a flat panel:
 //
 //   - Sheet body  → `--color-card` with a soft drop shadow lifting it
-//                   off the desk, outlined with `--color-card-stroke`
+//                   off the desk, outlined with `--color-card-stroke`.
+//                   The silhouette is a rectangle minus a jagged
+//                   torn-off corner (see `tornCorner.ts`).
 //   - Paper grain → `.bg-paper-grain` overlay (theme-aware multiply /
 //                   screen blend) gives the surface its "tooth". The
 //                   same utility powers `<PaperSurface>` so cards and
 //                   the desk share visual vocabulary.
-//   - Dog-ear     → a card-tinted triangular flap (color-mixed toward
-//                   `--color-foreground`) so it reads as the same
-//                   paper, just shaded. A small offset shadow behind
-//                   the flap and a crease stroke sell the fold.
+//   - Paper dots  → `.bg-paper-dots` adds discrete fibre specks on top
+//                   of the grain for a recycled / kraft-paper feel.
 //   - Back stack  → two extra sheets that fan out from behind on hover,
-//                   suggesting "this scene has more inside".
+//                   each torn with the SAME tear polygon as the front
+//                   so the stack reads as "a notepad torn through"
+//                   rather than three independently-torn pages.
 //
-// Geometry: the front sheet is a rounded rectangle covering the full
-// 200×150 viewBox. The thumbnail fills the same rectangle (clipped to
-// matching rounded corners). The dog-ear is the LAST layer painted, so
-// the thumbnail is hidden under it without any path-cutting trickery.
+// Geometry: a single torn-corner polygon (deterministic per scene id)
+// drives both the rough.js silhouette and the `clip-path` of the HTML
+// overlays. The thumbnail therefore stops cleanly at the torn edge —
+// nothing peeks past the silhouette.
 //
 // Interaction model (parity with `FolderCard`):
 //   - single click  → opens the scene (`onOpen`)
@@ -36,18 +38,24 @@
 
 import { Image01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { Ref } from "react";
+import { type Ref, useMemo } from "react";
 
+import { useRoughPath } from "@/components/rough";
 import { cn } from "@/lib/utils";
 
 import { TapeChip } from "./TapeChip";
 import { tiltFromId } from "./tilt";
+import { buildTornCorner } from "./tornCorner";
 
-// Dog-ear size in viewBox px (12% of 200 wide).
-const FOLD = 24;
-// Sheet path — rounded rectangle, full viewBox, 3px corner radius.
-const SHEET_PATH =
-  "M 0 3 Q 0 0 3 0 L 197 0 Q 200 0 200 3 L 200 147 Q 200 150 197 150 L 3 150 Q 0 150 0 147 Z";
+// Front-sheet rendering size in viewBox px. Used by `useRoughPath` to
+// generate per-card wobbly edges; the resulting <path>s are rendered in
+// this coordinate space and stretched to fit via `preserveAspectRatio`.
+const SHEET_W = 200;
+const SHEET_H = 150;
+// Back-stack inset (in viewBox px) on each side. The two sheets behind
+// the front sit inset by this much so at rest they hide behind it; on
+// hover they fan out via the `.ink-scene__back--*` CSS rules.
+const BACK_INSET = 8;
 
 export interface SceneCardProps {
   id: string;
@@ -106,7 +114,7 @@ export function SceneCard({
           "focus-visible:outline-none",
         )}
       >
-        <SceneGlyph hasThumb={hasThumb} thumbUrl={thumbUrl} />
+        <SceneGlyph id={id} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
         <div className="w-full min-w-0 text-center">
           <div className="truncate font-heading text-sm text-foreground" title={name}>
@@ -135,72 +143,118 @@ export function SceneCard({
 }
 
 /**
- * Paper-sheet silhouette with an opaque dog-ear corner overlay, plus
- * two stacked sheets behind that fan out on hover.
+ * Paper-sheet silhouette with a torn top-right corner, plus two
+ * stacked sheets behind that fan out on hover. The torn polygon is
+ * shared by all three sheets so they look like a notepad torn
+ * through (not three pages with independent rips).
  *
  * Layer order (back → front):
- *   1. Back-stack sheets  (SVG, hidden at rest, inset 8px from front)
- *   2. Front sheet fill   (SVG, rounded rect, with CSS drop-shadow
- *                          lifting it off the desk)
- *   3. Thumbnail          (HTML <img>, rounded-rect clip)
- *   4. Paper grain        (div, .bg-paper-grain, multiply/screen blend)
- *   5. Front sheet stroke (SVG, drawn over the thumbnail)
- *   6. Dog-ear overlay    (SVG: shadow + tinted flap + crease)
+ *   1. Back-stack sheets  (SVG <path> using torn shape, inset 8px,
+ *                          hidden at rest, fanned on hover)
+ *   2. Front sheet fill+outline (rough.js around the torn polygon,
+ *                                 CSS drop-shadow lifts it off the desk)
+ *   3. Thumbnail          (HTML <img>, clip-path = torn polygon)
+ *   4. Paper grain        (div, .bg-paper-grain, multiply/screen blend,
+ *                          clip-path = torn polygon)
+ *   5. Paper-fibre dots   (div, .bg-paper-dots, multiply/screen blend,
+ *                          clip-path = torn polygon)
  */
-function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: string }) {
-  // Card-tinted flap colour: the page hue mixed 22% toward the
-  // foreground so the flap reads as the *same* paper, just shaded.
-  // Symmetric across themes — in light it goes warm-gray, in dark it
-  // lifts slightly toward cream, both feeling like a folded paper edge
-  // rather than a separate-coloured sticker.
-  const foldFill = "color-mix(in srgb, var(--color-card) 78%, var(--color-foreground))";
+function SceneGlyph({
+  id,
+  hasThumb,
+  thumbUrl,
+}: {
+  id: string;
+  hasThumb: boolean;
+  thumbUrl: string;
+}) {
+  // Torn-corner geometry. Computed once per scene id; both `pathD`
+  // (viewBox units, fed to rough.js + back-stack <path>s) and
+  // `clipPolygon` (CSS percentages, applied to HTML overlays) are
+  // derived from the same vertex list so the silhouette and clip
+  // always agree.
+  const torn = useMemo(
+    () =>
+      buildTornCorner({
+        width: SHEET_W,
+        height: SHEET_H,
+        seed: `scene-tear:${id}`,
+      }),
+    [id],
+  );
+
+  // The back-stack sheets sit inset by `BACK_INSET` on every side. We
+  // reuse the same torn vertex list, but scaled to fit the inset box
+  // and translated by (BACK_INSET, BACK_INSET). Doing this via an SVG
+  // `transform` on the <path> would also scale the visible stroke
+  // weight, so we compensate by dividing the stroke width by the
+  // smaller scale factor.
+  const backSx = (SHEET_W - 2 * BACK_INSET) / SHEET_W;
+  const backSy = (SHEET_H - 2 * BACK_INSET) / SHEET_H;
+  const backStroke = 1.2 / Math.min(backSx, backSy);
+
+  // Hand-drawn front-sheet paths from rough.js, drawn around the torn
+  // polygon. Low roughness keeps the wobble subtle (~1 viewBox-px) so
+  // the tear stays readable as a clean shape with paper-fibre fuzz,
+  // not a chaotic scribble.
+  const paperPaths = useRoughPath({
+    width: SHEET_W,
+    height: SHEET_H,
+    shape: "custom",
+    customPathD: torn.pathD,
+    seed: `scene-paper:${id}`,
+    stroke: "var(--color-card-stroke)",
+    strokeWidth: 1.3,
+    fill: "var(--color-card)",
+    fillStyle: "solid",
+    roughness: 0.6,
+    bowing: 0.4,
+  });
 
   return (
     <div className="relative w-full" style={{ aspectRatio: "4 / 3" }} aria-hidden>
-      {/* 1. Back stack — two sheets that fan out on hover. Inset 8px on
-            every side from the 200×150 viewBox so at rest they hide
-            *behind* the front sheet, and on hover peek out from behind
-            (not beyond) the front silhouette. */}
+      {/* 1. Back stack — two sheets that fan out on hover. Inset on
+            every side from the front sheet so at rest they hide
+            *behind* the front silhouette, and on hover peek out from
+            behind (not beyond) the front. They share the front's
+            torn polygon so the tear cascades through the stack. */}
       <svg
-        viewBox="0 0 200 150"
+        viewBox={`0 0 ${SHEET_W} ${SHEET_H}`}
         preserveAspectRatio="none"
         className="absolute inset-0 h-full w-full overflow-visible"
         role="presentation"
       >
         <title>Scene back stack</title>
-        <rect
-          className="ink-scene__back ink-scene__back--l"
-          x="8"
-          y="8"
-          width="184"
-          height="134"
-          rx="3"
-          fill="var(--color-card)"
-          stroke="var(--color-card-stroke)"
-          strokeOpacity="0.55"
-          strokeWidth="1.2"
-        />
-        <rect
-          className="ink-scene__back ink-scene__back--r"
-          x="8"
-          y="8"
-          width="184"
-          height="134"
-          rx="3"
-          fill="var(--color-card)"
-          stroke="var(--color-card-stroke)"
-          strokeOpacity="0.55"
-          strokeWidth="1.2"
-        />
+        <g transform={`translate(${BACK_INSET} ${BACK_INSET}) scale(${backSx} ${backSy})`}>
+          <path
+            className="ink-scene__back ink-scene__back--l"
+            d={torn.pathD}
+            fill="var(--color-card)"
+            stroke="var(--color-card-stroke)"
+            strokeOpacity="0.55"
+            strokeWidth={backStroke}
+            strokeLinejoin="round"
+          />
+          <path
+            className="ink-scene__back ink-scene__back--r"
+            d={torn.pathD}
+            fill="var(--color-card)"
+            stroke="var(--color-card-stroke)"
+            strokeOpacity="0.55"
+            strokeWidth={backStroke}
+            strokeLinejoin="round"
+          />
+        </g>
       </svg>
 
-      {/* 2. Front sheet fill — a rounded rectangle with a soft drop
-            shadow so the page lifts off the desk. Two stacked shadows
-            (a tight contact shadow + a soft ambient one) read in both
-            light and dark themes. Drawn under the thumbnail so the
-            page is opaque even with no image. */}
+      {/* 2. Front sheet — hand-drawn fill + outline from rough.js,
+            drawn around the torn polygon. CSS drop-shadow lifts it
+            off the desk (a tight contact shadow + a soft ambient one
+            read in both light and dark themes). The drop-shadow
+            filter follows the actual rendered alpha, so the tear
+            casts a tear-shaped shadow — not a clean rectangle. */}
       <svg
-        viewBox="0 0 200 150"
+        viewBox={`0 0 ${SHEET_W} ${SHEET_H}`}
         preserveAspectRatio="none"
         className="absolute inset-0 h-full w-full overflow-visible"
         style={{
@@ -210,15 +264,25 @@ function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: strin
         role="presentation"
       >
         <title>Scene paper</title>
-        <path d={SHEET_PATH} fill="var(--color-card)" />
+        {paperPaths.map((p) => (
+          <path
+            key={`${p.stroke ?? ""}|${p.fill ?? ""}|${p.d}`}
+            d={p.d}
+            stroke={p.stroke}
+            strokeWidth={p.strokeWidth}
+            fill={p.fill ?? "none"}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
       </svg>
 
-      {/* 3. Thumbnail filling the full rectangle. The dog-ear in step 6
-            paints over its top-right corner. Rounded-rect clip keeps
-            the thumbnail edges aligned with the sheet outline. */}
+      {/* 3. Thumbnail clipped to the torn silhouette. No inset — we
+            *want* the image to bleed all the way to the torn edge so
+            the tear doesn't reveal a clean rectangle hidden under it. */}
       <div
         className="absolute inset-0 overflow-hidden"
-        style={{ clipPath: "inset(0 round 3px)" }}
+        style={{ clipPath: torn.clipPolygon }}
       >
         {hasThumb ? (
           <img
@@ -235,68 +299,21 @@ function SceneGlyph({ hasThumb, thumbUrl }: { hasThumb: boolean; thumbUrl: strin
         )}
       </div>
 
-      {/* 4. Paper grain — reuses the same SVG-noise utility powering
-            <PaperSurface>. Sits between the thumbnail and the outline
-            so the texture lays gently over both the empty page area
-            and the strokes inside the thumbnail. Mix-blend-mode in the
-            utility flips multiply/screen per theme so it darkens light
-            paper and lightens dark paper. */}
+      {/* 4. Paper grain — fine tooth, reuses the utility from
+            <PaperSurface>. Mix-blend-mode in the class flips per theme. */}
       <div
         aria-hidden
         className="bg-paper-grain pointer-events-none absolute inset-0"
-        style={{ clipPath: "inset(0 round 3px)" }}
+        style={{ clipPath: torn.clipPolygon }}
       />
 
-      {/* 5. Sheet outline — drawn over the grain so the rounded-rect
-            edge stays crisp regardless of thumbnail content. */}
-      <svg
-        viewBox="0 0 200 150"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-        role="presentation"
-      >
-        <title>Scene outline</title>
-        <path
-          d={SHEET_PATH}
-          fill="none"
-          stroke="var(--color-card-stroke)"
-          strokeWidth="1.4"
-          strokeLinejoin="round"
-        />
-      </svg>
-
-      {/* 6. Dog-ear overlay — painted last so it hides the thumbnail
-            in the corner. Three sub-layers sell the fold:
-              (a) shadow triangle: same flap shape, offset down-left so
-                  a thin dark sliver leaks out at the crease edge,
-                  reading as the lift cast by the corner;
-              (b) flap: card-tinted (foldFill) so it's the same paper
-                  in different light, not a coloured sticker;
-              (c) crease stroke: the hypotenuse, in card-stroke. */}
-      <svg
-        viewBox="0 0 200 150"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-        role="presentation"
-      >
-        <title>Dog-ear</title>
-        <path
-          d={`M ${200 - FOLD - 1.5} 1.5 L 200 1.5 L 200 ${FOLD + 1.5} Z`}
-          fill="rgba(0, 0, 0, 0.22)"
-        />
-        <path
-          d={`M ${200 - FOLD} 0 L 200 0 L 200 ${FOLD} Z`}
-          fill={foldFill}
-        />
-        <path
-          d={`M ${200 - FOLD} 0 L 200 ${FOLD}`}
-          fill="none"
-          stroke="var(--color-card-stroke)"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          strokeOpacity="0.7"
-        />
-      </svg>
+      {/* 5. Paper-fibre dots — sparse, larger specks that read as
+            recycled / kraft paper inclusions. Stacked on top of grain. */}
+      <div
+        aria-hidden
+        className="bg-paper-dots pointer-events-none absolute inset-0"
+        style={{ clipPath: torn.clipPolygon }}
+      />
     </div>
   );
 }

@@ -12,6 +12,10 @@
 //   folder-tab   — manila-folder silhouette: notched tab top-left + body
 //   paper-sheet  — rectangle with the top-right corner cut diagonally
 //                  (paper with a folded corner)
+//   custom       — caller supplies an explicit `customPathD` SVG `d`
+//                  string. Used by SceneCard for its torn-corner
+//                  silhouette, where the geometry is computed outside
+//                  this hook (see `tornCorner.ts`).
 //
 // `seed` is a string (typically an entity id) hashed to a stable 32-bit int
 // so the wobble of a given folder/scene never reshuffles between renders.
@@ -22,7 +26,7 @@ import type { RoughGenerator } from "roughjs/bin/generator";
 // @ts-expect-error — roughjs ships ESM but no .d.ts for the bundled path
 import rough from "roughjs/bundled/rough.esm.js";
 
-export type RoughShape = "rect" | "rounded" | "card" | "folder-tab" | "paper-sheet";
+export type RoughShape = "rect" | "rounded" | "card" | "folder-tab" | "paper-sheet" | "custom";
 
 export interface RoughPathSpec {
   width: number;
@@ -39,6 +43,13 @@ export interface RoughPathSpec {
   tabSlope?: number;
   /** `paper-sheet`: corner-fold size in pixels. Default 14. */
   cornerFold?: number;
+  /**
+   * `custom`: explicit SVG path `d` string. Required when
+   * `shape === "custom"`; ignored otherwise. Coordinates are in the
+   * same `width × height` viewBox as the other shapes, so callers
+   * can mix custom silhouettes with the built-in ones.
+   */
+  customPathD?: string;
   /** Stroke color. */
   stroke: string;
   /** Stroke width in pixels. Default 1.6. */
@@ -75,6 +86,7 @@ interface BuildPathDArgs {
   tabWidth?: number;
   tabHeight?: number;
   tabSlope?: number;
+  customPathD?: string;
 }
 
 function buildPathD(args: BuildPathDArgs): string {
@@ -104,6 +116,12 @@ function buildPathD(args: BuildPathDArgs): string {
   if (shape === "paper-sheet") {
     const c = Math.max(0, Math.min(args.cornerFold ?? 14, w / 2, h / 2));
     return [`M0,0`, `L${w - c},0`, `L${w},${c}`, `L${w},${h}`, `L0,${h}`, `Z`].join(" ");
+  }
+
+  if (shape === "custom") {
+    // Caller is responsible for closing the path. Empty string is a
+    // valid no-op (rough.js will produce no drawables).
+    return args.customPathD ?? "";
   }
 
   // folder-tab
@@ -143,6 +161,7 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
     tabHeight,
     tabSlope,
     cornerFold,
+    customPathD,
     stroke,
     strokeWidth,
     fill,
@@ -175,6 +194,7 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
       tabWidth,
       tabHeight,
       tabSlope,
+      customPathD,
     });
     const drawable = generator().path(d, opts);
     return generator().toPaths(drawable);
@@ -188,6 +208,7 @@ export function useRoughPath(spec: RoughPathSpec): PathInfo[] {
     tabHeight,
     tabSlope,
     cornerFold,
+    customPathD,
     stroke,
     strokeWidth,
     fill,

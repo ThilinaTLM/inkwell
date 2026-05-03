@@ -22,15 +22,15 @@ export default function AdminPage() {
     <PaperSurface variant="page" className="flex flex-col">
       <Topbar user={self} actions={<ThemeToggle />} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-        <header className="mb-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+        <header className="mb-8">
           <h1 className="font-heading text-3xl text-foreground">Admin</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage who can sign in and how they get there.
           </p>
         </header>
 
-        <Tabs defaultValue="users" className="gap-4">
+        <Tabs defaultValue="users" className="gap-6">
           <TabsList>
             <TabsTrigger value="users" className="gap-1.5">
               <HugeiconsIcon icon={UserMultipleIcon} strokeWidth={2} />

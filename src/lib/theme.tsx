@@ -34,6 +34,8 @@ interface ThemeContextValue {
   setMode: (m: ThemeMode) => void;
   /** Flip between light and dark, materializing an explicit choice. */
   toggle: () => void;
+  /** Cycle light → dark → system → light. */
+  cycle: () => void;
 }
 
 const STORAGE_KEY = "inkwell:theme";
@@ -104,9 +106,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setModeState(resolved === "dark" ? "light" : "dark");
   }, [resolved]);
 
+  const cycle = useCallback(() => {
+    const next: Record<ThemeMode, ThemeMode> = {
+      light: "dark",
+      dark: "system",
+      system: "light",
+    };
+    setModeState(next[mode]);
+  }, [mode]);
+
   const value = useMemo<ThemeContextValue>(
-    () => ({ mode, resolved, setMode, toggle }),
-    [mode, resolved, setMode, toggle],
+    () => ({ mode, resolved, setMode, toggle, cycle }),
+    [mode, resolved, setMode, toggle, cycle],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

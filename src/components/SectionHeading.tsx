@@ -1,5 +1,5 @@
-// SectionHeading — captioned divider used to separate sections in the
-// explorer body (e.g. "Folders" / "Scenes" in Browse).
+// SectionHeading — captioned divider used to separate sections across
+// the app (explorer, admin, account, etc.).
 //
 // Renders a small uppercase label, an optional count, and a hairline
 // rule that stretches to the right edge of the row.

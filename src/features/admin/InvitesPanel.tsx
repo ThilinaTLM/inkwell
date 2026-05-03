@@ -14,9 +14,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
+import { ElevatedCard } from "@/components/ElevatedCard";
+import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,18 +105,16 @@ export function InvitesPanel() {
   const busy = createInvite.isPending || revokeInvite.isPending;
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-heading text-sm font-medium">
-            <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
-            Generate invite link
-          </CardTitle>
-          <CardDescription>Single-use links new members exchange for an account.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
+      <ElevatedCard>
+        <SectionHeading label="Generate invite link" />
+        <div className="px-6 pb-6">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Single-use links new members exchange for an account.
+          </p>
+
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="expiry">Expires in</Label>
               <Select
                 value={expiryValue}
@@ -146,7 +144,7 @@ export function InvitesPanel() {
           </div>
 
           {latest && (
-            <div className="flex flex-col gap-1.5">
+            <div className="mt-4 flex flex-col gap-2">
               <Label htmlFor="invite-url">Latest invite</Label>
               <div className="flex gap-1.5">
                 <Input
@@ -167,24 +165,20 @@ export function InvitesPanel() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </ElevatedCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between font-heading text-sm font-medium">
-            <span>Invites</span>
-            {sorted && <Badge variant="secondary">{sorted.length}</Badge>}
-          </CardTitle>
-          <CardDescription>All invites issued from this workspace.</CardDescription>
-        </CardHeader>
-        <CardContent className="px-0">
+      <ElevatedCard>
+        <SectionHeading label="Invites" count={sorted?.length} />
+        <div className="px-6 pb-6">
+          <p className="mb-4 text-sm text-muted-foreground">
+            All invites issued from this workspace.
+          </p>
+
           {invitesQuery.isPending ? (
-            <div className="px-4 pb-2">
-              <TableSkeleton rows={3} cols={5} />
-            </div>
+            <TableSkeleton rows={3} cols={5} />
           ) : !sorted || sorted.length === 0 ? (
-            <div className="px-4 pb-4 text-center text-xs text-muted-foreground">
+            <div className="text-center text-sm text-muted-foreground">
               No invites yet.
             </div>
           ) : (
@@ -254,8 +248,8 @@ export function InvitesPanel() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </ElevatedCard>
     </div>
   );
 }

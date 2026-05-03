@@ -10,6 +10,5 @@ export { ExplorerHeader } from "./ExplorerHeader";
 export { ExplorerPageHeader } from "./ExplorerPageHeader";
 export type { ItemContextMenuTarget, ItemMenuActions } from "./ItemContextMenu";
 export { ItemContextMenu } from "./ItemContextMenu";
-export { SectionHeading } from "./SectionHeading";
 export { useExplorerHotkeys } from "./useExplorerHotkeys";
 export { BrowseView } from "./views/BrowseView";

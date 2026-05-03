@@ -26,7 +26,7 @@ import { relTime } from "@/lib/format";
 import { Breadcrumb } from "../Breadcrumb";
 import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
-import { SectionHeading } from "../SectionHeading";
+import { SectionHeading } from "@/components/SectionHeading";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
