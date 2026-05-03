@@ -40,8 +40,8 @@ import { tiltFromId } from "./tilt";
 export interface FolderCardProps {
   id: string;
   name: string;
-  /** Number of scenes directly inside this folder. */
-  sceneCount?: number | null;
+  /** Number of direct children (scenes + subfolders) inside this folder. */
+  itemCount?: number | null;
   /** Up to 3 most-recently-updated scenes inside this folder, newest
    *  first. Used to render thumbnails on the inner papers. `previews[0]`
    *  sits on top of the inner-paper stack (front), `[1]` is the middle
@@ -63,7 +63,7 @@ export interface FolderCardProps {
 export function FolderCard({
   id,
   name,
-  sceneCount,
+  itemCount,
   previews,
   actions,
   onOpen,
@@ -75,7 +75,7 @@ export function FolderCard({
 }: FolderCardProps & { ref?: Ref<HTMLDivElement> }) {
   const tilt = tiltFromId(`folder:${id}`, 0.4);
   const countLabel =
-    sceneCount == null ? null : sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`;
+    itemCount == null ? null : itemCount === 1 ? "1 item" : `${itemCount} items`;
 
   return (
     <div

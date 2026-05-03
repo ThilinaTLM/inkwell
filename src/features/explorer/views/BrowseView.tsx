@@ -137,7 +137,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                   <FolderCard
                     id={f.id}
                     name={f.name}
-                    sceneCount={f.sceneCount}
+                    itemCount={f.sceneCount + f.subfolderCount}
                     previews={f.previews}
                     activeShareCount={f.activeShareCount}
                     onOpenShare={() => actions.shareFolder(f)}

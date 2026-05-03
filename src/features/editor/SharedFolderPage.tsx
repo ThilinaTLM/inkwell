@@ -140,7 +140,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
                 key={`f:${f.id}`}
                 id={f.id}
                 name={f.name}
-                sceneCount={f.sceneCount}
+                itemCount={f.sceneCount + f.subfolderCount}
                 previews={f.previews}
                 onOpen={() => setSelectedId(f.id)}
               />
