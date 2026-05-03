@@ -1,0 +1,41 @@
+# Dependabot configuration.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+
+updates:
+  # JavaScript / TypeScript dependencies (pnpm-lock.yaml is auto-detected).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Group low-risk updates into a single PR to reduce noise; majors stay
+    # separate so they get a proper review.
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Excalidraw is patched via pnpm patches/; pinning the version manually.
+      - dependency-name: "@excalidraw/excalidraw"
+
+  # GitHub Actions versions (only relevant once we add workflows, but
+  # safe to enable now — it's a no-op until then).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
