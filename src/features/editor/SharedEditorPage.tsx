@@ -71,22 +71,31 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
       const m = sceneId
         ? await shares.saveFolderScene(token, sceneId, version, blob)
         : await shares.save(token, version, blob);
-      setLoaded((prev) =>
-        prev
-          ? {
-              ...prev,
-              meta: {
-                ...prev.meta,
-                name: m.name,
-                version: m.version,
-                updatedAt: m.updatedAt,
-              },
-            }
-          : prev,
-      );
+      const nextLoaded: LoadedScene = {
+        meta: {
+          id: loaded?.meta.id ?? sceneId ?? "",
+          name: m.name,
+          version: m.version,
+          updatedAt: m.updatedAt,
+          folderId: loaded?.meta.folderId ?? null,
+        },
+        blob,
+        permission: loaded?.permission ?? "write",
+        allowDownload: loaded?.allowDownload ?? true,
+      };
+      setLoaded(nextLoaded);
+      qc.setQueryData(keys.publicShare.token(token, sceneId), nextLoaded);
       return { version: m.version };
     },
-    [token, sceneId],
+    [
+      loaded?.allowDownload,
+      loaded?.meta.folderId,
+      loaded?.meta.id,
+      loaded?.permission,
+      qc,
+      token,
+      sceneId,
+    ],
   );
 
   if (sceneQuery.isError) {

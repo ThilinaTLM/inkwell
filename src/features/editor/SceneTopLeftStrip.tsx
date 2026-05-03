@@ -10,10 +10,9 @@
 // Contains, left-to-right:
 //   1. An optional Back icon button (hidden when `back` is null —
 //      e.g. visitors on a top-level share token have no parent to go to).
-//   2. A capsule with the BookOpen icon, scene name, and an
-//      *icon-only* save-status indicator (text label moved into
-//      `title` / `aria-label` for tooltipping). Replaces the old
-//      `SceneContextStrip` that lived in the top-right slot.
+//   2. A standalone scene-name capsule with optional double-click rename.
+//   3. A separate save/status control: floppy disk (manual save), spinner,
+//      checkmark, warning-retry, or read-only eye.
 //
 // Styling matches the live computed style of Excalidraw's other
 // top-bar buttons (`.main-menu-trigger`, `.default-sidebar-trigger`):
@@ -25,15 +24,9 @@
 // variables, so the strip is automatically theme-aware.
 //
 // Subscribes to `SceneEditorContext` for status / errorMessage /
-// readOnly / onRequestRename. The provider lives just outside
-// `<Excalidraw>` in `SceneEditor.tsx`; the indirection keeps
+// readOnly / onRequestRename / onSaveNow. The provider lives just
+// outside `<Excalidraw>` in `SceneEditor.tsx`; the indirection keeps
 // `renderTopLeftUI`'s closure dependencies shallow.
-//
-// Double-click rename: when the editor exposes an `onRequestRename`
-// callback (owner-write only — shared/read-only sessions get `null`),
-// the icon-and-name span becomes a double-click target that opens the
-// rename dialog. The status pill is intentionally left out of the
-// rename target so it can keep its own `role="status"` tooltip.
 
 import {
   Alert02Icon,
@@ -41,6 +34,7 @@ import {
   BookOpen01Icon,
   CheckmarkCircle02Icon,
   EyeIcon,
+  FloppyDiskIcon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -72,16 +66,18 @@ const buttonSurfaceStyle: CSSProperties = {
 };
 
 export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripProps) {
-  const { status, errorMessage, readOnly, onRequestRename } = useSceneEditorContext();
+  const { status, errorMessage, readOnly, onRequestRename, onSaveNow } = useSceneEditorContext();
   if (!name) return null;
   // Provider already nulls this out on read-only sessions, but guard
   // here too so a future change to that contract can't accidentally
   // expose a rename affordance to viewers.
   const renameInteractive = !readOnly && !!onRequestRename;
+  const saveInteractive = !readOnly && !!onSaveNow && (status === "dirty" || status === "error");
+  const saveDisabled = !readOnly && status === "saving";
 
   // readOnly takes precedence over save state — on a shared read-only
   // share token the save lifecycle never runs, so showing "Saved" or
-  // "Editing" would be misleading.
+  // "Save now" would be misleading.
   let statusTitle: string;
   let statusIcon: ReactNode;
   let statusTone = "text-muted-foreground/70";
@@ -92,11 +88,11 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
   } else {
     switch (status) {
       case "dirty":
+        statusTitle = "Save now";
+        statusIcon = <HugeiconsIcon icon={FloppyDiskIcon} strokeWidth={2} />;
+        statusTone = "text-foreground";
+        break;
       case "saving":
-        // Both states render the spinner: "dirty" is the 1s debounce
-        // window before the autosave fires, "saving" is the in-flight
-        // round-trip. Showing a spinner across the whole interval makes
-        // it clear the system is on its way to persisting the edit.
         statusTitle = "Saving…";
         statusIcon = (
           <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
@@ -106,22 +102,57 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
       case "saved":
         statusTitle = "Saved";
         statusIcon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
-        // chart-5 is the success/green token in both inkwell themes.
         statusTone = "text-chart-5";
         break;
       case "error":
-        statusTitle = errorMessage || "Save failed";
+        statusTitle = errorMessage || "Save failed — click to retry";
         statusIcon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
         statusTone = "text-destructive";
         break;
     }
   }
 
+  const renderStatusControl = (title = statusTitle) => {
+    const className = cn(
+      "inline-flex items-center justify-center [&_svg]:size-4",
+      statusTone,
+      saveInteractive && "cursor-pointer",
+    );
+
+    if (saveInteractive || saveDisabled) {
+      return (
+        <button
+          type="button"
+          title={title}
+          aria-label={title}
+          disabled={saveDisabled}
+          onClick={saveInteractive ? onSaveNow : undefined}
+          style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
+          className={className}
+        >
+          {statusIcon}
+        </button>
+      );
+    }
+
+    return (
+      <div
+        role="status"
+        title={title}
+        aria-label={title}
+        style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
+        className={className}
+      >
+        {statusIcon}
+      </div>
+    );
+  };
+
   // Mobile collapse: Excalidraw aggressively reclaims top-bar real
   // estate below ~640px. Show only the back button (when present) and
-  // the status icon — the scene name is duplicated in the browser tab
-  // title and (after our patch) in the relocated MainMenu hamburger
-  // anyway.
+  // the save/status control — the scene name is duplicated in the
+  // browser tab title and the relocated MainMenu trigger still provides
+  // a nearby affordance.
   if (isMobile) {
     return (
       <div className="pointer-events-auto inline-flex items-center gap-2">
@@ -137,13 +168,7 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </button>
         )}
-        <div
-          title={`${name} — ${statusTitle}`}
-          style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
-          className={cn("inline-flex items-center justify-center [&_svg]:size-4", statusTone)}
-        >
-          {statusIcon}
-        </div>
+        {renderStatusControl(`${name} — ${statusTitle}`)}
       </div>
     );
   }
@@ -183,20 +208,8 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
           />
           <span className="truncate">{name}</span>
         </span>
-        <span
-          aria-hidden
-          className="h-4 w-px"
-          style={{ backgroundColor: "var(--default-border-color)" }}
-        />
-        <span
-          role="status"
-          title={statusTitle}
-          aria-label={statusTitle}
-          className={cn("inline-flex items-center [&_svg]:size-4", statusTone)}
-        >
-          {statusIcon}
-        </span>
       </div>
+      {renderStatusControl()}
     </div>
   );
 }

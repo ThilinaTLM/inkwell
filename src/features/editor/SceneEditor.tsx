@@ -8,7 +8,7 @@
 //   • `renderTopLeftUI` (patched-in slot, see
 //     `patches/@excalidraw__excalidraw@0.18.1.patch`) — a
 //     `<SceneTopLeftStrip>` showing back button + scene name +
-//     icon-only save status. Wired internally; pages just provide
+//     separate save/status control. Wired internally; pages just provide
 //     the `back` config (or `null` to hide).
 //
 // The MainMenu hamburger lives on the top-right because our patch
@@ -20,22 +20,21 @@
 // Lifecycle:
 //   1. Page calls `load()` once on mount and passes `loaded` here.
 //   2. Excalidraw mounts with `initialData = loaded.blob`.
-//   3. onChange → debounced save (1s) → onChange → debounced thumb (30s).
-//   4. We track `version` locally and bump it after each successful save so
-//      subsequent saves keep using a fresh If-Match.
+//   3. onChange stores the latest meaningful snapshot, schedules a
+//      debounced scene save (30s), and schedules a debounced thumb (8s).
+//   4. Manual save and Save & Leave both bypass the 30s debounce and
+//      persist the latest queued snapshot immediately.
+//   5. We track `version` locally and bump it after each successful save
+//      so subsequent saves keep using a fresh If-Match.
 //
 // On a 409 we re-fetch the scene and reset state. (For a single-user instance
 // this is rare; it shows up if the same scene is open in two tabs.)
 //
 // Unsaved-changes guard: while save state is dirty/saving/error and the
-// session is writable, both the top-left back button (via a wrapped
-// click handler that shows our own <AlertDialog>) and tab close / hard
-// reload (via `beforeunload`, which triggers the native browser prompt)
-// confirm with the user before leaving. Browser back/forward popstate
-// is intentionally not intercepted: the app uses `<BrowserRouter>`
-// rather than a data router, so `useBlocker` isn't available, and the
-// back button covers the only in-app departure path from the editor.
-// Read-only sessions bypass the guard entirely.
+// session is writable, the top-left back button shows our own
+// Stay / Discard / Save & Leave dialog. Tab close / hard reload still
+// use the native browser prompt via `beforeunload`; browsers do not allow
+// a custom 3-button dialog there. Read-only sessions bypass the guard.
 
 import { Excalidraw, exportToSvg } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -52,7 +51,6 @@ import {
 } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -60,6 +58,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { useDebounced } from "@/hooks/useDebounced";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
@@ -69,6 +68,12 @@ import { SceneTopLeftStrip } from "./SceneTopLeftStrip";
 
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
+interface SceneSnapshot {
+  elements: readonly ExcalidrawElement[];
+  appState: AppState;
+  files: BinaryFiles;
+  fp: string;
+}
 
 // Editor save lifecycle. "saved" is the resting state — both the
 // initial value (a freshly loaded scene matches the server) and the
@@ -94,9 +99,9 @@ export interface SceneEditorProps {
    * Slot rendered as children of `<Excalidraw>` so consumers can mount
    * native Excalidraw UI: `<MainMenu>` for the hamburger, optionally
    * `<Sidebar>` or `<Footer>`. The back button / scene-name / save-status
-   * capsule in the top-left is rendered internally via
+   * controls in the top-left are rendered internally via
    * `renderTopLeftUI`; pages don't need to (and shouldn't) duplicate
-   * it here.
+   * them here.
    */
   chrome?: ReactNode;
   /**
@@ -125,6 +130,8 @@ interface SceneEditorContextValue {
   readOnly: boolean;
   /** Owner-only: opens the rename dialog. `null` on read-only / shared sessions. */
   onRequestRename: (() => void) | null;
+  /** Writable sessions only: triggers an immediate save of the latest scene snapshot. */
+  onSaveNow: (() => void) | null;
 }
 
 const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
@@ -139,7 +146,15 @@ const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
  */
 export function useSceneEditorContext(): SceneEditorContextValue {
   const ctx = useContext(SceneEditorContext);
-  return ctx ?? { status: "saved", errorMessage: null, readOnly: false, onRequestRename: null };
+  return (
+    ctx ?? {
+      status: "saved",
+      errorMessage: null,
+      readOnly: false,
+      onRequestRename: null,
+      onSaveNow: null,
+    }
+  );
 }
 
 export default function SceneEditor({
@@ -170,6 +185,15 @@ export default function SceneEditor({
   // without re-creating themselves.
   const versionRef = useRef(loaded.meta.version);
   const inflightRef = useRef(false);
+  const inflightSnapshotRef = useRef<SceneSnapshot | null>(null);
+  const saveQueuedRef = useRef(false);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const initialSnapshot = makeSceneSnapshot(
+    (loaded.blob.elements as ExcalidrawElement[]) || [],
+    ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
+    (loaded.blob.files as BinaryFiles) || {},
+  );
+  const latestSnapshotRef = useRef<SceneSnapshot | null>(initialSnapshot);
   const readOnly = loaded.permission !== "write";
 
   // Autosave dedup: cheap fingerprint of the meaningful scene state.
@@ -180,13 +204,7 @@ export default function SceneEditor({
   //
   //  - savedFpRef:  fingerprint of the last successfully persisted blob.
   //  - thumbFpRef:  fingerprint of the last successfully uploaded thumb.
-  const savedFpRef = useRef<string>(
-    fingerprintScene(
-      (loaded.blob.elements as ExcalidrawElement[]) || [],
-      (loaded.blob.appState as Partial<AppState>) || {},
-      (loaded.blob.files as BinaryFiles) || {},
-    ),
-  );
+  const savedFpRef = useRef<string>(initialSnapshot.fp);
   const thumbFpRef = useRef<string | null>(null);
 
   // Reset when a *different* scene is loaded — either navigating to another
@@ -201,16 +219,23 @@ export default function SceneEditor({
   // navigation, post-409 reload).
   useEffect(() => {
     versionRef.current = loaded.meta.version;
-    savedFpRef.current = fingerprintScene(
+  }, [loaded.meta.version]);
+
+  useEffect(() => {
+    const nextSnapshot = makeSceneSnapshot(
       (loaded.blob.elements as ExcalidrawElement[]) || [],
-      (loaded.blob.appState as Partial<AppState>) || {},
+      ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
       (loaded.blob.files as BinaryFiles) || {},
     );
+    latestSnapshotRef.current = nextSnapshot;
+    inflightSnapshotRef.current = null;
+    saveQueuedRef.current = false;
+    savePromiseRef.current = null;
+    savedFpRef.current = nextSnapshot.fp;
     thumbFpRef.current = null;
     // See note on the initial status: a fresh blob === server state.
     setStatus("saved");
     setErrorMsg(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded.blob]);
 
   // Keep Excalidraw's internal appState.name in sync with the canonical
@@ -231,64 +256,89 @@ export default function SceneEditor({
   }, [api, loaded.meta.name]);
 
   // ─── Persist scene ──────────────────────────────────────────────────
-  const doSave = useCallback(
-    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      if (readOnly) return;
+  const saveLatest = useCallback(async (): Promise<boolean> => {
+    if (readOnly) return true;
 
-      // Safety-net dedup: by the time the 1s debounce fires, the user may
-      // have undone their changes back to the on-disk state. Skip the
-      // round-trip in that case.
-      const fp = fingerprintScene(elements, appState, files);
-      if (fp === savedFpRef.current) {
-        if (!inflightRef.current) setStatus("saved");
-        return;
-      }
+    if (inflightRef.current) {
+      saveQueuedRef.current = true;
+      return savePromiseRef.current ?? Promise.resolve(false);
+    }
 
-      if (inflightRef.current) {
-        setStatus("dirty");
-        return;
-      }
+    const task = (async () => {
       inflightRef.current = true;
-      setStatus("saving");
-      setErrorMsg(null);
-
-      const blob: SceneBlob = {
-        elements: elements as unknown as unknown[],
-        appState: pickPersistableAppState(appState, loaded.meta.name),
-        files: files as unknown as Record<string, unknown>,
-      };
-
       try {
-        const res = await save(versionRef.current, blob);
-        versionRef.current = res.version;
-        savedFpRef.current = fp;
-        setStatus("saved");
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409 && reload) {
-          try {
-            const fresh = await reload();
-            versionRef.current = fresh.meta.version;
-            onReload?.(fresh);
-            setStatus("dirty");
-            setErrorMsg("Refreshed: another tab saved a newer version.");
-          } catch {
-            setStatus("error");
-            setErrorMsg("Conflict; reload failed.");
+        while (true) {
+          const snapshot = latestSnapshotRef.current;
+          if (!snapshot || snapshot.fp === savedFpRef.current) {
+            saveQueuedRef.current = false;
+            setStatus("saved");
+            setErrorMsg(null);
+            return true;
           }
-        } else {
-          setStatus("error");
-          setErrorMsg(errorMessage(e, "save failed"));
+
+          inflightSnapshotRef.current = snapshot;
+          setStatus("saving");
+          setErrorMsg(null);
+
+          const blob: SceneBlob = {
+            elements: snapshot.elements as unknown as unknown[],
+            appState: pickPersistableAppState(snapshot.appState, loaded.meta.name),
+            files: snapshot.files as unknown as Record<string, unknown>,
+          };
+
+          try {
+            const res = await save(versionRef.current, blob);
+            versionRef.current = res.version;
+            savedFpRef.current = snapshot.fp;
+          } catch (e) {
+            if (e instanceof ApiError && e.status === 409 && reload) {
+              try {
+                const fresh = await reload();
+                versionRef.current = fresh.meta.version;
+                onReload?.(fresh);
+                setStatus("error");
+                setErrorMsg("Refreshed: another tab saved a newer version.");
+              } catch {
+                setStatus("error");
+                setErrorMsg("Conflict; reload failed.");
+              }
+            } else {
+              setStatus("error");
+              setErrorMsg(errorMessage(e, "save failed"));
+            }
+            saveQueuedRef.current = false;
+            return false;
+          } finally {
+            inflightSnapshotRef.current = null;
+          }
+
+          if (latestSnapshotRef.current?.fp === savedFpRef.current) {
+            saveQueuedRef.current = false;
+            setStatus("saved");
+            setErrorMsg(null);
+            return true;
+          }
+
+          // A newer local snapshot arrived while the last PUT was in-flight.
+          // Loop and persist the newest one immediately.
+          saveQueuedRef.current = false;
         }
       } finally {
         inflightRef.current = false;
+        inflightSnapshotRef.current = null;
+        savePromiseRef.current = null;
       }
-    },
-    [save, reload, onReload, loaded.meta.name, readOnly],
-  );
+    })();
 
-  const debouncedSave = useDebounced(doSave, 1000);
+    savePromiseRef.current = task;
+    return task;
+  }, [save, reload, onReload, loaded.meta.name, readOnly]);
 
-  // ─── Thumbnail (debounced 30s) ──────────────────────────────────────
+  const debouncedSave = useDebounced(() => {
+    void saveLatest();
+  }, 30_000);
+
+  // ─── Thumbnail (debounced 8s) ───────────────────────────────────────
   const doThumb = useCallback(
     async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (!saveThumb || readOnly) return;
@@ -332,19 +382,56 @@ export default function SceneEditor({
   // that returning to the dashboard within ~10s shows the fresh thumb.
   const debouncedThumb = useDebounced(doThumb, 8_000);
 
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (readOnly) return true;
+    debouncedSave.cancel();
+    const ok = await saveLatest();
+    if (ok) debouncedThumb.flush();
+    return ok;
+  }, [debouncedSave, debouncedThumb, saveLatest, readOnly]);
+
+  const discardPendingLocalWork = useCallback(() => {
+    debouncedSave.cancel();
+    debouncedThumb.cancel();
+    saveQueuedRef.current = false;
+    latestSnapshotRef.current = inflightRef.current ? inflightSnapshotRef.current : null;
+    if (!inflightRef.current) {
+      setStatus("saved");
+      setErrorMsg(null);
+    }
+  }, [debouncedSave, debouncedThumb]);
+
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (readOnly) return;
+
+      const snapshot = makeSceneSnapshot(elements, appState, files);
+      latestSnapshotRef.current = snapshot;
+
       // Primary dedup: drop noisy onChange events (cursor / selection /
       // zoom / pan / tool switch / hover) that don't change the persisted
-      // scene. Without this we'd debounce a save every second of canvas
+      // scene. Without this we'd debounce a save every 30s of canvas
       // activity even when the user isn't editing.
-      const fp = fingerprintScene(elements, appState, files);
-      if (fp === savedFpRef.current) return;
+      if (snapshot.fp === savedFpRef.current) {
+        if (inflightRef.current) {
+          saveQueuedRef.current = true;
+          debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
+        } else {
+          saveQueuedRef.current = false;
+          debouncedSave.cancel();
+          debouncedThumb.cancel();
+          setStatus("saved");
+          setErrorMsg(null);
+        }
+        return;
+      }
+
+      if (inflightRef.current) saveQueuedRef.current = true;
       setStatus((s) => (s === "saving" ? s : "dirty"));
-      debouncedSave(elements, appState, files);
-      debouncedThumb(elements, appState, files);
+      setErrorMsg(null);
+      debouncedSave();
+      debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
     },
     [debouncedSave, debouncedThumb, readOnly],
   );
@@ -403,6 +490,7 @@ export default function SceneEditor({
   // the awaited continuation between "the user clicked back" and
   // "the user picked an action in the dialog".
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState<false | "save">(false);
   const pendingBackRef = useRef<(() => void) | null>(null);
   const requestBack = useCallback(() => {
     if (!back) return;
@@ -413,18 +501,32 @@ export default function SceneEditor({
     pendingBackRef.current = back.onClick;
     setConfirmLeaveOpen(true);
   }, [back, isDirty]);
-  const confirmLeave = useCallback(() => {
-    debouncedSave.flush();
-    debouncedThumb.flush();
+  const cancelLeave = useCallback(() => {
+    if (leaveBusy) return;
+    pendingBackRef.current = null;
+    setConfirmLeaveOpen(false);
+  }, [leaveBusy]);
+  const discardAndLeave = useCallback(() => {
+    discardPendingLocalWork();
+    setLeaveBusy(false);
     setConfirmLeaveOpen(false);
     const cont = pendingBackRef.current;
     pendingBackRef.current = null;
     cont?.();
-  }, [debouncedSave, debouncedThumb]);
-  const cancelLeave = useCallback(() => {
-    pendingBackRef.current = null;
+  }, [discardPendingLocalWork]);
+  const saveAndLeave = useCallback(async () => {
+    setLeaveBusy("save");
+    const ok = await saveNow();
+    if (!ok) {
+      setLeaveBusy(false);
+      return;
+    }
+    setLeaveBusy(false);
     setConfirmLeaveOpen(false);
-  }, []);
+    const cont = pendingBackRef.current;
+    pendingBackRef.current = null;
+    cont?.();
+  }, [saveNow]);
 
   // The strip's back button calls `requestBack`, not `back.onClick`
   // directly. Memoised so `renderTopLeftUI`'s deps stay shallow —
@@ -462,6 +564,7 @@ export default function SceneEditor({
         errorMessage: errorMsg,
         readOnly,
         onRequestRename: !readOnly && onRequestRename ? onRequestRename : null,
+        onSaveNow: !readOnly ? () => void saveNow() : null,
       }}
     >
       <div className="relative h-full w-full">
@@ -499,7 +602,7 @@ export default function SceneEditor({
       <AlertDialog
         open={confirmLeaveOpen}
         onOpenChange={(open) => {
-          if (!open) cancelLeave();
+          if (!open && !leaveBusy) cancelLeave();
         }}
       >
         <AlertDialogContent>
@@ -510,10 +613,13 @@ export default function SceneEditor({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Stay</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmLeave}>
-              Leave anyway
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={!!leaveBusy}>Stay</AlertDialogCancel>
+            <Button variant="destructive" onClick={discardAndLeave} disabled={!!leaveBusy}>
+              Discard
+            </Button>
+            <Button onClick={() => void saveAndLeave()} disabled={!!leaveBusy}>
+              {leaveBusy ? "Saving…" : "Save & Leave"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -522,6 +628,19 @@ export default function SceneEditor({
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+function makeSceneSnapshot(
+  elements: readonly ExcalidrawElement[],
+  appState: AppState,
+  files: BinaryFiles,
+): SceneSnapshot {
+  return {
+    elements,
+    appState,
+    files,
+    fp: fingerprintScene(elements, appState, files),
+  };
+}
 
 // Cheap O(n) fingerprint of the meaningful scene state — used to dedup
 // autosaves so cursor/selection/zoom/pan ticks don't trigger network I/O.

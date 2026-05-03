@@ -88,23 +88,25 @@ export default function EditorPage() {
 
   // Save: throws ApiError(409) on version conflict so SceneEditor's
   // autosave loop can react. On success update both local state and the
-  // scene-list caches so the dashboard sees the new version/updatedAt.
+  // cached scene detail row so revisiting this editor doesn't resurrect
+  // an old version from React Query's staleTime/gcTime Infinity cache.
   const save = useCallback(
     async (version: number, blob: SceneBlob) => {
       const m = await scenes.save(id, version, blob);
-      setLoaded((prev) =>
-        prev
-          ? {
-              ...prev,
-              meta: {
-                ...prev.meta,
-                name: m.name,
-                version: m.version,
-                updatedAt: m.updatedAt,
-              },
-            }
-          : prev,
-      );
+      const nextLoaded: LoadedScene = {
+        meta: {
+          id,
+          name: m.name,
+          version: m.version,
+          updatedAt: m.updatedAt,
+          folderId: loaded?.meta.folderId ?? null,
+        },
+        blob,
+        permission: "write",
+        allowDownload: true,
+      };
+      setLoaded(nextLoaded);
+      qc.setQueryData(keys.scenes.detail(id), nextLoaded);
       // Update cached scene-list rows so explorer views show fresh data.
       // Scope to list queries only — invalidating `keys.scenes.all` would
       // also match `keys.scenes.detail(id)` (prefix match) and trigger a
@@ -112,7 +114,7 @@ export default function EditorPage() {
       qc.invalidateQueries({ queryKey: ["scenes", "list"] });
       return { version: m.version };
     },
-    [id, qc],
+    [id, loaded?.meta.folderId, qc],
   );
 
   const saveThumb = useCallback((svg: string) => scenes.putThumb(id, svg), [id]);
