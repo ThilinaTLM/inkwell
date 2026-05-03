@@ -326,5 +326,6 @@ Egress on R2 is free, so even sharing scenes publicly doesn't add cost.
 
 ## License
 
-Inkwell is MIT. Excalidraw itself is MIT-licensed by the Excalidraw authors —
-all credit for the drawing experience belongs to them.
+Inkwell is licensed under the [Apache License 2.0](./LICENSE). Excalidraw
+itself is MIT-licensed by the Excalidraw authors — all credit for the
+drawing experience belongs to them.
