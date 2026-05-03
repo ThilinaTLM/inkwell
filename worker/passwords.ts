@@ -10,10 +10,14 @@
 
 import { base64url, fromBase64url, timingSafeEqual } from "./util";
 
-// 600,000 was the OWASP recommendation for PBKDF2-SHA-256 at the time of
-// writing. Worker CPU budget is 50 ms on free / 30 s on paid; this comes in
-// well under either limit on modern hardware.
-const DEFAULT_ITERS = 600_000;
+// Cloudflare Workers caps PBKDF2 iterations at 100,000 (NotSupportedError
+// is thrown for higher values). OWASP currently recommends 600,000 for
+// PBKDF2-SHA-256 in 2023+, but on Workers we are forced down to the
+// platform ceiling. The encoded hash records the iteration count, so if
+// Cloudflare ever raises the limit we can bump this and old rows still
+// verify. To rotate to a stronger KDF later (e.g. scrypt via WASM) branch
+// on the leading scheme tag.
+const DEFAULT_ITERS = 100_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 

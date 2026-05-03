@@ -31,7 +31,7 @@ preview_bucket_name = "inkwell"
 [[d1_databases]]
 binding = "DB"
 database_name = "inkwell"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "0f23be25-c480-42a6-981f-2cc13c2d7758"
 # Drizzle generates SQL into ./drizzle; wrangler tracks applied files in
 # the d1_migrations table inside D1.
 migrations_dir = "drizzle"
