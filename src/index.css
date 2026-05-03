@@ -503,3 +503,22 @@
   left: auto;
   right: 0;
 }
+
+/* ─── Mobile bottom-bar leading group — back · menu · status.
+   Our pnpm patch invokes `renderTopLeftUI` twice from inside
+   `MobileMenu`'s `App-toolbar-content`, sandwiching the relocated
+   `MainMenuTunnel.Out` between back (left) and save-status (right).
+   The three buttons are wrapped in this `.App-toolbar-content__leading`
+   div so they cluster tightly at the leading edge of the bottom bar
+   while Excalidraw's existing `justify-content: space-between` keeps
+   the trailing undo/redo group hugging the right edge.
+
+   Spacing matches Excalidraw's other inline button rows, and there's
+   no explicit height — each child sets its own (our buttons use
+   `--lg-button-size`, the same variable Excalidraw's mobile MainMenu
+   trigger uses), so the row aligns on a common baseline automatically. */
+.excalidraw .App-toolbar-content__leading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

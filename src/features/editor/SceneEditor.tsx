@@ -549,10 +549,20 @@ export default function SceneEditor({
   // `SceneEditorContext` so the closure dependencies stay shallow.
   //
   // Slot is added by our pnpm patch on `@excalidraw/excalidraw`; see
-  // the file header.
+  // the file header. On desktop the slot is invoked once and `position`
+  // is `undefined` (the strip renders the full back+name+status row).
+  // On mobile the patched `MobileMenu` invokes the slot twice with
+  // `position="before"` / `"after"` so we can flank the relocated
+  // MainMenu hamburger inside the bottom toolbar; the strip splits
+  // itself accordingly.
   const renderTopLeftUI = useCallback(
-    (isMobile: boolean) => (
-      <SceneTopLeftStrip name={loaded.meta.name} back={guardedBack} isMobile={isMobile} />
+    (isMobile: boolean, _appState: unknown, position?: "before" | "after") => (
+      <SceneTopLeftStrip
+        name={loaded.meta.name}
+        back={guardedBack}
+        isMobile={isMobile}
+        position={position}
+      />
     ),
     [loaded.meta.name, guardedBack],
   );

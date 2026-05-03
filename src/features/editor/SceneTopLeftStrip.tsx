@@ -51,6 +51,16 @@ export interface SceneTopLeftStripProps {
   back: { onClick: () => void; label: string } | null;
   /** Forwarded from `renderTopLeftUI`'s callback so we can collapse on small viewports. */
   isMobile?: boolean;
+  /**
+   * On mobile, the patched Excalidraw `renderTopLeftUI` slot is invoked
+   * twice from inside `MobileMenu`'s bottom toolbar — once before the
+   * relocated MainMenu hamburger and once after — so we can render the
+   * back button to its left and the save-status control to its right
+   * without needing to inject `MainMenuTunnel.Out` ourselves (which is
+   * not part of the public API). Ignored on desktop, which renders the
+   * full strip in a single call.
+   */
+  position?: "before" | "after";
 }
 
 // Native button surface, mirroring `.main-menu-trigger` /
@@ -65,7 +75,7 @@ const buttonSurfaceStyle: CSSProperties = {
   fontFamily: "var(--ui-font)",
 };
 
-export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripProps) {
+export function SceneTopLeftStrip({ name, back, isMobile, position }: SceneTopLeftStripProps) {
   const { status, errorMessage, readOnly, onRequestRename, onSaveNow } = useSceneEditorContext();
   if (!name) return null;
   // Provider already nulls this out on read-only sessions, but guard
@@ -148,29 +158,42 @@ export function SceneTopLeftStrip({ name, back, isMobile }: SceneTopLeftStripPro
     );
   };
 
-  // Mobile collapse: Excalidraw aggressively reclaims top-bar real
-  // estate below ~640px. Show only the back button (when present) and
-  // the save/status control — the scene name is duplicated in the
-  // browser tab title and the relocated MainMenu trigger still provides
-  // a nearby affordance.
+  // Mobile bottom-bar layout: the patched Excalidraw `MobileMenu` calls
+  // this slot twice, sandwiching the relocated MainMenu hamburger.
+  //   - position="before" → render the back button (or nothing if no
+  //     `back` is provided, e.g. on a top-level share-token landing).
+  //   - position="after"  → render the save/status control. We prefix
+  //     the screen-reader title with the scene name so VoiceOver users
+  //     get the same context the desktop name capsule provides; the
+  //     name itself is intentionally not rendered to save horizontal
+  //     space on phones.
+  // The position argument is undefined on desktop, where we want to
+  // render the full back+name+status strip in a single call (handled
+  // below).
   if (isMobile) {
-    return (
-      <div className="pointer-events-auto inline-flex items-center gap-2">
-        {back && (
-          <button
-            type="button"
-            aria-label={back.label}
-            title={back.label}
-            onClick={back.onClick}
-            style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
-            className="inline-flex items-center justify-center [&_svg]:size-4"
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-          </button>
-        )}
-        {renderStatusControl(`${name} — ${statusTitle}`)}
-      </div>
-    );
+    if (position === "before") {
+      if (!back) return null;
+      return (
+        <button
+          type="button"
+          aria-label={back.label}
+          title={back.label}
+          onClick={back.onClick}
+          style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
+          className="pointer-events-auto inline-flex items-center justify-center [&_svg]:size-4"
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+        </button>
+      );
+    }
+    if (position === "after") {
+      return renderStatusControl(`${name} — ${statusTitle}`);
+    }
+    // Defensive: if Excalidraw ever calls the slot on mobile without a
+    // position argument (e.g. an upstream regression unwinds our patch),
+    // render nothing rather than the desktop strip — which would
+    // overflow the bottom toolbar's flex row.
+    return null;
   }
 
   return (
