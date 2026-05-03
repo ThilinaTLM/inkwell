@@ -9,7 +9,10 @@
 //   - Inner papers     → `--color-card` with `--color-card-stroke` outline,
 //                        each can be overlaid with a scene-thumbnail
 //                        `<image>` when the folder has previewable scenes.
-//                        Hidden behind the front pocket at rest.
+//                        Hidden behind the front pocket at rest. Only
+//                        rendered when the folder actually has the
+//                        corresponding preview — empty folders show no
+//                        inner papers at all.
 //
 // Interaction model:
 //   - single click  → opens the folder (`onOpen`)
@@ -117,22 +120,25 @@ export function FolderCard({
  *
  * Layer order (back → front):
  *   1. Back panel + tab        (solid primary)
- *   2. Inner papers × 3        (cream sheets + optional thumbnail
+ *   2. Inner papers (0–3)     (cream sheets + optional thumbnail
  *                               `<image>` overlays; peek up on hover
  *                               with staggered offsets so the most
- *                               recent comes out the most)
+ *                               recent comes out the most. One paper
+ *                               per available preview — empty folders
+ *                               render none)
  *   3. Front pocket            (primary, slightly darker; tilts on hover)
  */
 function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
-  // Always render three paper rects (the visual depth of a stack of
-  // pages looks intentional even when there's nothing inside). Overlay
-  // each with its preview thumbnail when one is available.
+  // Render one inner paper rect per available preview, up to three.
+  // Empty folders render no inner papers at all so nothing peeks out
+  // of the pocket on hover — otherwise the blank cream sheets read as
+  // phantom previews for a folder that has no scenes.
   //
   // `previews[0]` is the most recent → drawn on TOP of the stack
   // (front, `(12, 38)`). `previews[1]` sits in the middle (`(22, 42)`).
   // `previews[2]` is the oldest visible → drawn BEHIND the rest
   // (`(32, 46)`). The diagonal offsets ensure each sheet's corner peeks
-  // out from behind the next, even with previews missing.
+  // out from behind the next when multiple previews are present.
   const front = previews?.[0];
   const mid = previews?.[1];
   const back = previews?.[2];
@@ -206,84 +212,92 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
             <rect x="12" y="38" width="138" height="92" rx="2" />
           </clipPath>
         </defs>
-        {/* Back paper (oldest of the three). */}
-        <g className="ink-folder__inner ink-folder__inner--back">
-          <rect
-            x="32"
-            y="46"
-            width="138"
-            height="92"
-            rx="2"
-            fill="var(--color-card)"
-            stroke="var(--color-card-stroke)"
-            strokeWidth="1"
-            strokeOpacity="0.45"
-          />
-          {backThumb ? (
-            <image
-              className="ink-thumb-img"
-              href={backThumb}
+        {/* Back paper (oldest of the three). Only rendered when a
+            third preview exists. */}
+        {back ? (
+          <g className="ink-folder__inner ink-folder__inner--back">
+            <rect
               x="32"
               y="46"
               width="138"
               height="92"
-              preserveAspectRatio="xMidYMid slice"
-              clipPath="url(#ink-folder__paper-back)"
+              rx="2"
+              fill="var(--color-card)"
+              stroke="var(--color-card-stroke)"
+              strokeWidth="1"
+              strokeOpacity="0.45"
             />
-          ) : null}
-        </g>
-        {/* Middle paper. */}
-        <g className="ink-folder__inner ink-folder__inner--mid">
-          <rect
-            x="22"
-            y="42"
-            width="138"
-            height="92"
-            rx="2"
-            fill="var(--color-card)"
-            stroke="var(--color-card-stroke)"
-            strokeWidth="1"
-            strokeOpacity="0.6"
-          />
-          {midThumb ? (
-            <image
-              className="ink-thumb-img"
-              href={midThumb}
+            {backThumb ? (
+              <image
+                className="ink-thumb-img"
+                href={backThumb}
+                x="32"
+                y="46"
+                width="138"
+                height="92"
+                preserveAspectRatio="xMidYMid slice"
+                clipPath="url(#ink-folder__paper-back)"
+              />
+            ) : null}
+          </g>
+        ) : null}
+        {/* Middle paper. Only rendered when a second preview exists. */}
+        {mid ? (
+          <g className="ink-folder__inner ink-folder__inner--mid">
+            <rect
               x="22"
               y="42"
               width="138"
               height="92"
-              preserveAspectRatio="xMidYMid slice"
-              clipPath="url(#ink-folder__paper-mid)"
+              rx="2"
+              fill="var(--color-card)"
+              stroke="var(--color-card-stroke)"
+              strokeWidth="1"
+              strokeOpacity="0.6"
             />
-          ) : null}
-        </g>
-        {/* Front paper (most recent preview). */}
-        <g className="ink-folder__inner ink-folder__inner--front">
-          <rect
-            x="12"
-            y="38"
-            width="138"
-            height="92"
-            rx="2"
-            fill="var(--color-card)"
-            stroke="var(--color-card-stroke)"
-            strokeWidth="1"
-            strokeOpacity="0.75"
-          />
-          {frontThumb ? (
-            <image
-              className="ink-thumb-img"
-              href={frontThumb}
+            {midThumb ? (
+              <image
+                className="ink-thumb-img"
+                href={midThumb}
+                x="22"
+                y="42"
+                width="138"
+                height="92"
+                preserveAspectRatio="xMidYMid slice"
+                clipPath="url(#ink-folder__paper-mid)"
+              />
+            ) : null}
+          </g>
+        ) : null}
+        {/* Front paper (most recent preview). Only rendered when at
+            least one preview exists. */}
+        {front ? (
+          <g className="ink-folder__inner ink-folder__inner--front">
+            <rect
               x="12"
               y="38"
               width="138"
               height="92"
-              preserveAspectRatio="xMidYMid slice"
-              clipPath="url(#ink-folder__paper-front)"
+              rx="2"
+              fill="var(--color-card)"
+              stroke="var(--color-card-stroke)"
+              strokeWidth="1"
+              strokeOpacity="0.75"
             />
-          ) : null}
-        </g>
+            {frontThumb ? (
+              <image
+                className="ink-thumb-img"
+                href={frontThumb}
+                x="12"
+                y="38"
+                width="138"
+                height="92"
+                preserveAspectRatio="xMidYMid slice"
+                clipPath="url(#ink-folder__paper-front)"
+              />
+            ) : null}
+          </g>
+        ) : null}
 
         {/* 3. Front pocket — slightly darker primary so it reads as a
               separate plane without needing a shadow. Hover tilts it
