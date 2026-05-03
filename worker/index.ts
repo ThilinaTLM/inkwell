@@ -126,7 +126,7 @@ async function handleApi(
     const sid = shareScene[2];
     const sub = shareScene[3];
     if (sub === "/thumb") {
-      if (req.method === "GET") return getFolderShareSceneThumb(env, tk, sid, ctx);
+      if (req.method === "GET") return getFolderShareSceneThumb(env, tk, sid, ctx, req);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/download") {
@@ -146,7 +146,7 @@ async function handleApi(
   // /api/share/:token/thumb (scene-share thumbnail)
   const shareThumbMatch = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/thumb$`));
   if (shareThumbMatch && req.method === "GET") {
-    return getThumbViaShareToken(env, shareThumbMatch[1], ctx);
+    return getThumbViaShareToken(env, shareThumbMatch[1], ctx, req);
   }
   // /api/share/:token/download (scene-share download)
   const shareDownload = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/download$`));
@@ -250,7 +250,7 @@ async function handleApi(
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/thumb") {
-      if (req.method === "GET") return getThumb(env, userId, id);
+      if (req.method === "GET") return getThumb(req, env, userId, id, ctx);
       if (req.method === "PUT") return putThumb(req, env, userId, id);
       return errorResponse(405, "method not allowed");
     }

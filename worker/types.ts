@@ -118,6 +118,15 @@ export function rowToInvitePublic(r: InviteRow | InviteAdminRow, nowMs: number):
 // ─── Folders ──────────────────────────────────────────────────────────
 export type FolderRow = InferSelectModel<typeof t.folders>;
 
+// Compact preview info for a single scene inside a folder. Used by
+// `FolderCard` to render thumbnails between the folds. Carries only
+// what the card needs — not the full SceneMeta.
+export interface ScenePreview {
+  id: string;
+  hasThumb: boolean;
+  thumbUpdatedAt: number;
+}
+
 export interface FolderMeta {
   id: string;
   parentId: string | null;
@@ -125,13 +134,20 @@ export interface FolderMeta {
   tags: string[];
   sceneCount: number; // direct children only
   subfolderCount: number; // direct children only
+  /** Up to 2 most-recently-updated scenes inside this folder, newest first. */
+  previews: ScenePreview[];
   createdAt: number;
   updatedAt: number;
 }
 
 export function rowToFolderMeta(
   r: FolderRow,
-  extras: { tags?: string[]; sceneCount?: number; subfolderCount?: number } = {},
+  extras: {
+    tags?: string[];
+    sceneCount?: number;
+    subfolderCount?: number;
+    previews?: ScenePreview[];
+  } = {},
 ): FolderMeta {
   return {
     id: r.id,
@@ -140,6 +156,7 @@ export function rowToFolderMeta(
     tags: extras.tags ?? [],
     sceneCount: extras.sceneCount ?? 0,
     subfolderCount: extras.subfolderCount ?? 0,
+    previews: extras.previews ?? [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -158,6 +175,9 @@ export interface SceneMeta {
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
+  /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
+   *  every successful thumb upload; `0` means no thumb yet. */
+  thumbUpdatedAt: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -171,6 +191,7 @@ export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
     version: r.version,
     sizeBytes: r.size_bytes,
     hasThumb: r.has_thumb,
+    thumbUpdatedAt: r.thumb_updated_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

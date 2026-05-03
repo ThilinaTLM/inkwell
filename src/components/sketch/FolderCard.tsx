@@ -1,10 +1,15 @@
 // FolderCard — file-explorer tile for a folder.
 //
-// Visual: a Dolphin/Finder-style folder silhouette built from two
-// stacked `RoughBox`es — a back panel with a notched tab on the
-// top-left (the `folder-tab` shape) and a slightly-shorter front pocket
-// overlapping it. The folder name sits *below* the icon as a plain
-// label, matching native file managers.
+// Visual: a flat-design folder built from clean SVG paths (no rough/sketch
+// strokes, no drop shadows). Two-tone primary colour scheme:
+//
+//   - Back panel + tab → `--color-primary`
+//   - Front pocket     → primary mixed with 15% black (slightly darker
+//                        flat shade — works in both themes via color-mix)
+//   - Inner papers     → `--color-card` with `--color-card-stroke` outline,
+//                        each can be overlaid with a scene-thumbnail
+//                        `<image>` when the folder has previewable scenes.
+//                        Hidden behind the front pocket at rest.
 //
 // Interaction model:
 //   - single click  → opens the folder (`onOpen`)
@@ -13,14 +18,19 @@
 //   - keyboard      → Tab focuses; Enter / F2 / Delete handled by
 //                     `useExplorerHotkeys` based on focused card.
 //
-// Hover is intentionally restrained: a soft paper shadow appears, no
-// scale, no translate — the silhouette itself is the affordance.
+// Hover animation is **content-changing**, not chrome-changing:
+//   - the inner papers (with their previews) slide up and peek above
+//     the pocket lip
+//   - the front pocket tilts forward (rotateX) like a flap opening
+//   - the tab nudges up a couple of pixels
+// All driven by CSS transforms in `index.css` (`.ink-folder__*` classes)
+// so they respect `prefers-reduced-motion`.
 
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Ref } from "react";
 
-import { RoughBox } from "@/components/rough";
+import type { ScenePreview } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { tiltFromId } from "./tilt";
 
@@ -29,6 +39,10 @@ export interface FolderCardProps {
   name: string;
   /** Number of scenes directly inside this folder. */
   sceneCount?: number | null;
+  /** Up to 2 most-recently-updated scenes inside this folder, newest
+   *  first. Used to render thumbnails on the inner papers. The first
+   *  entry sits on top of the inner-paper stack; the second behind it. */
+  previews?: ScenePreview[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
   /** Single click — opens the folder. */
@@ -41,6 +55,7 @@ export function FolderCard({
   id,
   name,
   sceneCount,
+  previews,
   actions,
   onOpen,
   onContextMenu,
@@ -57,8 +72,7 @@ export function FolderCard({
       data-explorer-item="folder"
       data-explorer-id={id}
       className={cn(
-        "group/folder relative flex flex-col items-center gap-2 rounded-md transition-shadow duration-150",
-        "hover:shadow-[0_6px_18px_-10px_rgba(28,24,20,0.3)] dark:hover:shadow-[0_6px_18px_-10px_rgba(0,0,0,0.55)]",
+        "group/folder relative flex flex-col items-center gap-2 rounded-md",
         "focus-within:ring-2 focus-within:ring-ring/60",
         className,
       )}
@@ -74,7 +88,7 @@ export function FolderCard({
           "focus-visible:outline-none",
         )}
       >
-        <FolderGlyph id={id} />
+        <FolderGlyph previews={previews} />
 
         <div className="w-full min-w-0 text-center">
           <div className="truncate font-heading text-sm text-foreground" title={name}>
@@ -95,39 +109,157 @@ export function FolderCard({
   );
 }
 
-/** Manila folder silhouette: notched-tab back panel + front pocket. */
-function FolderGlyph({ id }: { id: string }) {
+/**
+ * Flat folder silhouette. Path geometry uses a 200×150 viewBox so the
+ * proportions match the previous RoughBox glyph at any size. The pocket
+ * tilts forward on hover (see `.ink-folder__front` in `index.css`).
+ *
+ * Layer order (back → front):
+ *   1. Back panel + tab        (solid primary)
+ *   2. Inner papers            (cream sheets + optional thumbnail
+ *                               `<image>` overlays; peek up on hover)
+ *   3. Front pocket            (primary, slightly darker; tilts on hover)
+ */
+function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
+  // Always render two paper rects (the visual depth of a stack of pages
+  // looks intentional even when there's nothing inside). Overlay each
+  // with its preview thumbnail when one is available.
+  //
+  // `previews[0]` is the most recent → drawn on TOP of the stack
+  // (geometry: `(22, 38)`). `previews[1]` is older → drawn BEHIND it
+  // (`(32, 46)`). The two rects are deliberately offset so a sliver of
+  // the back paper peeks above the front, even with previews missing.
+  const front = previews?.[0];
+  const back = previews?.[1];
+
+  // Build content-addressed thumb URLs only for previews that actually
+  // have a thumbnail uploaded. SVG `<image>` rendering when `href` is
+  // missing is undefined, so guard the conditional render.
+  const frontThumb = front?.hasThumb
+    ? `/api/scenes/${front.id}/thumb?v=${front.thumbUpdatedAt}`
+    : null;
+  const backThumb = back?.hasThumb
+    ? `/api/scenes/${back.id}/thumb?v=${back.thumbUpdatedAt}`
+    : null;
+
   return (
-    <div className="relative w-full" style={{ aspectRatio: "4 / 3" }} aria-hidden>
-      {/* Back panel: notched tab on the top-left, fills the full glyph. */}
-      <RoughBox
-        shape="folder-tab"
-        seed={`folder-back:${id}`}
-        stroke="var(--color-card-stroke)"
-        strokeWidth={1.4}
-        fill="var(--color-folder)"
-        fillStyle="solid"
-        roughness={0.9}
-        bowing={1}
-        tabWidth={0.34}
-        tabHeight={14}
-        tabSlope={8}
-      />
-      {/* Front pocket: shorter than the back panel so the tab peeks
-       *  above. Slightly inset on the sides. */}
-      <div className="absolute inset-x-1 bottom-0 top-[22%]">
-        <RoughBox
-          shape="rounded"
-          seed={`folder-front:${id}`}
-          stroke="var(--color-card-stroke)"
-          strokeWidth={1.4}
-          fill="var(--color-folder-soft)"
-          fillStyle="solid"
-          roughness={0.9}
-          bowing={1}
-          radius={4}
+    <div
+      className="relative w-full [perspective:600px]"
+      style={{ aspectRatio: "4 / 3" }}
+      aria-hidden
+    >
+      <svg
+        viewBox="0 0 200 150"
+        preserveAspectRatio="xMidYMid meet"
+        className="h-full w-full overflow-visible"
+        role="presentation"
+      >
+        <title>Folder</title>
+
+        {/* 1. Back panel with notched tab on top-left.
+              The tab has a slanted right edge (76 → 88 over 14px tall)
+              for that classic file-folder silhouette. */}
+        <path
+          className="ink-folder__back"
+          d="M 6 26
+             L 6 14
+             Q 6 8 12 8
+             L 70 8
+             L 84 22
+             L 188 22
+             Q 194 22 194 28
+             L 194 138
+             Q 194 144 188 144
+             L 12 144
+             Q 6 144 6 138
+             Z"
+          fill="var(--color-primary)"
         />
-      </div>
+
+        {/* 2. Inner papers — two stacked sheets, slightly offset so the
+              top one peeks over the bottom one. They sit between the back
+              panel and the front pocket, so they're hidden at rest and
+              translate upward on hover. Each rect has an optional
+              `<image>` overlay carrying the scene preview thumbnail.
+              `clipPath` on the `<image>` keeps it inside the rect's
+              rounded corners. */}
+        <defs>
+          {/* Two named clipPaths matching each inner-paper rect. Using
+              named defs (rather than inline) so the overlay images can
+              reference them with `clip-path="url(#...)"`. */}
+          <clipPath id="ink-folder__paper-back" clipPathUnits="userSpaceOnUse">
+            <rect x="32" y="46" width="138" height="92" rx="2" />
+          </clipPath>
+          <clipPath id="ink-folder__paper-front" clipPathUnits="userSpaceOnUse">
+            <rect x="22" y="38" width="138" height="92" rx="2" />
+          </clipPath>
+        </defs>
+        <g className="ink-folder__inner">
+          {/* Back paper (older preview). */}
+          <rect
+            x="32"
+            y="46"
+            width="138"
+            height="92"
+            rx="2"
+            fill="var(--color-card)"
+            stroke="var(--color-card-stroke)"
+            strokeWidth="1"
+            strokeOpacity="0.55"
+          />
+          {backThumb ? (
+            <image
+              href={backThumb}
+              x="32"
+              y="46"
+              width="138"
+              height="92"
+              preserveAspectRatio="xMidYMid slice"
+              clipPath="url(#ink-folder__paper-back)"
+            />
+          ) : null}
+          {/* Front paper (most recent preview). */}
+          <rect
+            x="22"
+            y="38"
+            width="138"
+            height="92"
+            rx="2"
+            fill="var(--color-card)"
+            stroke="var(--color-card-stroke)"
+            strokeWidth="1"
+            strokeOpacity="0.7"
+          />
+          {frontThumb ? (
+            <image
+              href={frontThumb}
+              x="22"
+              y="38"
+              width="138"
+              height="92"
+              preserveAspectRatio="xMidYMid slice"
+              clipPath="url(#ink-folder__paper-front)"
+            />
+          ) : null}
+        </g>
+
+        {/* 3. Front pocket — slightly darker primary so it reads as a
+              separate plane without needing a shadow. Hover tilts it
+              forward around its top edge. */}
+        <path
+          className="ink-folder__front"
+          d="M 6 44
+             Q 6 38 12 38
+             L 188 38
+             Q 194 38 194 44
+             L 194 138
+             Q 194 144 188 144
+             L 12 144
+             Q 6 144 6 138
+             Z"
+          fill="color-mix(in srgb, var(--color-primary) 85%, #000)"
+        />
+      </svg>
     </div>
   );
 }

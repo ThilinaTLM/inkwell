@@ -48,8 +48,20 @@ export interface SceneMeta {
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
+  /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
+   *  every successful thumb upload; `0` means no thumb yet. */
+  thumbUpdatedAt: number;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Compact preview info for a single scene inside a folder. Returned
+ *  inside `FolderMeta.previews` so `FolderCard` can render thumbnails
+ *  between the folds without an extra round trip. */
+export interface ScenePreview {
+  id: string;
+  hasThumb: boolean;
+  thumbUpdatedAt: number;
 }
 
 export interface FolderMeta {
@@ -59,6 +71,8 @@ export interface FolderMeta {
   tags: string[];
   sceneCount: number;
   subfolderCount: number;
+  /** Up to 2 most-recently-updated scenes inside this folder, newest first. */
+  previews: ScenePreview[];
   createdAt: number;
   updatedAt: number;
 }
@@ -318,8 +332,12 @@ export const scenes = {
       if (!r.ok) throw new ApiError(r.status, `HTTP ${r.status}`);
     }),
 
-  thumbUrl: (id: string, version?: number) =>
-    `/api/scenes/${id}/thumb${version ? `?v=${version}` : ""}`,
+  /** Build a thumb URL with a content-addressed cache-bust token.
+   *  Pass `thumbUpdatedAt` from `SceneMeta` (or `ScenePreview`); a
+   *  zero/missing token still produces a valid URL but won't change
+   *  when content changes — callers should always pass the real value. */
+  thumbUrl: (id: string, bust?: number) =>
+    `/api/scenes/${id}/thumb${bust ? `?v=${bust}` : ""}`,
 
   /** Same-origin download URL that triggers a `Content-Disposition: attachment`. */
   downloadUrl: (id: string) => `/api/scenes/${id}/download`,

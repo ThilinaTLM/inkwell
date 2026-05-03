@@ -132,6 +132,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                         id={f.id}
                         name={f.name}
                         sceneCount={f.sceneCount}
+                        previews={f.previews}
                         onOpen={() => onChangeFolder(f.id)}
                       />
                     </ItemContextMenu>
@@ -153,7 +154,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                         id={s.id}
                         name={s.name}
                         hasThumb={s.hasThumb}
-                        thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.version}`}
+                        thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
                         folderName={null}
                         updatedAtLabel={relTime(s.updatedAt)}
                         tags={s.tags}

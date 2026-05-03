@@ -120,6 +120,17 @@ export default function EditorPage() {
 
   const saveThumb = useCallback((svg: string) => scenes.putThumb(id, svg), [id]);
 
+  // After a thumb upload, the server's `thumb_updated_at` advances. The
+  // explorer cards build their `<img src>` from `SceneMeta.thumbUpdatedAt`
+  // (and `FolderMeta.previews[].thumbUpdatedAt`), so we need both queries
+  // to refetch for the new bust token to propagate. Doing it here —
+  // rather than inside SceneEditor — keeps the editor unaware of the
+  // explorer's query taxonomy.
+  const onThumbSaved = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["scenes", "list"] });
+    qc.invalidateQueries({ queryKey: ["folders", "list"] });
+  }, [qc]);
+
   // Lazy tag-set lookup: when the user opens "Edit tags" we need this
   // scene's current tags. The LoadedScene meta doesn't include them, so
   // we read out of any cached scene-list result first; fall back to a
@@ -138,6 +149,7 @@ export default function EditorPage() {
         loaded={loaded}
         save={save}
         saveThumb={saveThumb}
+        onThumbSaved={onThumbSaved}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
         topLeftChrome={

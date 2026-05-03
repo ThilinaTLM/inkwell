@@ -16,7 +16,7 @@
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import { listTagsFor, replaceTagsFor } from "./tags";
-import type { Env, FolderMeta, FolderRow, SceneRow } from "./types";
+import type { Env, FolderMeta, FolderRow, SceneRow, ScenePreview } from "./types";
 import { rowToFolderMeta } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 
@@ -126,12 +126,35 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     .where(and(eq(t.taggings.owner, owner), eq(t.taggings.target_type, "folder")))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
+  // Top-2 most recently updated scenes per folder — powers the
+  // FolderCard inner-paper previews. Single window-function query;
+  // returned newest-first within each folder.
+  const previewRowsP = db.all<{
+    folder_id: string;
+    id: string;
+    has_thumb: number;
+    thumb_updated_at: number;
+    rn: number;
+  }>(sql`
+    WITH ranked AS (
+      SELECT
+        folder_id,
+        id,
+        has_thumb,
+        thumb_updated_at,
+        ROW_NUMBER() OVER (PARTITION BY folder_id ORDER BY updated_at DESC, id DESC) AS rn
+      FROM scenes
+      WHERE owner = ${owner} AND folder_id IS NOT NULL
+    )
+    SELECT folder_id, id, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 2
+  `);
 
-  const [folderRows, sceneCounts, subCounts, tagRows] = await Promise.all([
+  const [folderRows, sceneCounts, subCounts, tagRows, previewRows] = await Promise.all([
     foldersP,
     sceneCountsP,
     subCountsP,
     tagRowsP,
+    previewRowsP,
   ]);
 
   const sceneMap = new Map(sceneCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
@@ -142,12 +165,23 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     if (arr) arr.push(tg.name);
     else tagMap.set(tg.id, [tg.name]);
   }
+  const previewMap = new Map<string, ScenePreview[]>();
+  for (const p of previewRows) {
+    const arr = previewMap.get(p.folder_id) ?? [];
+    arr.push({
+      id: p.id,
+      hasThumb: p.has_thumb === 1,
+      thumbUpdatedAt: p.thumb_updated_at,
+    });
+    previewMap.set(p.folder_id, arr);
+  }
 
   const out: FolderMeta[] = folderRows.map((f) =>
     rowToFolderMeta(f, {
       tags: tagMap.get(f.id) ?? [],
       sceneCount: sceneMap.get(f.id) ?? 0,
       subfolderCount: subMap.get(f.id) ?? 0,
+      previews: previewMap.get(f.id) ?? [],
     }),
   );
   return jsonResponse({ folders: out });

@@ -52,6 +52,10 @@ export interface SceneEditorProps {
   save: SaveFn;
   /** Persists an SVG thumbnail. Pass `null` to disable thumbnails (e.g. for shared editors). */
   saveThumb: ThumbFn;
+  /** Called after a thumbnail upload succeeds. The page uses this to
+   *  invalidate scene/folder list queries so explorer cards re-render
+   *  with the new `thumbUpdatedAt` cache-bust token. */
+  onThumbSaved?: () => void;
   /** Called after each successful reload following a 409. */
   onReload?: (loaded: LoadedScene) => void;
   /** Function to re-fetch the scene from the server (used after a 409). */
@@ -100,6 +104,7 @@ export default function SceneEditor({
   loaded,
   save,
   saveThumb,
+  onThumbSaved,
   onReload,
   reload,
   chrome,
@@ -261,14 +266,20 @@ export default function SceneEditor({
         svg.removeAttribute("height");
         await saveThumb(svg.outerHTML);
         thumbFpRef.current = fp;
+        // Tell the page so it can invalidate scene/folder list queries.
+        // Done after `thumbFpRef` so a duplicate fingerprint check
+        // short-circuits the next call.
+        onThumbSaved?.();
       } catch {
         // Best-effort.
       }
     },
-    [saveThumb, readOnly],
+    [saveThumb, readOnly, onThumbSaved],
   );
 
-  const debouncedThumb = useDebounced(doThumb, 30_000);
+  // 8s debounce: long enough to coalesce an editing burst, short enough
+  // that returning to the dashboard within ~10s shows the fresh thumb.
+  const debouncedThumb = useDebounced(doThumb, 8_000);
 
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(

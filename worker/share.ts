@@ -47,6 +47,7 @@ import { collectTagsForMany } from "./tags";
 import type {
   Env,
   FolderRow,
+  ScenePreview,
   SharePermission,
   SharePublic,
   ShareRow,
@@ -335,6 +336,23 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
   );
   const folderTags = await collectTagsForMany(env, "folder", folderIds);
 
+  // Compute per-folder top-2 previews (most recently updated scenes).
+  // The full scenes array is already in memory — doing it client-side
+  // here is cheaper than another DB query.
+  const previewsByFolder = new Map<string, ScenePreview[]>();
+  const sortedScenes = [...scenes].sort((a, b) => b.updated_at - a.updated_at);
+  for (const s of sortedScenes) {
+    if (!s.folder_id) continue;
+    const arr = previewsByFolder.get(s.folder_id) ?? [];
+    if (arr.length >= 2) continue;
+    arr.push({
+      id: s.id,
+      hasThumb: s.has_thumb,
+      thumbUpdatedAt: s.thumb_updated_at,
+    });
+    previewsByFolder.set(s.folder_id, arr);
+  }
+
   // Scrub parent_id on the root so the public client doesn't see the
   // owner's outer hierarchy.
   const folderOut = folders.map((f) => {
@@ -345,6 +363,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
         tags: folderTags.get(f.id) ?? [],
         sceneCount: scenes.filter((s) => s.folder_id === f.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === f.id).length,
+        previews: previewsByFolder.get(f.id) ?? [],
       },
     );
   });
@@ -362,6 +381,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
         tags: folderTags.get(rootRow.id) ?? [],
         sceneCount: scenes.filter((s) => s.folder_id === rootRow.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === rootRow.id).length,
+        previews: previewsByFolder.get(rootRow.id) ?? [],
       },
     ),
     folders: folderOut,
@@ -373,21 +393,34 @@ export async function getThumbViaShareToken(
   env: Env,
   token: string,
   ctx: ExecutionContext | null,
+  req?: Request,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.target_type !== "scene") return errorResponse(404, "no thumbnail");
   touchAccess(env, token, ctx);
+
+  // Content-addressed via `?v=<thumbUpdatedAt>` from the client; safe to
+  // cache at the edge + browser. Same reasoning as `getThumb`.
+  const cache = caches.default;
+  if (req) {
+    const cached = await cache.match(req);
+    if (cached) return cached;
+  }
+
   const scene = await loadRowAnyOwner(env, tk.target_id);
   if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
   const obj = await env.R2.get(thumbKey(scene.id));
   if (!obj) return errorResponse(404, "no thumbnail");
-  return new Response(obj.body, {
+  const resp = new Response(obj.body, {
     headers: {
       "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "private, max-age=60",
+      "cache-control": "private, max-age=31536000, immutable",
+      etag: obj.httpEtag,
     },
   });
+  if (req && ctx) ctx.waitUntil(cache.put(req, resp.clone()));
+  return resp;
 }
 
 export async function downloadViaShareToken(
@@ -451,6 +484,7 @@ export async function getFolderShareSceneThumb(
   token: string,
   sceneId: string,
   ctx: ExecutionContext | null,
+  req?: Request,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
@@ -458,16 +492,26 @@ export async function getFolderShareSceneThumb(
     return errorResponse(404, "scene not in shared folder");
   }
   touchAccess(env, token, ctx);
+
+  const cache = caches.default;
+  if (req) {
+    const cached = await cache.match(req);
+    if (cached) return cached;
+  }
+
   const scene = await loadRowAnyOwner(env, sceneId);
   if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
   const obj = await env.R2.get(thumbKey(scene.id));
   if (!obj) return errorResponse(404, "no thumbnail");
-  return new Response(obj.body, {
+  const resp = new Response(obj.body, {
     headers: {
       "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "private, max-age=60",
+      "cache-control": "private, max-age=31536000, immutable",
+      etag: obj.httpEtag,
     },
   });
+  if (req && ctx) ctx.waitUntil(cache.put(req, resp.clone()));
+  return resp;
 }
 
 export async function downloadFolderShareScene(

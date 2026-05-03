@@ -48,7 +48,7 @@
    shadcn analog (manila folder silhouette, hand-drawn pen outline, the
    five tag-chip swatches).
 
-   The visual identity (vermillion brand, paper white, warm-stone neutrals,
+   The visual identity (burnt-orange brand, paper white, warm-stone neutrals,
    manila folder, five tag colours) is preserved verbatim — only the names
    change. Components consume colours exclusively through these tokens.
    ─────────────────────────────────────────────────────────────────────── */
@@ -122,9 +122,9 @@
   --popover: #ffffff;
   --popover-foreground: #1c1814;
 
-  --primary: #d5482e; /* vermillion */
-  --primary-foreground: #fdf6e8; /* warm cream — readable on vermillion */
-  --primary-hover: #a8351f; /* darker vermillion for primary hover */
+  --primary: #e8731f; /* burnt orange */
+  --primary-foreground: #fdf6e8; /* warm cream — readable on burnt orange */
+  --primary-hover: #b8560f; /* darker burnt orange for primary hover */
 
   --secondary: #ececec; /* neutral cool gray surface */
   --secondary-foreground: #1c1814;
@@ -132,17 +132,17 @@
   --muted: #ececec; /* same value as secondary; semantic intent differs */
   --muted-foreground: #5b5044; /* warm-stone secondary text */
 
-  --accent: #f3c8be; /* vermillion-soft — interactive highlight */
-  --accent-foreground: #a8351f; /* vermillion-dark — text on accent */
+  --accent: #fad9b8; /* orange-soft — interactive highlight */
+  --accent-foreground: #b8560f; /* burnt-orange-dark — text on accent */
 
-  --destructive: #a8351f; /* vermillion-dark */
+  --destructive: #c0392b; /* red — kept distinct from primary */
   --destructive-foreground: #fdf6e8;
 
   --border: oklch(0 0 0 / 12%);
   --input: oklch(0 0 0 / 18%);
-  --ring: #d5482e;
+  --ring: #e8731f;
 
-  --chart-1: #d5482e; /* primary */
+  --chart-1: #e8731f; /* primary */
   --chart-2: #3e5f8a; /* graphite (cool ramp) */
   --chart-3: #c9a659; /* warning / pending ramp */
   --chart-4: #5b5044; /* muted-foreground */
@@ -152,12 +152,12 @@
 
   --sidebar: #ffffff;
   --sidebar-foreground: #1c1814;
-  --sidebar-primary: #d5482e;
+  --sidebar-primary: #e8731f;
   --sidebar-primary-foreground: #fdf6e8;
   --sidebar-accent: #ececec;
   --sidebar-accent-foreground: #1c1814;
   --sidebar-border: oklch(0 0 0 / 10%);
-  --sidebar-ring: #d5482e;
+  --sidebar-ring: #e8731f;
 
   /* Decoration namespace — used only where no shadcn token applies. */
   --folder: #e8c77a; /* manila — folder back panel */
@@ -181,9 +181,9 @@
   --popover: #232329;
   --popover-foreground: #efe9dc;
 
-  --primary: #e8593f; /* vermillion (brighter on dark) */
+  --primary: #f5893a; /* burnt orange (brighter on dark) */
   --primary-foreground: #1c1814;
-  --primary-hover: #f56b51;
+  --primary-hover: #ffa05a;
 
   --secondary: #2a2a2e; /* neutral cool dark surface */
   --secondary-foreground: #efe9dc;
@@ -191,17 +191,17 @@
   --muted: #2a2a2e;
   --muted-foreground: #b9b0a0;
 
-  --accent: #4a2018; /* vermillion-soft on dark */
-  --accent-foreground: #f3c8be;
+  --accent: #4a2d10; /* orange-soft on dark */
+  --accent-foreground: #fad9b8;
 
-  --destructive: #f56b51;
+  --destructive: #e74c3c;
   --destructive-foreground: #1c1814;
 
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 18%);
-  --ring: #e8593f;
+  --ring: #f5893a;
 
-  --chart-1: #e8593f;
+  --chart-1: #f5893a;
   --chart-2: #7da3cf;
   --chart-3: #d4b25c;
   --chart-4: #b9b0a0;
@@ -209,12 +209,12 @@
 
   --sidebar: #232329;
   --sidebar-foreground: #efe9dc;
-  --sidebar-primary: #e8593f;
+  --sidebar-primary: #f5893a;
   --sidebar-primary-foreground: #1c1814;
   --sidebar-accent: #2a2a2e;
   --sidebar-accent-foreground: #efe9dc;
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: #e8593f;
+  --sidebar-ring: #f5893a;
 
   --folder: #d4b25c; /* manila reads warmer on slate */
   --folder-soft: #4a3f25;
@@ -266,6 +266,90 @@
 .dark .bg-paper-grain {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.06'/></svg>");
   mix-blend-mode: screen;
+}
+
+/* ─── FolderCard / SceneCard glyph animations ────────────────────────
+   Flat-design hover animations that change the SVG itself, not chrome.
+   - Folder: front pocket tilts forward, inner papers peek above the lip.
+   - Scene:  two back sheets fan out from behind the front sheet.
+   Tailwind v4 escapes `/` in `group/folder` selectors as `group\/folder`.
+   ────────────────────────────────────────────────────────────────── */
+.ink-folder__back,
+.ink-folder__front,
+.ink-folder__inner {
+  transform-box: fill-box;
+  transition:
+    transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.ink-folder__inner {
+  transform-origin: 50% 100%;
+  transform: translateY(0);
+}
+.ink-folder__front {
+  /* 3D rotation around the top edge — "opening" the pocket. */
+  transform-origin: 50% 0%;
+  transform: rotateX(0deg);
+}
+.group\/folder:hover .ink-folder__inner,
+.group\/folder:focus-within .ink-folder__inner {
+  transform: translateY(-14px);
+}
+.group\/folder:hover .ink-folder__front,
+.group\/folder:focus-within .ink-folder__front {
+  transform: rotateX(-22deg);
+}
+.group\/folder:hover .ink-folder__back,
+.group\/folder:focus-within .ink-folder__back {
+  transform: translateY(-2px);
+}
+
+.ink-scene__back {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transition:
+    transform 360ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 220ms ease-out;
+  will-change: transform, opacity;
+}
+.ink-scene__back--l {
+  transform: rotate(0deg) translate(0, 0);
+}
+.ink-scene__back--r {
+  transform: rotate(0deg) translate(0, 0);
+}
+.group\/scene:hover .ink-scene__back--l,
+.group\/scene:focus-within .ink-scene__back--l {
+  opacity: 1;
+  /* Lower magnitude than the original draft — the back-stack rects are
+     now inset 8px from the front sheet, so they only need to fan out
+     ~half the previous distance to peek from behind the front. */
+  transform: rotate(-4deg) translate(-3px, -1px);
+}
+.group\/scene:hover .ink-scene__back--r,
+.group\/scene:focus-within .ink-scene__back--r {
+  opacity: 1;
+  transform: rotate(4deg) translate(3px, -1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-folder__back,
+  .ink-folder__front,
+  .ink-folder__inner,
+  .ink-scene__back {
+    transition: none;
+  }
+  .group\/folder:hover .ink-folder__inner,
+  .group\/folder:hover .ink-folder__front,
+  .group\/folder:hover .ink-folder__back,
+  .group\/scene:hover .ink-scene__back--l,
+  .group\/scene:hover .ink-scene__back--r {
+    transform: none;
+  }
+  .group\/scene:hover .ink-scene__back {
+    opacity: 0.6;
+  }
 }
 
 /* ─── Excalidraw chrome — derived from inkwell's shadcn palette ──────────

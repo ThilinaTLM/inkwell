@@ -120,6 +120,11 @@ export const scenes = sqliteTable(
     version: integer("version").notNull().default(1),
     size_bytes: integer("size_bytes").notNull().default(0),
     has_thumb: integer("has_thumb", { mode: "boolean" }).notNull().default(false),
+    // Cache-bust token for the thumbnail. Bumped to `now()` on every
+    // successful `putThumb`. Decoupled from `version` (which represents
+    // scene blob content) and `updated_at` (which drives list ordering)
+    // so a thumb re-upload doesn't pretend the scene was edited.
+    thumb_updated_at: integer("thumb_updated_at").notNull().default(0),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
   },

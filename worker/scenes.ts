@@ -153,6 +153,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
+      thumb_updated_at: 0,
       created_at: ts,
       updated_at: ts,
     })
@@ -170,6 +171,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     version: 1,
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
+    thumbUpdatedAt: 0,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -310,6 +312,7 @@ export async function putScene(
     version: nextVersion,
     sizeBytes: buf.byteLength,
     hasThumb: row.has_thumb,
+    thumbUpdatedAt: row.thumb_updated_at,
     createdAt: row.created_at,
     updatedAt: ts,
   } satisfies SceneMeta);
@@ -447,6 +450,10 @@ export async function deleteScene(env: Env, owner: string, id: string): Promise<
 }
 
 // ─── Thumbnails ───────────────────────────────────────────────────────
+// putThumb: writes the SVG to R2 and advances `thumb_updated_at` on every
+// successful upload (not just the first). The token is the cache-bust
+// value the client appends to `<img src=...?v=N>` — bumping it on every
+// write is what makes content-addressed URLs work.
 export async function putThumb(
   req: Request,
   env: Env,
@@ -463,26 +470,55 @@ export async function putThumb(
   await env.R2.put(r2ThumbKey(id), buf, {
     httpMetadata: { contentType: "image/svg+xml" },
   });
-  if (!row.has_thumb) {
-    const db = getDb(env);
-    await db
-      .update(t.scenes)
-      .set({ has_thumb: true })
-      .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
-      .run();
-  }
+  // Always update the bust token; conditionally flip `has_thumb`. We do
+  // not touch `version` or `updated_at` so list ordering and content
+  // versioning are unaffected by thumb activity.
+  const db = getDb(env);
+  await db
+    .update(t.scenes)
+    .set(row.has_thumb ? { thumb_updated_at: now() } : { has_thumb: true, thumb_updated_at: now() })
+    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .run();
   return jsonResponse({ ok: true });
 }
 
-export async function getThumb(env: Env, _owner: string, id: string): Promise<Response> {
+// getThumb: served via a content-addressed URL (`?v=<thumbUpdatedAt>`)
+// so the response is safe to mark `immutable` for the browser, and we
+// can store it in the Cloudflare edge cache for ~24h. New content =>
+// new URL => cold path runs again exactly once.
+//
+// Cache key is the request URL only (no per-user partitioning), which
+// is safe because:
+//   1. The auth gate runs upstream of this handler — only authenticated
+//      callers ever reach `cache.match`.
+//   2. Scene IDs are unguessable UUIDs.
+// Pre-existing soft leak (no owner check here) is documented for
+// follow-up; this caching layer doesn't make it worse.
+export async function getThumb(
+  req: Request,
+  env: Env,
+  _owner: string,
+  id: string,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const cache = caches.default;
+  const cached = await cache.match(req);
+  if (cached) return cached;
+
   const obj = await env.R2.get(r2ThumbKey(id));
   if (!obj) return errorResponse(404, "no thumbnail");
-  return new Response(obj.body, {
+
+  const resp = new Response(obj.body, {
     headers: {
       "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "private, max-age=60",
+      // Content-addressed URL (`?v=<thumbUpdatedAt>`) ⇒ a given URL
+      // never changes content. Safe to mark immutable.
+      "cache-control": "private, max-age=31536000, immutable",
+      etag: obj.httpEtag,
     },
   });
+  ctx.waitUntil(cache.put(req, resp.clone()));
+  return resp;
 }
 
 // Exposed for share.ts so a token-authenticated request can read the same
@@ -525,6 +561,7 @@ export async function createSceneInFolder(
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
+      thumb_updated_at: 0,
       created_at: ts,
       updated_at: ts,
     })
@@ -537,6 +574,7 @@ export async function createSceneInFolder(
     version: 1,
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
+    thumbUpdatedAt: 0,
     createdAt: ts,
     updatedAt: ts,
   };

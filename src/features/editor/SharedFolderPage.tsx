@@ -142,6 +142,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
                       id={f.id}
                       name={f.name}
                       sceneCount={f.sceneCount}
+                      previews={f.previews}
                       onOpen={() => setSelectedId(f.id)}
                     />
                   ))}
@@ -225,7 +226,7 @@ function SharedSceneCard({
       id={s.id}
       name={s.name}
       hasThumb={s.hasThumb}
-      thumbUrl={`${shares.folderSceneThumbUrl(token, s.id)}?v=${s.version}`}
+      thumbUrl={`${shares.folderSceneThumbUrl(token, s.id)}?v=${s.thumbUpdatedAt}`}
       folderName={null}
       updatedAtLabel={relTime(s.updatedAt)}
       tags={s.tags}
