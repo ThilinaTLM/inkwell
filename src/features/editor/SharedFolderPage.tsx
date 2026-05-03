@@ -131,41 +131,29 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
             body="No scenes in this folder. Try another folder above."
           />
         ) : (
-          <div className="space-y-6">
-            {subfolders.length > 0 && (
-              <section aria-label="Subfolders">
-                <h3 className="px-6 pb-2 font-heading text-lg text-muted-foreground">Folders</h3>
-                <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {subfolders.map((f) => (
-                    <FolderCard
-                      key={f.id}
-                      id={f.id}
-                      name={f.name}
-                      sceneCount={f.sceneCount}
-                      previews={f.previews}
-                      onOpen={() => setSelectedId(f.id)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {visibleScenes.length > 0 && (
-              <section aria-label="Scenes">
-                <h3 className="px-6 pb-2 font-heading text-lg text-muted-foreground">Scenes</h3>
-                <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {visibleScenes.map((s) => (
-                    <SharedSceneCard
-                      key={s.id}
-                      scene={s}
-                      token={token}
-                      allowDownload={allowDownload}
-                      onOpen={() => navigate(`/share/${token}/scenes/${s.id}`)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
+          <div
+            aria-label="Folder contents"
+            className="grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]"
+          >
+            {subfolders.map((f) => (
+              <FolderCard
+                key={`f:${f.id}`}
+                id={f.id}
+                name={f.name}
+                sceneCount={f.sceneCount}
+                previews={f.previews}
+                onOpen={() => setSelectedId(f.id)}
+              />
+            ))}
+            {visibleScenes.map((s) => (
+              <SharedSceneCard
+                key={`s:${s.id}`}
+                scene={s}
+                token={token}
+                allowDownload={allowDownload}
+                onOpen={() => navigate(`/share/${token}/scenes/${s.id}`)}
+              />
+            ))}
           </div>
         )}
       </main>

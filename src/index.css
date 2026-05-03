@@ -270,17 +270,23 @@
 
 /* ─── Paper-fibre dots (rough-paper specks) ────────────────────────────
    Same SVG-data-uri trick as `.bg-paper-grain`, but uses an alpha-bias
-   step in `feColorMatrix` (`... 0 0 0 12 -6`) to threshold turbulence
-   into discrete specks instead of smooth grain. Stack with `.bg-paper-grain`
-   for a richer, recycled-paper feel on top of any card surface.
+   step in `feColorMatrix` to threshold turbulence into discrete specks
+   instead of smooth grain. Stack with `.bg-paper-grain` for a richer,
+   recycled-paper feel on top of any card surface.
+
+   Tuning (sparser fibre flecks, not sandpaper):
+     - Larger pattern tile (320×320) so specks repeat less densely.
+     - Tighter alpha bias (`... 18 -10`) — fewer turbulence pixels
+       survive the threshold, so flecks read as paper inclusions.
+     - Lower rect opacity (0.30 light / 0.20 dark) keeps them subtle.
    ───────────────────────────────────────────────────────────────────── */
 .bg-paper-dots {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.10  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 14 -5'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.55'/></svg>");
-  background-size: 220px 220px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.10  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 18 -10'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.30'/></svg>");
+  background-size: 320px 320px;
   mix-blend-mode: multiply;
 }
 .dark .bg-paper-dots {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.94  0 0 0 0 0.90  0 0 0 0 0.82  0 0 0 14 -5'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.38'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.94  0 0 0 0 0.90  0 0 0 0 0.82  0 0 0 18 -10'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.20'/></svg>");
   mix-blend-mode: screen;
 }
 

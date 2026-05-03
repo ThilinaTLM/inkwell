@@ -7,9 +7,9 @@
 //   - Page header: path strip (breadcrumb) + folder name title +
 //     "X folders · Y scenes" subtitle + "New folder" and "New scene"
 //     buttons.
-//   - Body: two captioned sections ("Folders", "Scenes"), each its
-//     own responsive grid. The whole body is the empty-area
-//     `<ItemContextMenu>` target so right-click anywhere creates new.
+//   - Body: a single responsive grid containing folders first, then
+//     scenes. The whole body is the empty-area `<ItemContextMenu>`
+//     target so right-click anywhere creates new.
 
 import { FolderAddIcon, Image01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -26,7 +26,6 @@ import { relTime } from "@/lib/format";
 import { Breadcrumb } from "../Breadcrumb";
 import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
-import { SectionHeading } from "@/components/SectionHeading";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
@@ -38,8 +37,11 @@ interface BrowseViewProps {
   actions: ItemMenuActions;
 }
 
+// Auto-fill grid: each tile clamps to a min width and the row fills as
+// many columns as the viewport allows. One declaration scales fluidly
+// from phone to ultrawide — simpler than guessing six breakpoints.
 const GRID_CLASSES =
-  "grid grid-cols-2 gap-3 px-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7";
+  "grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]";
 
 export function BrowseView({ folderId, onChangeFolder, folders, actions }: BrowseViewProps) {
   const scenesQuery = useScenes({ folderId: folderId ?? "root" });
@@ -118,53 +120,44 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
           />
         ) : (
           <>
-            {subfolders.length > 0 && (
-              <>
-                <SectionHeading label="Folders" count={subfolders.length} />
-                <div className={GRID_CLASSES}>
-                  {subfolders.map((f) => (
-                    <ItemContextMenu
-                      key={f.id}
-                      target={{ kind: "folder", folder: f }}
-                      actions={actions}
-                    >
-                      <FolderCard
-                        id={f.id}
-                        name={f.name}
-                        sceneCount={f.sceneCount}
-                        previews={f.previews}
-                        onOpen={() => onChangeFolder(f.id)}
-                      />
-                    </ItemContextMenu>
-                  ))}
-                </div>
-              </>
-            )}
-            {(scenes?.length ?? 0) > 0 && (
-              <>
-                <SectionHeading label="Scenes" count={scenes?.length} />
-                <div className={GRID_CLASSES}>
-                  {scenes?.map((s) => (
-                    <ItemContextMenu
-                      key={s.id}
-                      target={{ kind: "scene", scene: s }}
-                      actions={actions}
-                    >
-                      <SceneCard
-                        id={s.id}
-                        name={s.name}
-                        hasThumb={s.hasThumb}
-                        thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
-                        folderName={null}
-                        updatedAtLabel={relTime(s.updatedAt)}
-                        tags={s.tags}
-                        onOpen={() => navigate(`/s/${s.id}`)}
-                      />
-                    </ItemContextMenu>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* Single grid: folders first, then scenes. Folder/scene
+             *  keys are prefixed so a folder and a scene with the
+             *  same uuid can never collide in React's reconciler. */}
+            <div className={GRID_CLASSES}>
+              {subfolders.map((f) => (
+                <ItemContextMenu
+                  key={`f:${f.id}`}
+                  target={{ kind: "folder", folder: f }}
+                  actions={actions}
+                >
+                  <FolderCard
+                    id={f.id}
+                    name={f.name}
+                    sceneCount={f.sceneCount}
+                    previews={f.previews}
+                    onOpen={() => onChangeFolder(f.id)}
+                  />
+                </ItemContextMenu>
+              ))}
+              {scenes?.map((s) => (
+                <ItemContextMenu
+                  key={`s:${s.id}`}
+                  target={{ kind: "scene", scene: s }}
+                  actions={actions}
+                >
+                  <SceneCard
+                    id={s.id}
+                    name={s.name}
+                    hasThumb={s.hasThumb}
+                    thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
+                    folderName={null}
+                    updatedAtLabel={relTime(s.updatedAt)}
+                    tags={s.tags}
+                    onOpen={() => navigate(`/s/${s.id}`)}
+                  />
+                </ItemContextMenu>
+              ))}
+            </div>
             {/* Spacer fills remaining height so right-click reaches
              *  the bottom of the working area. */}
             <div className="flex-1" />
