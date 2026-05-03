@@ -109,7 +109,10 @@ export default function EditorPage() {
           : prev,
       );
       // Update cached scene-list rows so explorer views show fresh data.
-      qc.invalidateQueries({ queryKey: keys.scenes.all });
+      // Scope to list queries only — invalidating `keys.scenes.all` would
+      // also match `keys.scenes.detail(id)` (prefix match) and trigger a
+      // refetch of the active scene on every save, racing the autosave loop.
+      qc.invalidateQueries({ queryKey: ["scenes", "list"] });
       return { version: m.version };
     },
     [id, qc],

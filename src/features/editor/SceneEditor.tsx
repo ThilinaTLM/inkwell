@@ -158,7 +158,7 @@ export default function SceneEditor({
     setStatus("idle");
     setErrorMsg(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded.blob, loaded.meta.version]);
+  }, [loaded.blob]);
 
   // Keep Excalidraw's internal appState.name in sync with the canonical
   // scene name. This is purely cosmetic: it drives Excalidraw's export
