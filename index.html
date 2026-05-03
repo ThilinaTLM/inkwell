@@ -1,9 +1,36 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0f0f10" />
+    <!--
+      Resolve the user's stored theme preference and apply `.dark` to <html>
+      before any stylesheet paints, to avoid a flash of the wrong theme.
+      Storage key and resolution rules MUST stay in sync with
+      src/lib/theme.tsx (ThemeProvider).
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("inkwell:theme");
+          var mode =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          var resolved =
+            mode === "system"
+              ? window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : mode;
+          if (resolved === "dark")
+            document.documentElement.classList.add("dark");
+        } catch (_) {
+          /* localStorage unavailable — ThemeProvider will recover. */
+        }
+      })();
+    </script>
     <title>Inkwell</title>
   </head>
   <body>

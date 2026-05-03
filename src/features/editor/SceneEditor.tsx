@@ -43,6 +43,7 @@ import type { LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useDebounced } from "@/hooks/useDebounced";
+import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
@@ -114,6 +115,10 @@ export default function SceneEditor({
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // App theme is the single source of truth; Excalidraw renders as a
+  // controlled consumer via the `theme` prop below.
+  const { resolved: themeResolved } = useTheme();
+
   // Mutable refs so the debounced callbacks always see the latest values
   // without re-creating themselves.
   const versionRef = useRef(loaded.meta.version);
@@ -160,12 +165,12 @@ export default function SceneEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded.blob]);
 
-  // Sync external name changes (e.g. rename dialog) into Excalidraw's
-  // appState. The worker treats appState.name as the canonical scene
-  // name on save (so editing the name in Excalidraw's export dialog
-  // works), which means after an owner-driven rename we must push the
-  // new name back into appState. Otherwise the next debounced autosave
-  // would revert the rename using the stale appState.name.
+  // Keep Excalidraw's internal appState.name in sync with the canonical
+  // scene name. This is purely cosmetic: it drives Excalidraw's export
+  // dialog filename and the default download filename. Persistence of
+  // the scene name lives entirely on the server's PATCH endpoint; the
+  // autosave PUT no longer treats appState.name as canonical, so a
+  // stale appState.name here cannot revert a rename.
   useEffect(() => {
     if (!api) return;
     const current = api.getAppState();
@@ -328,6 +333,7 @@ export default function SceneEditor({
             initialData={initial}
             onChange={onChange}
             viewModeEnabled={readOnly}
+            theme={themeResolved}
             name={loaded.meta.name}
             UIOptions={{
               canvasActions: {
@@ -472,7 +478,10 @@ function fingerprintScene(
     a.viewBackgroundColor ?? "",
     a.gridModeEnabled ? 1 : 0,
     a.gridSize ?? "",
-    a.theme ?? "",
+    // Theme is an app-level preference (see src/lib/theme.tsx) and is
+    // controlled via Excalidraw's `theme` prop, so it's intentionally
+    // not part of the dirty fingerprint and is stripped from the
+    // persisted blob in pickPersistableAppState.
     a.name ?? "",
     a.zenModeEnabled ? 1 : 0,
     a.objectsSnapModeEnabled ? 1 : 0,
@@ -517,6 +526,8 @@ function pickPersistableAppState(
     showHyperlinkPopup: _hp,
     snapLines: _sl,
     originSnapOffset: _osn,
+    // Theme is owned app-side now; don't persist it on the blob.
+    theme: _t,
     ...rest
   } = appState as any;
   return { ...rest, name: (rest as any).name || fallbackName };

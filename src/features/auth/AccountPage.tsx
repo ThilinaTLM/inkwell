@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { useChangePassword, useMe } from "@/features/auth/hooks";
 import { Topbar } from "@/components/Topbar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { errorMessage } from "@/lib/errors";
 import { userDisplayName } from "@/lib/user";
 import { PaperSurface } from "@/components/PaperSurface";
@@ -67,7 +68,7 @@ export default function AccountPage() {
 
   return (
     <PaperSurface variant="page" className="flex flex-col">
-      <Topbar user={user} />
+      <Topbar user={user} actions={<ThemeToggle />} />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <header className="mb-6">

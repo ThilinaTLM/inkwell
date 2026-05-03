@@ -272,9 +272,14 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
   }
   if (!Array.isArray(parsed.elements)) return errorResponse(400, "elements must be an array");
 
-  // Allow appState.name to drive the canonical scene name.
-  const nextName =
-    (typeof parsed.appState?.name === "string" && parsed.appState.name.slice(0, 200)) || row.name;
+  // The DB row's `name` is the single canonical source of truth for the
+  // scene's display name; PUT only writes the blob bytes + version /
+  // size / updated_at. Renames go through PATCH. Historically PUT used
+  // `parsed.appState.name` as the canonical name, but that turned every
+  // autosave into a way to silently revert a rename whenever Excalidraw's
+  // internal appState.name was stale (e.g. immediately after a rename,
+  // before its async initializeScene finished syncing the new name into
+  // the canvas state). See plans/scene-rename-persistence.md.
 
   await env.R2.put(r2SceneKey(id), buf, {
     httpMetadata: { contentType: "application/json" },
@@ -286,7 +291,6 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
   await db
     .update(t.scenes)
     .set({
-      name: nextName,
       version: nextVersion,
       size_bytes: buf.byteLength,
       updated_at: ts,
@@ -298,7 +302,7 @@ export async function putScene(req: Request, env: Env, owner: string, id: string
   return jsonResponse({
     id,
     folderId: row.folder_id ?? null,
-    name: nextName,
+    name: row.name,
     tags,
     version: nextVersion,
     sizeBytes: buf.byteLength,
@@ -349,6 +353,38 @@ export async function patchScene(req: Request, env: Env, owner: string, id: stri
     .set({ name: nextName, folder_id: nextFolder, updated_at: ts })
     .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
     .run();
+
+  // On rename, mirror the new name into the blob's `appState.name` so the
+  // R2-backed blob and the D1 row don't drift. This keeps Excalidraw's
+  // export-dialog filename and any downloaded `.excalidraw` consistent
+  // with the dashboard label until the next autosave reconciles them
+  // anyway. Best-effort: a missing or unparseable blob is left alone
+  // (the D1 row remains canonical). We deliberately do NOT bump
+  // `scenes.version` here — version is the autosave optimistic-
+  // concurrency token, and bumping it would surface as spurious 409s in
+  // an open editor mid-rename.
+  if (body.name !== undefined && nextName !== row.name) {
+    const obj = await env.R2.get(r2SceneKey(id));
+    if (obj) {
+      let parsed: SceneBlob | null = null;
+      try {
+        parsed = JSON.parse(await obj.text()) as SceneBlob;
+      } catch {
+        parsed = null;
+      }
+      if (parsed) {
+        const nextBlob: SceneBlob = {
+          ...parsed,
+          appState: { ...(parsed.appState ?? {}), name: nextName },
+        };
+        await env.R2.put(
+          r2SceneKey(id),
+          JSON.stringify(nextBlob),
+          { httpMetadata: { contentType: "application/json" } }
+        );
+      }
+    }
+  }
 
   const tags = Array.isArray(body.tags)
     ? await replaceTagsFor(env, owner, "scene", id, body.tags)

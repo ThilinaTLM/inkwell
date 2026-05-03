@@ -22,7 +22,9 @@ import {
   ArrowLeft01Icon,
   Download01Icon,
   EyeIcon,
+  Moon02Icon,
   PencilEdit02Icon,
+  Sun03Icon,
 } from "@hugeicons/core-free-icons";
 
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
@@ -32,6 +34,7 @@ import SceneEditor, { EditorSaveBadge } from "@/features/editor/SceneEditor";
 import { SceneNameLabel } from "@/components/sketch";
 import { useSharedScene } from "@/features/editor/hooks";
 import { errorMessage } from "@/lib/errors";
+import { useTheme } from "@/lib/theme";
 import {
   EditorErrorState,
   EditorLoadingState,
@@ -55,6 +58,7 @@ export default function SharedEditorPage({
   const sceneQuery = useSharedScene(preloaded ? "" : token, sceneId);
 
   const [loaded, setLoaded] = useState<LoadedScene | null>(preloaded ?? null);
+  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
 
   // Seed working copy on first arrival; thereafter the editor owns it.
   useEffect(() => {
@@ -174,7 +178,17 @@ export default function SharedEditorPage({
             )}
 
             <MainMenu.Separator />
-            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.Item
+              icon={
+                <HugeiconsIcon
+                  icon={themeResolved === "dark" ? Sun03Icon : Moon02Icon}
+                  strokeWidth={1.8}
+                />
+              }
+              onSelect={toggleTheme}
+            >
+              Toggle theme
+            </MainMenu.Item>
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.DefaultItems.Help />
           </MainMenu>

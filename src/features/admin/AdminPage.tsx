@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { PaperSurface } from "@/components/PaperSurface";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Topbar } from "@/components/Topbar";
 import {
   Tabs,
@@ -27,7 +28,7 @@ export default function AdminPage() {
 
   return (
     <PaperSurface variant="page" className="flex flex-col">
-      <Topbar user={self} />
+      <Topbar user={self} actions={<ThemeToggle />} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <header className="mb-6">

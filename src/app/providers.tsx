@@ -12,6 +12,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { createQueryClient } from "@/lib/api/query-client";
+import { ThemeProvider } from "@/lib/theme";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   // useState ensures we create exactly one QueryClient for the lifetime of
@@ -21,13 +22,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <BrowserRouter>
-        <TooltipProvider>
-          {children}
-          <Toaster position="bottom-right" />
-          {import.meta.env.DEV && (
-            <ReactQueryDevtools buttonPosition="bottom-left" />
-          )}
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster position="bottom-right" />
+            {import.meta.env.DEV && (
+              <ReactQueryDevtools buttonPosition="bottom-left" />
+            )}
+          </TooltipProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );

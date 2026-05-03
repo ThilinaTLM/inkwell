@@ -19,7 +19,9 @@ import {
   Download01Icon,
   Edit02Icon,
   HashtagIcon,
+  Moon02Icon,
   Share08Icon,
+  Sun03Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
@@ -40,6 +42,7 @@ import {
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import { errorMessage } from "@/lib/errors";
+import { useTheme } from "@/lib/theme";
 import SceneEditor, { EditorSaveBadge } from "./SceneEditor";
 import {
   BackToScenesButton,
@@ -61,6 +64,7 @@ export default function EditorPage() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
 
   // Seed the working copy on first arrival. After that the editor owns
   // it; we do NOT mirror further query updates here because that would
@@ -192,7 +196,17 @@ export default function EditorPage() {
               Edit tags…
             </MainMenu.Item>
             <MainMenu.Separator />
-            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.Item
+              icon={
+                <HugeiconsIcon
+                  icon={themeResolved === "dark" ? Sun03Icon : Moon02Icon}
+                  strokeWidth={1.8}
+                />
+              }
+              onSelect={toggleTheme}
+            >
+              Toggle theme
+            </MainMenu.Item>
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.DefaultItems.Help />

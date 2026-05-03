@@ -20,6 +20,7 @@ import { UserMultipleIcon } from "@hugeicons/core-free-icons";
 
 import type { User } from "@/lib/api/client";
 import { Topbar } from "@/components/Topbar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Tooltip,
   TooltipContent,
@@ -34,30 +35,35 @@ interface ExplorerHeaderProps {
 export function ExplorerHeader({ user }: ExplorerHeaderProps) {
   const navigate = useNavigate();
 
-  const actions = user.isAdmin ? (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            onClick={() => navigate("/admin")}
-            aria-label="Manage users"
-            className={cn(
-              "grid size-8 place-items-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft/50 hover:text-ink",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            )}
-          />
-        }
-      >
-        <HugeiconsIcon
-          icon={UserMultipleIcon}
-          strokeWidth={1.7}
-          className="size-4"
-        />
-      </TooltipTrigger>
-      <TooltipContent>Users</TooltipContent>
-    </Tooltip>
-  ) : null;
+  const actions = (
+    <>
+      <ThemeToggle />
+      {user.isAdmin && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => navigate("/admin")}
+                aria-label="Manage users"
+                className={cn(
+                  "grid size-8 place-items-center rounded-md text-ink-soft transition-colors hover:bg-manila-soft/50 hover:text-ink",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                )}
+              />
+            }
+          >
+            <HugeiconsIcon
+              icon={UserMultipleIcon}
+              strokeWidth={1.7}
+              className="size-4"
+            />
+          </TooltipTrigger>
+          <TooltipContent>Users</TooltipContent>
+        </Tooltip>
+      )}
+    </>
+  );
 
   return <Topbar user={user} actions={actions} />;
 }
