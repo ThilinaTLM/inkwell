@@ -40,8 +40,7 @@ interface BrowseViewProps {
 // Auto-fill grid: each tile clamps to a min width and the row fills as
 // many columns as the viewport allows. One declaration scales fluidly
 // from phone to ultrawide — simpler than guessing six breakpoints.
-const GRID_CLASSES =
-  "grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]";
+const GRID_CLASSES = "grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]";
 
 export function BrowseView({ folderId, onChangeFolder, folders, actions }: BrowseViewProps) {
   const scenesQuery = useScenes({ folderId: folderId ?? "root" });
@@ -140,6 +139,8 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                     name={f.name}
                     sceneCount={f.sceneCount}
                     previews={f.previews}
+                    activeShareCount={f.activeShareCount}
+                    onOpenShare={() => actions.shareFolder(f)}
                     onOpen={() => onChangeFolder(f.id)}
                   />
                 </ItemContextMenu>
@@ -158,6 +159,8 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                     folderName={null}
                     updatedAtLabel={relTime(s.updatedAt)}
                     tags={s.tags}
+                    activeShareCount={s.activeShareCount}
+                    onOpenShare={() => actions.shareScene(s)}
                     onOpen={() => navigate(`/s/${s.id}`)}
                   />
                 </ItemContextMenu>

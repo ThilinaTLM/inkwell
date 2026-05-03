@@ -96,7 +96,7 @@ inkwell/
 │       ├── Login.tsx
 │       ├── InviteAccept.tsx        # /invite/:token landing
 │       ├── Account.tsx             # change-password page
-│       ├── Admin.tsx               # users + invites dashboard
+│       ├── Users.tsx               # users + invites dashboard (admin-gated)
 │       ├── Dashboard.tsx
 │       ├── Editor.tsx              # owner editor (auth)
 │       └── SharedEditor.tsx        # share-token editor
@@ -181,7 +181,7 @@ pnpm run dev          # vite          → :3838 (proxies /api to :8888)
 Open <http://localhost:3838>. Log in with `SUPER_ADMIN_EMAIL` and
 `SUPER_ADMIN_PASSWORD`, click **+ New scene**.
 
-To invite another user: click the avatar in the top-right → **Admin** →
+To invite another user: click the avatar in the top-right → **Users** →
 **Invites** → **Create invite link**. Share the URL out of band; the
 recipient registers with any email + password they like. Invites are
 single-use, expire after the period you pick, and can be revoked at any

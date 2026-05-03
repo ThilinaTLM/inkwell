@@ -15,6 +15,7 @@
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
+import { countActiveSharesForTargets } from "./share";
 import { listTagsFor, replaceTagsFor } from "./tags";
 import type { Env, FolderMeta, FolderRow, SceneRow, ScenePreview } from "./types";
 import { rowToFolderMeta } from "./types";
@@ -157,6 +158,14 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     previewRowsP,
   ]);
 
+  // Active share count per folder — single grouped query, indexed.
+  const shareMap = await countActiveSharesForTargets(
+    env,
+    owner,
+    "folder",
+    folderRows.map((f) => f.id),
+  );
+
   const sceneMap = new Map(sceneCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
   const subMap = new Map(subCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
   const tagMap = new Map<string, string[]>();
@@ -182,6 +191,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
       sceneCount: sceneMap.get(f.id) ?? 0,
       subfolderCount: subMap.get(f.id) ?? 0,
       previews: previewMap.get(f.id) ?? [],
+      activeShareCount: shareMap.get(f.id) ?? 0,
     }),
   );
   return jsonResponse({ folders: out });

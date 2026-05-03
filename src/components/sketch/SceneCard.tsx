@@ -36,7 +36,7 @@
 //   - front sheet stays in place (so the thumbnail doesn't jitter)
 //   - everything respects `prefers-reduced-motion`.
 
-import { Image01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { Image01Icon, Link04Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type Ref, useMemo } from "react";
 
@@ -73,6 +73,13 @@ export interface SceneCardProps {
   onOpen?: () => void;
   /** Right click — open the context menu. */
   onContextMenu?: React.MouseEventHandler<HTMLButtonElement>;
+  /** Number of currently-active share tokens for this scene. When > 0
+   *  a small "shared" pill is rendered at the top-left of the card. */
+  activeShareCount?: number;
+  /** Click handler for the share pill. Receives the click event so the
+   *  caller can stop propagation if it wraps the card in another
+   *  click target (e.g. ContextMenuTrigger). */
+  onOpenShare?: () => void;
   className?: string;
 }
 
@@ -85,6 +92,8 @@ export function SceneCard({
   actions,
   onOpen,
   onContextMenu,
+  activeShareCount = 0,
+  onOpenShare,
   className,
   ref,
 }: SceneCardProps & { ref?: Ref<HTMLDivElement> }) {
@@ -122,12 +131,39 @@ export function SceneCard({
         </div>
       </button>
 
+      {activeShareCount > 0 ? <SharePill count={activeShareCount} onClick={onOpenShare} /> : null}
+
       {actions ? (
         <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100">
           {actions}
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Top-left pill on a card that signals "this item has active share
+ * links." Always visible (not hover-revealed) so the user can spot
+ * shared items at a glance. Click opens the per-target ShareDialog.
+ */
+function SharePill({ count, onClick }: { count: number; onClick?: () => void }) {
+  const label = count === 1 ? "1 active link" : `${count} active links`;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      onContextMenu={(e) => e.stopPropagation()}
+      title={label}
+      aria-label={label}
+      className="absolute left-1 top-1 z-10 inline-flex h-5 items-center gap-1 rounded-full bg-accent/70 px-1.5 text-[0.625rem] font-medium text-accent-foreground ring-1 ring-border/50 backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      <HugeiconsIcon icon={Link04Icon} strokeWidth={2} className="size-2.5" />
+      <span>{count}</span>
+    </button>
   );
 }
 
@@ -269,10 +305,7 @@ function SceneGlyph({
       {/* 3. Thumbnail clipped to the torn silhouette. No inset — we
             *want* the image to bleed all the way to the torn edge so
             the tear doesn't reveal a clean rectangle hidden under it. */}
-      <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ clipPath: torn.clipPolygon }}
-      >
+      <div className="absolute inset-0 overflow-hidden" style={{ clipPath: torn.clipPolygon }}>
         {hasThumb ? (
           <img
             src={thumbUrl}

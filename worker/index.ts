@@ -53,6 +53,8 @@ import {
   revokeFolderShare,
   revokeSceneShare,
   revokeShareGeneric,
+  rotateShareGeneric,
+  updateShareGeneric,
 } from "./share";
 import { deleteTag, listTags, renameTag } from "./tags";
 import type { Env } from "./types";
@@ -226,8 +228,14 @@ async function handleApi(
     return errorResponse(405, "method not allowed");
   }
   const sharesGeneric = path.match(new RegExp(`^/api/shares/(${TOKEN_RE})$`));
-  if (sharesGeneric && req.method === "DELETE") {
-    return revokeShareGeneric(env, userId, sharesGeneric[1]);
+  if (sharesGeneric) {
+    if (req.method === "DELETE") return revokeShareGeneric(env, userId, sharesGeneric[1]);
+    if (req.method === "PATCH") return updateShareGeneric(req, env, userId, sharesGeneric[1]);
+    return errorResponse(405, "method not allowed");
+  }
+  const sharesRotate = path.match(new RegExp(`^/api/shares/(${TOKEN_RE})/rotate$`));
+  if (sharesRotate && req.method === "POST") {
+    return rotateShareGeneric(env, userId, sharesRotate[1]);
   }
 
   // ─── Scenes ───────────────────────────────────────────────────────

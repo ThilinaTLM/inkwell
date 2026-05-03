@@ -4,17 +4,17 @@
 //   [ inkwell ]                                          [ Users? ] [ avatar ]
 //
 // Composes the shared `<Topbar>` so the dashboard chrome matches the
-// rest of the authenticated app (Account, Admin) — same height, same
+// rest of the authenticated app (Account, Users) — same height, same
 // wordmark, same bottom border.
 //
 // Search and creation aren't part of the header — scene/folder
 // creation lives in the page-header buttons (and the right-click
 // context menu in any view).
 //
-// The admin "Users" icon button is a one-click jump to /admin and only
+// The admin "Users" icon button is a one-click jump to /users and only
 // renders when `user.isAdmin` is true.
 
-import { UserMultipleIcon } from "@hugeicons/core-free-icons";
+import { Link04Icon, UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -30,21 +30,38 @@ interface ExplorerHeaderProps {
 export function ExplorerHeader({ user }: ExplorerHeaderProps) {
   const navigate = useNavigate();
 
+  const iconButtonClass = cn(
+    "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+  );
+
   const actions = (
     <>
       <ThemeToggle />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={() => navigate("/shares")}
+              aria-label="Shared links"
+              className={iconButtonClass}
+            />
+          }
+        >
+          <HugeiconsIcon icon={Link04Icon} strokeWidth={1.7} className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Shared links</TooltipContent>
+      </Tooltip>
       {user.isAdmin && (
         <Tooltip>
           <TooltipTrigger
             render={
               <button
                 type="button"
-                onClick={() => navigate("/admin")}
+                onClick={() => navigate("/users")}
                 aria-label="Manage users"
-                className={cn(
-                  "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                )}
+                className={iconButtonClass}
               />
             }
           >

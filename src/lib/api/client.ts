@@ -51,6 +51,11 @@ export interface SceneMeta {
   /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
   thumbUpdatedAt: number;
+  /** Number of currently-active share tokens whose target is this scene.
+   *  Drives the "shared" pill on `SceneCard`. Always 0 in visitor
+   *  responses (folder-share listing) so recipients can't infer how
+   *  many other shares the owner has. */
+  activeShareCount: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -74,6 +79,11 @@ export interface FolderMeta {
   /** Up to 3 most-recently-updated scenes inside this folder, newest first.
    *  `previews[0]` is the front-most paper in the FolderCard stack. */
   previews: ScenePreview[];
+  /** Number of currently-active share tokens whose target is this folder.
+   *  Drives the "shared" pill on `FolderCard`. Always 0 in visitor
+   *  responses so recipients can't infer how many other shares the
+   *  owner has. */
+  activeShareCount: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -345,8 +355,7 @@ export const scenes = {
    *  Pass `thumbUpdatedAt` from `SceneMeta` (or `ScenePreview`); a
    *  zero/missing token still produces a valid URL but won't change
    *  when content changes — callers should always pass the real value. */
-  thumbUrl: (id: string, bust?: number) =>
-    `/api/scenes/${id}/thumb${bust ? `?v=${bust}` : ""}`,
+  thumbUrl: (id: string, bust?: number) => `/api/scenes/${id}/thumb${bust ? `?v=${bust}` : ""}`,
 
   /** Same-origin download URL that triggers a `Content-Disposition: attachment`. */
   downloadUrl: (id: string) => `/api/scenes/${id}/download`,
@@ -372,6 +381,23 @@ export const shares = {
   /** All of caller's active shares (scenes + folders), with target name. */
   listAll: () => request<{ shares: Share[] }>("/api/shares").then((r) => r.shares),
   revoke: (token: string) => request<{ ok: true }>(`/api/shares/${token}`, { method: "DELETE" }),
+
+  /** Edit an existing share in place. The URL stays valid; only metadata
+   *  changes. Use {@link rotate} when the URL itself must be invalidated. */
+  update: (
+    token: string,
+    body: {
+      permission?: SharePermission;
+      allowDownload?: boolean;
+      expiresAt?: number | null;
+      label?: string | null;
+    },
+  ) => patchJson<Share>(`/api/shares/${token}`, body),
+
+  /** Revoke this token and issue a fresh one with the same settings. The
+   *  old URL stops working immediately. Use for leaked-link recovery. */
+  rotate: (token: string) =>
+    postJson<{ old: { token: string }; new: Share }>(`/api/shares/${token}/rotate`, {}),
 
   // ── Public token operations (scene shares) ────────────────────────
   async load(token: string): Promise<LoadedScene> {

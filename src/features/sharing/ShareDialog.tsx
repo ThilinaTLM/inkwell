@@ -1,42 +1,51 @@
 // Unified share dialog. Works for both scene and folder targets.
 //
-// Lists existing active shares with revoke buttons, and lets the owner
-// create a new share with permission, allow-download, optional expiry,
-// and optional label. The previous internal scene/folder adapter pair
-// is gone; the sharing hooks pick the right endpoint from
-// `targetType`.
+// Visual structure:
+//
+//   ┌─ Dialog (paper card, no nested borders) ───────────────────┐
+//   │ Header   Share "<targetName>"                              │
+//   │          <muted hint that adapts to current selection>     │
+//   │                                                            │
+//   │ Active links section                                       │
+//   │   • If empty: muted "No active links yet."                 │
+//   │   • Else: list of <ShareLinkRow> cards.                    │
+//   │                                                            │
+//   │ Create section                                             │
+//   │   • If 0 links: form is expanded by default.               │
+//   │   • Else:       collapsed under a "+ New link" button.     │
+//   └────────────────────────────────────────────────────────────┘
+//
+// The previous implementation had a dashed-border inner card AND a
+// detached "Done" footer button which read as nested cards in the
+// screenshot. Both are gone — close happens via Esc or the built-in
+// `✕` button on the dialog.
 
-import {
-  Copy01Icon,
-  Delete02Icon,
-  Download01Icon,
-  EyeIcon,
-  Link01Icon,
-  PencilEdit02Icon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, Link04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateShare, useRevokeShare, useShareList } from "@/features/sharing/hooks";
-import type { SharePermission, ShareTargetType } from "@/lib/api/client";
+import {
+  useCreateShare,
+  useRevokeShare,
+  useRotateShare,
+  useShareList,
+  useUpdateShare,
+} from "@/features/sharing/hooks";
+import type { ShareTargetType } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
-import { fmtDateTime } from "@/lib/format";
 import { shareUrl } from "@/lib/url";
-import { cn } from "@/lib/utils";
+import { ShareLinkCreateForm } from "./ShareLinkCreateForm";
+import { ShareLinkRow } from "./ShareLinkRow";
 
 interface ShareDialogProps {
   open: boolean;
@@ -45,13 +54,6 @@ interface ShareDialogProps {
   targetId: string;
   targetName: string;
 }
-
-const EXPIRY_OPTIONS: { label: string; ms: number | null }[] = [
-  { label: "Never", ms: null },
-  { label: "1 day", ms: 24 * 60 * 60 * 1000 },
-  { label: "7 days", ms: 7 * 24 * 60 * 60 * 1000 },
-  { label: "30 days", ms: 30 * 24 * 60 * 60 * 1000 },
-];
 
 export function ShareDialog({
   open,
@@ -62,243 +64,133 @@ export function ShareDialog({
 }: ShareDialogProps) {
   const sharesQuery = useShareList(targetType, targetId, open);
   const createShare = useCreateShare(targetType, targetId);
+  const updateShare = useUpdateShare(targetType, targetId);
+  const rotateShare = useRotateShare(targetType, targetId);
   const revokeShare = useRevokeShare(targetType, targetId);
 
-  const [perm, setPerm] = useState<SharePermission>("read");
-  const [allowDownload, setAllowDownload] = useState(true);
-  const [expiryIdx, setExpiryIdx] = useState(0);
-  const [label, setLabel] = useState("");
-
-  // Reset form whenever the dialog reopens or the target changes.
-  useEffect(() => {
-    if (!open) return;
-    setPerm("read");
-    setAllowDownload(true);
-    setExpiryIdx(0);
-    setLabel("");
-  }, [open]);
-
-  async function create() {
-    const expiresMs = EXPIRY_OPTIONS[expiryIdx].ms;
-    const expiresAt = expiresMs === null ? null : Date.now() + expiresMs;
-    try {
-      const sh = await createShare.mutateAsync({
-        permission: perm,
-        allowDownload: perm === "write" ? true : allowDownload,
-        expiresAt,
-        label: label.trim() || null,
-      });
-      const copied = await copyToClipboard(shareUrl(sh.token));
-      toast.success(copied ? "Link created and copied." : "Link created.");
-      setLabel("");
-    } catch (e) {
-      toast.error(errorMessage(e, "could not create share"));
-    }
-  }
-
-  async function revoke(token: string) {
-    try {
-      await revokeShare.mutateAsync(token);
-      toast.success("Revoked.");
-    } catch (e) {
-      toast.error(errorMessage(e, "could not revoke"));
-    }
-  }
-
-  async function copy(token: string) {
-    const ok = await copyToClipboard(shareUrl(token));
-    if (ok) toast.success("Copied.");
-    else toast.error("Could not copy.");
-  }
+  // The create section is expanded by default when there are zero
+  // existing links (the user is here to make one). Once they have at
+  // least one, we collapse it behind a `+ New link` button so the
+  // dialog stays calm.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [resetSignal, setResetSignal] = useState(0);
 
   const items = sharesQuery.data ?? null;
 
+  useEffect(() => {
+    if (!open) return;
+    // Reset create-form state on every (re)open.
+    setResetSignal((n) => n + 1);
+  }, [open]);
+
+  useEffect(() => {
+    if (items === null) return;
+    setCreateOpen(items.length === 0);
+  }, [items]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="flex max-h-[85dvh] flex-col gap-4 sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>
-            Share{" "}
-            {targetType === "folder" ? (
-              <span>folder “{targetName}”</span>
-            ) : (
-              <span>“{targetName}”</span>
-            )}
+          <DialogTitle className="flex items-center gap-2">
+            <HugeiconsIcon icon={Link04Icon} strokeWidth={2} className="size-4" />
+            <span>
+              Share{" "}
+              {targetType === "folder" ? (
+                <span className="font-normal text-muted-foreground">folder</span>
+              ) : null}{" "}
+              <span className="font-semibold">“{targetName}”</span>
+            </span>
           </DialogTitle>
           <DialogDescription>
-            Anyone with the link can {perm === "write" ? "view and edit" : "view"}
-            {targetType === "folder" ? " everything inside this folder." : " this scene."}
+            {targetType === "folder"
+              ? "Anyone with a link can access scenes inside this folder. Edit links can also create, edit and delete scenes."
+              : "Anyone with a link can access this scene. Edit links can also save changes back to it."}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Existing shares */}
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs">Active links</Label>
-          {sharesQuery.isPending ? (
-            <div className="flex flex-col gap-1.5">
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-            </div>
-          ) : !items || items.length === 0 ? (
-            <p className="text-[0.6875rem] text-muted-foreground">No active links yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {items.map((sh) => (
-                <li
-                  key={sh.token}
-                  className="flex items-center gap-2 rounded-md border border-border bg-input/10 px-2 py-1.5"
-                >
-                  <Badge variant={sh.permission === "write" ? "secondary" : "outline"}>
-                    <HugeiconsIcon
-                      icon={sh.permission === "write" ? PencilEdit02Icon : EyeIcon}
-                      strokeWidth={2}
-                    />
-                    {sh.permission === "write" ? "Edit" : "View"}
-                  </Badge>
-                  {sh.allowDownload ? (
-                    <Badge variant="outline">
-                      <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />
-                      Download
-                    </Badge>
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[0.6875rem]/relaxed font-medium">
-                      {sh.label || shareUrl(sh.token)}
-                    </div>
-                    <div className="text-[0.625rem] text-muted-foreground">
-                      Created {fmtDateTime(sh.createdAt)}
-                      {sh.expiresAt ? ` · expires ${fmtDateTime(sh.expiresAt)}` : null}
-                      {sh.lastAccessedAt
-                        ? ` · last opened ${fmtDateTime(sh.lastAccessedAt)}`
-                        : null}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => copy(sh.token)}
-                    aria-label="Copy link"
-                  >
-                    <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => revoke(sh.token)}
-                    aria-label="Revoke"
-                  >
-                    <HugeiconsIcon
-                      icon={Delete02Icon}
-                      strokeWidth={2}
-                      className="text-destructive"
-                    />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Create new */}
-        <div className="flex flex-col gap-2 rounded-md border border-dashed border-border/60 p-3">
-          <Label className="text-xs">Create new link</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <PermOption
-              active={perm === "read"}
-              onClick={() => setPerm("read")}
-              title="View only"
-              subtitle="Read-only access."
-            />
-            <PermOption
-              active={perm === "write"}
-              onClick={() => setPerm("write")}
-              title="Can edit"
-              subtitle="Read-write access."
-            />
-          </div>
-          <label
-            className={cn(
-              "flex items-center gap-2 text-xs",
-              perm === "write" && "text-muted-foreground",
-            )}
-          >
-            <input
-              type="checkbox"
-              className="size-3.5"
-              checked={perm === "write" ? true : allowDownload}
-              disabled={perm === "write"}
-              onChange={(e) => setAllowDownload(e.target.checked)}
-            />
-            Allow download (.excalidraw)
-          </label>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="share-expiry" className="text-[0.6875rem]">
-              Expires
-            </Label>
-            <div className="grid grid-cols-4 gap-1">
-              {EXPIRY_OPTIONS.map((opt, i) => (
-                <button
-                  key={opt.label}
+        {/* Body — scrollable so long lists don't push the dialog off-screen. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+          {/* ── Active links ───────────────────────────────────────── */}
+          <section className="flex flex-col gap-2">
+            <header className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Active links{items && items.length > 0 ? ` · ${items.length}` : ""}
+              </h3>
+              {items && items.length > 0 ? (
+                <Button
                   type="button"
-                  onClick={() => setExpiryIdx(i)}
-                  data-active={expiryIdx === i}
-                  className="rounded-md border border-border bg-input/20 px-1.5 py-1 text-[0.6875rem] transition-colors data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground hover:bg-input/40"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setCreateOpen((v) => !v)}
+                  aria-expanded={createOpen}
+                  aria-controls="share-create-form"
                 >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="share-label" className="text-[0.6875rem]">
-              Label (optional)
-            </Label>
-            <Input
-              id="share-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Q4 review"
-              maxLength={200}
-            />
-          </div>
-          <Button onClick={create} disabled={createShare.isPending}>
-            <HugeiconsIcon icon={Link01Icon} strokeWidth={2} />
-            {createShare.isPending ? "Creating…" : "Create link"}
-          </Button>
-        </div>
+                  <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+                  {createOpen ? "Hide" : "New link"}
+                </Button>
+              ) : null}
+            </header>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </DialogFooter>
+            {sharesQuery.isPending ? (
+              <ul className="flex flex-col gap-2">
+                <Skeleton className="h-[5.5rem] w-full rounded-lg" />
+                <Skeleton className="h-[5.5rem] w-full rounded-lg" />
+              </ul>
+            ) : !items || items.length === 0 ? (
+              <p className="rounded-md bg-muted/30 px-3 py-3 text-center text-xs text-muted-foreground ring-1 ring-border/40">
+                No active links yet — create one below.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {items.map((sh) => (
+                  <ShareLinkRow
+                    key={sh.token}
+                    share={sh}
+                    onEdit={async (patch) => {
+                      await updateShare.mutateAsync({ token: sh.token, body: patch });
+                    }}
+                    onRotate={async () => {
+                      const result = await rotateShare.mutateAsync(sh.token);
+                      return { newToken: result.new.token };
+                    }}
+                    onRevoke={async () => {
+                      await revokeShare.mutateAsync(sh.token);
+                    }}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* ── Create form ────────────────────────────────────────── */}
+          {createOpen ? (
+            <section
+              id="share-create-form"
+              className="flex flex-col gap-3 rounded-xl bg-card/60 p-4 ring-1 ring-border/60"
+            >
+              <h3 className="font-heading text-sm uppercase tracking-wide text-muted-foreground">
+                Create new link
+              </h3>
+              <ShareLinkCreateForm
+                pending={createShare.isPending}
+                resetSignal={resetSignal}
+                onCreate={async (body) => {
+                  try {
+                    const sh = await createShare.mutateAsync(body);
+                    const copied = await copyToClipboard(shareUrl(sh.token));
+                    toast.success(copied ? "Link created and copied." : "Link created.");
+                    return sh;
+                  } catch (e) {
+                    toast.error(errorMessage(e, "could not create share"));
+                    throw e;
+                  }
+                }}
+              />
+            </section>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function PermOption({
-  active,
-  onClick,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-active={active}
-      className="rounded-md border border-border bg-input/20 px-2.5 py-2 text-left text-xs/relaxed transition-colors data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground hover:bg-input/40"
-    >
-      <div className="font-medium">{title}</div>
-      <div className="text-[0.6875rem] text-muted-foreground">{subtitle}</div>
-    </button>
   );
 }

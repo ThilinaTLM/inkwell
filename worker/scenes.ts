@@ -15,6 +15,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import { descendantFolderIds, loadScenesInFolders } from "./folders";
+import { countActiveSharesForTargets } from "./share";
 import { collectTagsForMany, listTagsFor, replaceTagsFor } from "./tags";
 import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
 import { rowToMeta } from "./types";
@@ -108,7 +109,18 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
     });
   }
 
-  const out: SceneMeta[] = rows.map((r) => rowToMeta(r, tagMap.get(r.id) ?? []));
+  // Active share count per scene — powers the "shared" pill on cards.
+  // One grouped query, indexed on (target_type, target_id).
+  const shareMap = await countActiveSharesForTargets(
+    env,
+    owner,
+    "scene",
+    rows.map((r) => r.id),
+  );
+
+  const out: SceneMeta[] = rows.map((r) =>
+    rowToMeta(r, tagMap.get(r.id) ?? [], { activeShareCount: shareMap.get(r.id) ?? 0 }),
+  );
   return jsonResponse({ scenes: out });
 }
 
@@ -172,6 +184,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
     thumbUpdatedAt: 0,
+    activeShareCount: 0,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -310,6 +323,9 @@ export async function putScene(
     .run();
 
   const tags = await listTagsFor(env, "scene", id);
+  // `activeShareCount` on the response is best-effort fresh: this is a
+  // single-row save path; one grouped query is fine.
+  const shareMap = await countActiveSharesForTargets(env, owner, "scene", [id]);
   return jsonResponse({
     id,
     folderId: row.folder_id ?? null,
@@ -319,6 +335,7 @@ export async function putScene(
     sizeBytes: buf.byteLength,
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
+    activeShareCount: shareMap.get(id) ?? 0,
     createdAt: row.created_at,
     updatedAt: ts,
   } satisfies SceneMeta);
@@ -581,6 +598,7 @@ export async function createSceneInFolder(
     sizeBytes: seedBytes.byteLength,
     hasThumb: false,
     thumbUpdatedAt: 0,
+    activeShareCount: 0,
     createdAt: ts,
     updatedAt: ts,
   };

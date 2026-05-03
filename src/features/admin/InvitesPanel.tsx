@@ -152,7 +152,7 @@ export function InvitesPanel() {
                   readOnly
                   value={latest.url}
                   onFocus={(e) => e.currentTarget.select()}
-                  className="font-mono text-[0.6875rem]"
+                  className="font-mono text-xs"
                 />
                 <Button
                   variant="outline"
@@ -178,9 +178,7 @@ export function InvitesPanel() {
           {invitesQuery.isPending ? (
             <TableSkeleton rows={3} cols={5} />
           ) : !sorted || sorted.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground">
-              No invites yet.
-            </div>
+            <div className="text-center text-sm text-muted-foreground">No invites yet.</div>
           ) : (
             <Table>
               <TableHeader>
@@ -197,7 +195,7 @@ export function InvitesPanel() {
                 {sorted.map((inv) => (
                   <TableRow key={inv.token}>
                     <TableCell>
-                      <code className="font-mono text-[0.6875rem]">{inv.token.slice(0, 10)}…</code>
+                      <code className="font-mono text-xs">{inv.token.slice(0, 10)}…</code>
                     </TableCell>
                     <TableCell>
                       <StatusPill status={inv.status} />

@@ -73,9 +73,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
         {usersQuery.isPending ? (
           <TableSkeleton rows={4} cols={6} />
         ) : !users || users.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground">
-            No users yet.
-          </div>
+          <div className="text-center text-sm text-muted-foreground">No users yet.</div>
         ) : (
           <Table>
             <TableHeader>
@@ -103,13 +101,13 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">{name}</span>
                         {isSelf && (
-                          <Badge variant="outline" className="h-4 text-[0.5625rem]">
+                          <Badge variant="outline" className="text-[0.625rem]">
                             you
                           </Badge>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-[0.6875rem] text-muted-foreground">
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       {u.email}
                     </TableCell>
                     <TableCell>

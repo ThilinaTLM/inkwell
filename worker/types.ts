@@ -137,6 +137,11 @@ export interface FolderMeta {
   /** Up to 3 most-recently-updated scenes inside this folder, newest first.
    *  `previews[0]` is the front-most paper in the FolderCard stack. */
   previews: ScenePreview[];
+  /** Number of currently-active share tokens whose target is this folder.
+   *  Used by `FolderCard` to render the "shared" pill. Always 0 in
+   *  visitor (folder-share) responses so recipients can't infer how many
+   *  other shares the owner has. */
+  activeShareCount: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -148,6 +153,7 @@ export function rowToFolderMeta(
     sceneCount?: number;
     subfolderCount?: number;
     previews?: ScenePreview[];
+    activeShareCount?: number;
   } = {},
 ): FolderMeta {
   return {
@@ -158,6 +164,7 @@ export function rowToFolderMeta(
     sceneCount: extras.sceneCount ?? 0,
     subfolderCount: extras.subfolderCount ?? 0,
     previews: extras.previews ?? [],
+    activeShareCount: extras.activeShareCount ?? 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -179,11 +186,20 @@ export interface SceneMeta {
   /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
   thumbUpdatedAt: number;
+  /** Number of currently-active share tokens whose target is this scene.
+   *  Used by `SceneCard` to render the "shared" pill. Always 0 in
+   *  visitor responses (folder-share listing) so recipients can't infer
+   *  how many other shares the owner has. */
+  activeShareCount: number;
   createdAt: number;
   updatedAt: number;
 }
 
-export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
+export function rowToMeta(
+  r: SceneRow,
+  tags: string[] = [],
+  extras: { activeShareCount?: number } = {},
+): SceneMeta {
   return {
     id: r.id,
     folderId: r.folder_id ?? null,
@@ -193,6 +209,7 @@ export function rowToMeta(r: SceneRow, tags: string[] = []): SceneMeta {
     sizeBytes: r.size_bytes,
     hasThumb: r.has_thumb,
     thumbUpdatedAt: r.thumb_updated_at,
+    activeShareCount: extras.activeShareCount ?? 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

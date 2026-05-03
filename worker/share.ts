@@ -11,6 +11,8 @@
 //   GET    /api/scenes/:id/shares
 //   GET    /api/folders/:id/shares
 //   GET    /api/shares                    (all of caller's shares)
+//   PATCH  /api/shares/:token             (edit label/permission/expiry/download)
+//   POST   /api/shares/:token/rotate      (revoke + reissue with same settings)
 //   DELETE /api/scenes/:id/shares/:token
 //   DELETE /api/folders/:id/shares/:token
 //   DELETE /api/shares/:token
@@ -27,7 +29,7 @@
 //   POST /api/share/:token/scenes                (folder-share write)
 //   GET  /api/share/:token/folders               (folder-share subtree listing)
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import {
   folderInSubtree,
@@ -54,7 +56,7 @@ import type {
   ShareTargetType,
 } from "./types";
 import { isShareActive, rowToFolderMeta, rowToMeta, rowToSharePublic } from "./types";
-import { errorResponse, jsonResponse, newToken, now } from "./util";
+import { errorResponse, generateShareLabel, jsonResponse, newToken, now } from "./util";
 
 // ─── Owner-side helpers ────────────────────────────────────────────────
 async function ensureOwnsScene(env: Env, owner: string, sceneId: string): Promise<boolean> {
@@ -98,7 +100,12 @@ async function createShareRow(
     body.expiresAt !== undefined && body.expiresAt !== null && Number.isFinite(body.expiresAt)
       ? Number(body.expiresAt)
       : null;
-  const label = typeof body.label === "string" ? body.label.slice(0, 200) : null;
+  // The owner's label takes priority; if they didn't type one (or only
+  // whitespace), fall back to a generated petname ("amber-fox-37") so
+  // each row has a memorable identity in the dialog and on the /shares
+  // page. Cosmetic only — the URL token is independent.
+  const trimmedLabel = typeof body.label === "string" ? body.label.trim().slice(0, 200) : "";
+  const label = trimmedLabel.length > 0 ? trimmedLabel : generateShareLabel();
   const token = newToken();
   const ts = now();
   const db = getDb(env);
@@ -248,6 +255,194 @@ export async function revokeShareGeneric(
     .run();
   if ((result.meta?.changes ?? 0) === 0) return errorResponse(404, "share not found");
   return jsonResponse({ ok: true });
+}
+
+// ─── Owner: edit / rotate ────────────────────────────────────────────
+//
+// Edit mutates an existing share row in place — the URL stays valid.
+// Rotate revokes the row and creates a fresh one with the same settings,
+// returning a new token. Use rotate to recover from a leaked URL; use
+// edit for everything else (extending expiry, fixing the label, flipping
+// permissions / download).
+
+interface UpdateShareBody {
+  permission?: SharePermission;
+  // `null` clears expiry, a number replaces it, `undefined` leaves alone.
+  expiresAt?: number | null;
+  // `null` clears the label, a string replaces it, `undefined` leaves alone.
+  label?: string | null;
+  allowDownload?: boolean;
+}
+
+export async function updateShareGeneric(
+  req: Request,
+  env: Env,
+  owner: string,
+  token: string,
+): Promise<Response> {
+  let body: UpdateShareBody = {};
+  try {
+    body = (await req.json()) as UpdateShareBody;
+  } catch {
+    /* defaults are fine — empty body is a no-op */
+  }
+
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.shares)
+    .where(and(eq(t.shares.token, token), eq(t.shares.owner, owner)))
+    .get();
+  if (!row) return errorResponse(404, "share not found");
+  // Revoked shares cannot be edited (the row is tombstoned). Expired
+  // shares CAN be edited — the common case is the user wanting to
+  // extend the expiry on a link they're still using.
+  if (row.revoked_at) return errorResponse(410, "share is revoked");
+
+  // Resolve the next state. Each field is independent: undefined leaves
+  // it alone, a value replaces it, `null` is the explicit clear for
+  // nullable fields.
+  const nextPermission: SharePermission =
+    body.permission === "read" || body.permission === "write" ? body.permission : row.permission;
+
+  // Write shares always allow download (mirrors create). For read shares,
+  // honour an explicit boolean; otherwise keep the current value.
+  let nextAllowDownload = row.allow_download;
+  if (nextPermission === "write") {
+    nextAllowDownload = true;
+  } else if (typeof body.allowDownload === "boolean") {
+    nextAllowDownload = body.allowDownload;
+  }
+
+  let nextExpiresAt: number | null = row.expires_at;
+  if (body.expiresAt === null) {
+    nextExpiresAt = null;
+  } else if (typeof body.expiresAt === "number" && Number.isFinite(body.expiresAt)) {
+    nextExpiresAt = Number(body.expiresAt);
+  }
+
+  let nextLabel: string | null = row.label;
+  if (body.label === null) {
+    nextLabel = null;
+  } else if (typeof body.label === "string") {
+    const trimmed = body.label.slice(0, 200);
+    nextLabel = trimmed.length > 0 ? trimmed : null;
+  }
+
+  await db
+    .update(t.shares)
+    .set({
+      permission: nextPermission,
+      allow_download: nextAllowDownload,
+      expires_at: nextExpiresAt,
+      label: nextLabel,
+    })
+    .where(and(eq(t.shares.token, token), eq(t.shares.owner, owner)))
+    .run();
+
+  const updated: ShareRow = {
+    ...row,
+    permission: nextPermission,
+    allow_download: nextAllowDownload,
+    expires_at: nextExpiresAt,
+    label: nextLabel,
+  };
+  return jsonResponse(rowToSharePublic(updated));
+}
+
+export async function rotateShareGeneric(
+  env: Env,
+  owner: string,
+  token: string,
+): Promise<Response> {
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.shares)
+    .where(and(eq(t.shares.token, token), eq(t.shares.owner, owner)))
+    .get();
+  if (!row) return errorResponse(404, "share not found");
+  // Revoked shares cannot be rotated (the row is tombstoned). Expired
+  // shares CAN — rotating gives the user a fresh URL with the same
+  // settings without forcing them to recreate the share from scratch.
+  if (row.revoked_at) return errorResponse(410, "share is revoked");
+
+  const ts = now();
+  const newTokenStr = newToken();
+  // Two writes: revoke the old row, insert a new row with the same
+  // settings. We don't rely on D1 transactions — both rows belong to
+  // the same owner; even on partial failure the worst case is a new
+  // row exists alongside an active old row, which the user can manually
+  // revoke. We still issue the writes via `db.batch` to keep them
+  // atomic where supported.
+  await db.batch([
+    db
+      .update(t.shares)
+      .set({ revoked_at: ts })
+      .where(and(eq(t.shares.token, token), eq(t.shares.owner, owner))),
+    db.insert(t.shares).values({
+      token: newTokenStr,
+      owner,
+      target_type: row.target_type,
+      target_id: row.target_id,
+      permission: row.permission,
+      allow_download: row.allow_download,
+      label: row.label,
+      created_at: ts,
+      expires_at: row.expires_at,
+    }),
+  ]);
+
+  const fresh: ShareRow = {
+    token: newTokenStr,
+    owner,
+    target_type: row.target_type,
+    target_id: row.target_id,
+    permission: row.permission,
+    allow_download: row.allow_download,
+    label: row.label,
+    created_at: ts,
+    expires_at: row.expires_at,
+    revoked_at: null,
+    last_accessed_at: null,
+  };
+  return jsonResponse({
+    old: { token: row.token },
+    new: rowToSharePublic(fresh),
+  });
+}
+
+// ─── Public helper: count active shares per target ────────────────────
+// Used by `worker/scenes.ts` and `worker/folders.ts` to populate
+// `activeShareCount` on each list row so the explorer can show a
+// "shared" pill without a per-card round trip. Single grouped query;
+// returns a Map default-0.
+export async function countActiveSharesForTargets(
+  env: Env,
+  owner: string,
+  targetType: ShareTargetType,
+  ids: string[],
+): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  const db = getDb(env);
+  const nowMs = Date.now();
+  const rows = await db
+    .select({ id: t.shares.target_id, n: count() })
+    .from(t.shares)
+    .where(
+      and(
+        eq(t.shares.owner, owner),
+        eq(t.shares.target_type, targetType),
+        inArray(t.shares.target_id, ids),
+        isNull(t.shares.revoked_at),
+        or(isNull(t.shares.expires_at), gt(t.shares.expires_at, nowMs)),
+      ),
+    )
+    .groupBy(t.shares.target_id)
+    .all();
+  const map = new Map<string, number>();
+  for (const r of rows) map.set(r.id, r.n);
+  return map;
 }
 
 export async function revokeSceneShare(

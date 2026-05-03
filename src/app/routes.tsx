@@ -5,7 +5,7 @@
 // table only owns path-to-component mapping and the admin guard.
 
 import { Navigate, Route, Routes } from "react-router-dom";
-import AdminPage from "@/features/admin/AdminPage";
+import UsersPage from "@/features/admin/UsersPage";
 import AccountPage from "@/features/auth/AccountPage";
 import { useMe } from "@/features/auth/hooks";
 import InviteAcceptPage from "@/features/auth/InviteAcceptPage";
@@ -14,6 +14,7 @@ import EditorPage from "@/features/editor/EditorPage";
 import SharedEditorPage from "@/features/editor/SharedEditorPage";
 import SharedTokenLandingPage from "@/features/editor/SharedTokenLandingPage";
 import DashboardPage from "@/features/explorer/DashboardPage";
+import SharesPage from "@/features/sharing/SharesPage";
 
 export function AppRoutes() {
   return (
@@ -24,11 +25,12 @@ export function AppRoutes() {
       <Route path="/folders/:folderId" element={<DashboardPage />} />
       <Route path="/s/:id" element={<EditorPage />} />
       <Route path="/account" element={<AccountPage />} />
+      <Route path="/shares" element={<SharesPage />} />
       <Route
-        path="/admin"
+        path="/users"
         element={
           <RequireAdmin>
-            <AdminPage />
+            <UsersPage />
           </RequireAdmin>
         }
       />
