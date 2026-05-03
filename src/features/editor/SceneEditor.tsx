@@ -298,17 +298,32 @@ export default function SceneEditor({
     [debouncedSave, debouncedThumb, readOnly],
   );
 
-  // Flush pending save on unmount / page hide.
+  // Flush pending save AND thumb on unmount / page hide. Without this,
+  // a user who edits and navigates back to the dashboard within the 8s
+  // thumb-debounce window would see no preview — `useDebounced` cancels
+  // the pending call on unmount, dropping the upload entirely.
+  //
+  // `flush()` synchronously invokes the wrapped function, which kicks
+  // off `exportToSvg` + `saveThumb` (a fetch). The fetch completes in
+  // the background after this component unmounts — React Query's
+  // `qc.invalidateQueries` from `onThumbSaved` still works because the
+  // QueryClient is mounted at the app root, not here. On true
+  // `beforeunload` (tab close) the fetch may be killed mid-flight; that's
+  // the same risk as `debouncedSave` and we accept it.
   useEffect(() => {
-    const onHide = () => debouncedSave.flush();
+    const onHide = () => {
+      debouncedSave.flush();
+      debouncedThumb.flush();
+    };
     window.addEventListener("beforeunload", onHide);
     document.addEventListener("visibilitychange", onHide);
     return () => {
       window.removeEventListener("beforeunload", onHide);
       document.removeEventListener("visibilitychange", onHide);
       debouncedSave.flush();
+      debouncedThumb.flush();
     };
-  }, [debouncedSave]);
+  }, [debouncedSave, debouncedThumb]);
 
   const initial = {
     elements: (loaded.blob.elements as ExcalidrawElement[]) || [],
