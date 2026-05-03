@@ -465,3 +465,19 @@
   --link-color: var(--primary);
   --link-color-hover: var(--primary-hover);
 }
+
+/* ─── Excalidraw chrome — alignment fix for `.dropdown-menu-item-bare`
+   Upstream's regular `.dropdown-menu-item` ships `padding: 0 .5rem;
+   margin: 1px; width: calc(100% - 2px)`, so its label sits 8px in from
+   the dropdown's 8px outer padding. The `-bare` modifier (used by
+   `MainMenu.DefaultItems.ToggleTheme` when `allowSystemTheme` is on,
+   plus a couple of other segmented controls) ships with `padding: 0;
+   margin: 0`, which makes its "Theme" label visually hug the menu's
+   inner edge while every sibling item is indented. Mirror the regular-
+   item box model so the segmented row aligns with its neighbours. */
+.excalidraw .dropdown-menu-item-bare {
+  margin: 1px;
+  padding: 0 0.5rem;
+  width: calc(100% - 2px);
+  box-sizing: border-box;
+}

@@ -6,10 +6,29 @@
 // row, `gap: .75rem`, `pointer-events: none` on the wrapper — children
 // re-enable). Replaces the old `topRightChrome` floating overlay.
 //
-// Styling pulls Excalidraw's own CSS variables (`--island-bg-color`,
-// `--shadow-island`, `--lg-button-size`, `--ui-font`,
-// `--border-radius-lg`, `--default-border-color`, `--color-on-surface`).
-// `src/index.css` already aliases the inkwell shadcn palette onto those
+// Styling matches the live computed style of Excalidraw's MainMenu
+// hamburger (`.main-menu-trigger`) and Library button
+// (`.default-sidebar-trigger`) — verified in the running app rather
+// than inferred from the `.dropdown-menu-button` base class, which
+// declares different defaults that get overridden by both triggers.
+// Both neighbors render as:
+//   • background:  var(--color-surface-low)        ← ecru/grey, not
+//                                                    --color-surface-mid
+//                                                    (which is white)
+//                                                    nor --island-bg-color
+//                                                    (which is the toolbar)
+//   • border:      none
+//   • box-shadow:  0 0 0 1px var(--color-surface-lowest)
+//                  — a 1px ring matching the page background so the
+//                    button reads as a slightly-recessed surface
+//                    against the canvas
+//   • border-radius: var(--border-radius-lg)
+//   • height:       var(--lg-button-size)
+// We deliberately do NOT set `box-shadow: var(--shadow-island)` (the
+// toolbar's soft drop shadow); that's what would make the strip read
+// as a second toolbar.
+//
+// `src/index.css` already binds inkwell's shadcn palette onto these
 // variables, so the strip is automatically theme-aware without any
 // Excalidraw selector overrides.
 //
@@ -39,13 +58,17 @@ interface SceneContextStripProps {
   isMobile?: boolean;
 }
 
-// Native-island surface shared by the desktop pill and the mobile
-// status puck. Using inline style (rather than utility classes) for the
-// four CSS variables that don't have Tailwind equivalents — anything
-// expressible as a class lives in `className` below.
-const islandStyle: CSSProperties = {
-  backgroundColor: "var(--island-bg-color)",
-  boxShadow: "var(--shadow-island)",
+// Native button surface, mirroring the live computed style of the
+// hamburger and Library buttons (see comment block at top of file).
+// Inline style so the CSS variables resolve at runtime against
+// Excalidraw's `.excalidraw` root, where they're set; anything
+// expressible as a Tailwind class lives in `className` below.
+const buttonSurfaceStyle: CSSProperties = {
+  backgroundColor: "var(--color-surface-low)",
+  // 1px ring (not a real border) so the surface reads as recessed
+  // against the canvas. Matches `.main-menu-trigger`'s and
+  // `.default-sidebar-trigger`'s computed `box-shadow`.
+  boxShadow: "0 0 0 1px var(--color-surface-lowest)",
   borderRadius: "var(--border-radius-lg)",
   height: "var(--lg-button-size)",
   color: "var(--color-on-surface)",
@@ -106,7 +129,7 @@ export function SceneContextStrip({ name, isMobile }: SceneContextStripProps) {
     return (
       <div
         title={`${name} — ${statusLabel}`}
-        style={{ ...islandStyle, width: "var(--lg-button-size)" }}
+        style={{ ...buttonSurfaceStyle, width: "var(--lg-button-size)" }}
         className={cn(
           "pointer-events-auto inline-flex items-center justify-center [&_svg]:size-4",
           statusTone,
@@ -119,7 +142,7 @@ export function SceneContextStrip({ name, isMobile }: SceneContextStripProps) {
 
   return (
     <div
-      style={islandStyle}
+      style={buttonSurfaceStyle}
       className="pointer-events-auto inline-flex items-center gap-2 px-3 text-sm"
     >
       <span

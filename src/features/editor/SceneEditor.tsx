@@ -349,6 +349,16 @@ export default function SceneEditor({
                 loadScene: false,
                 saveToActiveFile: false,
                 export: { saveFileToDisk: true },
+                // Excalidraw auto-disables its built-in `toggleTheme`
+                // action when the host passes a controlled `theme`
+                // prop (we do, so light/dark stays in sync with the
+                // rest of the app). The auto-disable also makes
+                // `MainMenu.DefaultItems.ToggleTheme` render as null,
+                // which would silently drop our menu entry. Opting
+                // back in keeps the default item visible — we still
+                // own the actual theme state via `onSelect` /
+                // `useTheme` (the `theme` prop wins over the action).
+                toggleTheme: true,
               },
             }}
           >
