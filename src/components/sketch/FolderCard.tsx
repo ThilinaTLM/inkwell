@@ -74,8 +74,7 @@ export function FolderCard({
   ref,
 }: FolderCardProps & { ref?: Ref<HTMLDivElement> }) {
   const tilt = tiltFromId(`folder:${id}`, 0.4);
-  const countLabel =
-    itemCount == null ? null : itemCount === 1 ? "1 item" : `${itemCount} items`;
+  const countLabel = itemCount == null ? null : itemCount === 1 ? "1 item" : `${itemCount} items`;
 
   return (
     <div

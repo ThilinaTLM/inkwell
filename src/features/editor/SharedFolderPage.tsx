@@ -131,7 +131,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
             body="No scenes in this folder. Try another folder above."
           />
         ) : (
-          <div
+          <section
             aria-label="Folder contents"
             className="grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]"
           >
@@ -154,7 +154,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
                 onOpen={() => navigate(`/share/${token}/scenes/${s.id}`)}
               />
             ))}
-          </div>
+          </section>
         )}
       </main>
     </PaperSurface>

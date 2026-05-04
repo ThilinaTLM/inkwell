@@ -65,7 +65,7 @@ Prerequisites: Node 20+, pnpm, a Cloudflare account, and
 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/).
 
 ```bash
-pnpm install
+pnpm install                     # also installs the repo Git hooks
 wrangler login
 
 # 1. Provision storage

@@ -26,12 +26,7 @@ interface InkwellMarkProps extends Omit<SVGProps<SVGSVGElement>, "viewBox" | "fi
   title?: string;
 }
 
-export function InkwellMark({
-  className,
-  animate = false,
-  title,
-  ...rest
-}: InkwellMarkProps) {
+export function InkwellMark({ className, animate = false, title, ...rest }: InkwellMarkProps) {
   const labelled = Boolean(title);
   return (
     <svg

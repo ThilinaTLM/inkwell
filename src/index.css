@@ -385,10 +385,18 @@
    `pathLength="1"`, so dasharray/dashoffset values are length-agnostic.
    ────────────────────────────────────────────────────────────────── */
 @keyframes ink-sketch-draw {
-  0%   { stroke-dashoffset: 1; }
-  40%  { stroke-dashoffset: 0; }
-  60%  { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -1; }
+  0% {
+    stroke-dashoffset: 1;
+  }
+  40% {
+    stroke-dashoffset: 0;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
 }
 .ink-sketch-anim {
   stroke-dasharray: 1;

@@ -17,7 +17,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import { countActiveSharesForTargets } from "./share";
 import { listTagsFor, replaceTagsFor } from "./tags";
-import type { Env, FolderMeta, FolderRow, SceneRow, ScenePreview } from "./types";
+import type { Env, FolderMeta, FolderRow, ScenePreview, SceneRow } from "./types";
 import { rowToFolderMeta } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 

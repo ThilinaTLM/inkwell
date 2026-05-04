@@ -9,7 +9,8 @@
     "predev:worker": "pnpm db:migrate:local",
     "dev:worker": "wrangler dev --port 8888",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json",
+    "precommit:check": "pnpm check:ci && pnpm typecheck",
     "deploy": "pnpm run build && wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrations:list:local": "wrangler d1 migrations list inkwell --local",
@@ -23,7 +24,8 @@
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "check": "biome check --write .",
-    "check:ci": "biome ci ."
+    "check:ci": "biome ci .",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -59,6 +61,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "drizzle-kit": "^0.31.10",
+    "simple-git-hooks": "^2.13.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "wrangler": "^4.87.0"
@@ -67,5 +70,8 @@
     "patchedDependencies": {
       "@excalidraw/excalidraw@0.18.1": "patches/@excalidraw__excalidraw@0.18.1.patch"
     }
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm precommit:check"
   }
 }
