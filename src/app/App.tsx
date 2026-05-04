@@ -9,11 +9,10 @@
 //
 // Route definitions and individual pages live in `./routes`.
 
-import { Loading03Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { InkwellMark } from "@/components/InkwellMark";
 import { useMe } from "@/features/auth/hooks";
 import { AppRoutes } from "./routes";
 
@@ -48,9 +47,9 @@ export default function App() {
 function BootSplash() {
   return (
     <div className="grid min-h-dvh place-items-center bg-background">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <div className="font-heading text-3xl text-foreground">inkwell</div>
-        <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
+      <div className="flex flex-col items-center gap-3">
+        <InkwellMark animate className="size-14 text-foreground" />
+        <div className="font-heading text-2xl text-muted-foreground">inkwell</div>
       </div>
     </div>
   );

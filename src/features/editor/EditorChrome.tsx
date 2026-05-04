@@ -11,17 +11,18 @@
 // each consumer page, so there's no longer a chrome pill component
 // for this file to host.
 
-import { Alert02Icon, ArrowLeft01Icon, Loading03Icon } from "@hugeicons/core-free-icons";
+import { Alert02Icon, ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "react-router-dom";
+import { InkwellMark } from "@/components/InkwellMark";
 import { PaperSurface } from "@/components/PaperSurface";
 import { Button } from "@/components/ui/button";
 
 export function EditorLoadingState({ label }: { label: string }) {
   return (
     <PaperSurface variant="page" className="grid place-items-center text-muted-foreground">
-      <div className="flex items-center gap-2 text-sm">
-        <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
+      <div className="flex flex-col items-center gap-3 text-sm">
+        <InkwellMark animate className="size-10 text-foreground" />
         {label}
       </div>
     </PaperSurface>

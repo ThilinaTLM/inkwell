@@ -3,6 +3,7 @@
 // A paper-style page with a slightly rotated card laid on top.
 
 import type { ReactNode } from "react";
+import { InkwellMark } from "@/components/InkwellMark";
 import { PaperSurface } from "@/components/PaperSurface";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,8 @@ export function AuthShell({ title, description, footer, children, className }: A
   return (
     <PaperSurface variant="page" className="grid place-items-center overflow-hidden px-4 py-10">
       <div className="relative z-10 w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center gap-1 text-center">
+        <div className="mb-6 flex flex-col items-center gap-2 text-center">
+          <InkwellMark className="size-10 text-foreground" />
           <div className="font-heading text-3xl text-foreground">inkwell</div>
           <p className="text-sm text-muted-foreground">A small place for your Excalidraw scenes.</p>
         </div>

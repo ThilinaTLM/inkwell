@@ -378,6 +378,30 @@
   transform: rotate(4deg) translate(3px, -1px);
 }
 
+/* ─── Inkwell mark — sketch-stroke draw animation ───────────────────
+   Drives the inner stroke of `<InkwellMark animate />` in a continuous
+   draw → hold → erase loop, used in place of a generic spinner on the
+   boot splash and the editor loading state. The path uses
+   `pathLength="1"`, so dasharray/dashoffset values are length-agnostic.
+   ────────────────────────────────────────────────────────────────── */
+@keyframes ink-sketch-draw {
+  0%   { stroke-dashoffset: 1; }
+  40%  { stroke-dashoffset: 0; }
+  60%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1; }
+}
+.ink-sketch-anim {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ink-sketch-draw 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-sketch-anim {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ink-folder__back,
   .ink-folder__front,
