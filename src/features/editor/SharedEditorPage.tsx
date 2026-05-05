@@ -22,7 +22,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import DrawioEditor from "@/features/editor/DrawioEditor";
 import { useSharedScene } from "@/features/editor/hooks";
 import SceneEditor from "@/features/editor/SceneEditor";
@@ -123,17 +122,20 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
           onReload={(ls) => setLoaded(ls)}
           back={sceneId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
           actions={
+            // Rendered into draw.io's native menubar via portal — see
+            // DrawioEditor.tsx. Tailwind/shadcn classes don't apply inside
+            // the iframe document, so we use the `inkwell-native-btn` class
+            // injected by DrawioEditor.
             loaded.allowDownload ? (
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
+                className="inkwell-native-btn inkwell-native-btn--primary"
                 onClick={() => {
                   window.location.href = downloadHref;
                 }}
               >
                 Download .drawio
-              </Button>
+              </button>
             ) : null
           }
         />

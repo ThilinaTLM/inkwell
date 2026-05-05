@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { createPortal } from "react-dom";
 import { useDebounced } from "@/hooks/useDebounced";
 import { ApiError, type DrawioSceneBlob, type LoadedScene } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
@@ -27,6 +27,158 @@ interface DrawioMessage {
 
 const DRAWIO_SRC = "/drawio/index.html?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1";
 
+// Slots we inject into draw.io's `.geMenubarContainer`. Rendered into via
+// React portals so the chrome lives natively inside the iframe DOM and
+// inherits draw.io's menubar typography/colors. Same-origin iframe (we
+// serve `public/drawio` ourselves) is what makes this safe.
+interface DrawioMenubarSlots {
+  back: HTMLDivElement;
+  title: HTMLDivElement;
+  actions: HTMLDivElement;
+}
+
+// Stylesheet injected into the iframe document to:
+//   1. Convert `.geMenubarContainer` to a flex row so injected slots flow
+//      next to native menus.
+//   2. Demote `.geMenubar` (File/Edit/View/...) from absolute positioning
+//      to a static flex item.
+//   3. Hide draw.io's native `.geStatusDiv` (the file name in the top-
+//      right) — we replace it with our own title + save-status capsule.
+//   4. Provide native-feeling button styles for our injected controls,
+//      using draw.io's own CSS variables so they adapt to its themes.
+const MENUBAR_STYLE_ID = "inkwell-drawio-menubar-style";
+const MENUBAR_CSS = `
+.geMenubarContainer {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px !important;
+  height: 36px !important;
+}
+.geMenubarContainer > .geMenubar {
+  position: static !important;
+  flex: 0 0 auto;
+  width: auto !important;
+  padding: 0 !important;
+  height: 30px;
+}
+.geMenubarContainer > .geStatusDiv {
+  display: none !important;
+}
+.inkwell-drawio-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  min-width: 0;
+}
+.inkwell-drawio-slot--title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.inkwell-drawio-slot--actions {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.inkwell-native-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.inkwell-native-btn:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+}
+.inkwell-native-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.inkwell-native-btn--primary {
+  border: 1px solid light-dark(var(--border-color, #d0d0d0), var(--dark-border-color, #424242));
+}
+.inkwell-drawio-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: text;
+  min-width: 0;
+}
+.inkwell-drawio-title-text[data-clickable="true"]:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+}
+.inkwell-drawio-status {
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.inkwell-drawio-status[data-tone="error"] {
+  color: light-dark(#b62623, #ff8b8b);
+  opacity: 1;
+}
+.inkwell-drawio-status[data-tone="dirty"],
+.inkwell-drawio-status[data-tone="saving"] {
+  opacity: 0.85;
+}
+`;
+
+function ensureSlots(iframe: HTMLIFrameElement): DrawioMenubarSlots | null {
+  const doc = iframe.contentDocument;
+  if (!doc) return null;
+  const menubar = doc.querySelector(".geMenubarContainer");
+  if (!menubar) return null;
+
+  if (!doc.getElementById(MENUBAR_STYLE_ID)) {
+    const style = doc.createElement("style");
+    style.id = MENUBAR_STYLE_ID;
+    style.textContent = MENUBAR_CSS;
+    doc.head.appendChild(style);
+  }
+
+  const find = (cls: string) =>
+    menubar.querySelector<HTMLDivElement>(`.inkwell-drawio-slot--${cls}`);
+  let back = find("back");
+  let title = find("title");
+  let actions = find("actions");
+
+  if (!back) {
+    back = doc.createElement("div");
+    back.className = "inkwell-drawio-slot inkwell-drawio-slot--back";
+    menubar.insertBefore(back, menubar.firstChild);
+  }
+  const geMenubar = menubar.querySelector(".geMenubar");
+  if (!title) {
+    title = doc.createElement("div");
+    title.className = "inkwell-drawio-slot inkwell-drawio-slot--title";
+    if (geMenubar?.nextSibling) {
+      menubar.insertBefore(title, geMenubar.nextSibling);
+    } else {
+      menubar.appendChild(title);
+    }
+  }
+  if (!actions) {
+    actions = doc.createElement("div");
+    actions.className = "inkwell-drawio-slot inkwell-drawio-slot--actions";
+    menubar.appendChild(actions);
+  }
+
+  return { back, title, actions };
+}
+
 export default function DrawioEditor({
   loaded,
   save,
@@ -47,6 +199,7 @@ export default function DrawioEditor({
   const [status, setStatus] = useState<DrawioSaveStatus>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [slots, setSlots] = useState<DrawioMenubarSlots | null>(null);
 
   const targetOrigin = useMemo(() => window.location.origin, []);
 
@@ -66,7 +219,10 @@ export default function DrawioEditor({
     // update `loaded.meta.version` after every successful PUT; resetting
     // readiness on those version bumps would leave the iframe loaded while
     // our status falls back to "Loading…".
-    if (sceneChanged) setReady(false);
+    if (sceneChanged) {
+      setReady(false);
+      setSlots(null);
+    }
   }, [initialXml, loaded.meta.id, loaded.meta.version]);
 
   const post = useCallback(
@@ -165,6 +321,12 @@ export default function DrawioEditor({
 
       if (msg.event === "init") {
         setReady(true);
+        // Set up native menubar slots once draw.io has rendered its UI.
+        // `init` fires after the menubar exists in the DOM.
+        if (iframeRef.current) {
+          const next = ensureSlots(iframeRef.current);
+          if (next) setSlots(next);
+        }
         post({
           action: "load",
           xml: latestXmlRef.current,
@@ -211,43 +373,33 @@ export default function DrawioEditor({
     back?.onClick();
   }, [back, debouncedSave, saveLatest]);
 
-  const statusLabel = readOnly
-    ? "Read-only"
-    : status === "dirty"
-      ? "Unsaved"
-      : status === "saving"
-        ? "Saving…"
-        : status === "error"
-          ? errorMsg || "Save failed"
-          : ready
-            ? "Saved"
-            : "Loading…";
+  const statusTone: "saved" | "dirty" | "saving" | "error" | "loading" | "readonly" = readOnly
+    ? "readonly"
+    : !ready
+      ? "loading"
+      : status === "dirty"
+        ? "dirty"
+        : status === "saving"
+          ? "saving"
+          : status === "error"
+            ? "error"
+            : "saved";
+
+  const statusLabel =
+    statusTone === "readonly"
+      ? "Read-only"
+      : statusTone === "loading"
+        ? "Loading…"
+        : statusTone === "dirty"
+          ? "Unsaved"
+          : statusTone === "saving"
+            ? "Saving…"
+            : statusTone === "error"
+              ? errorMsg || "Save failed"
+              : "Saved";
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background">
-      <div className="absolute left-3 right-3 top-3 z-10 flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/90 px-3 py-2 shadow-sm backdrop-blur">
-        <div className="flex min-w-0 items-center gap-2">
-          {back ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleBack()}>
-              ← {back.label}
-            </Button>
-          ) : null}
-          <button
-            type="button"
-            className="truncate rounded px-2 py-1 text-left font-heading text-lg hover:bg-accent"
-            onDoubleClick={onRequestRename}
-            disabled={readOnly || !onRequestRename}
-            title={loaded.meta.name}
-          >
-            {loaded.meta.name}
-          </button>
-          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-            draw.io · {statusLabel}
-          </span>
-        </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-      </div>
-
       <iframe
         ref={iframeRef}
         src={DRAWIO_SRC}
@@ -255,6 +407,46 @@ export default function DrawioEditor({
         className="h-full w-full border-0"
         allow="clipboard-read; clipboard-write"
       />
+
+      {slots
+        ? createPortal(
+            back ? (
+              <button
+                type="button"
+                className="inkwell-native-btn"
+                onClick={() => void handleBack()}
+                title={back.label}
+              >
+                <span aria-hidden>←</span>
+                <span>{back.label}</span>
+              </button>
+            ) : null,
+            slots.back,
+          )
+        : null}
+
+      {slots
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                className="inkwell-drawio-title-text"
+                data-clickable={!readOnly && onRequestRename ? "true" : "false"}
+                onDoubleClick={onRequestRename}
+                disabled={readOnly || !onRequestRename}
+                title={loaded.meta.name}
+              >
+                {loaded.meta.name}
+              </button>
+              <span className="inkwell-drawio-status" data-tone={statusTone}>
+                draw.io · {statusLabel}
+              </span>
+            </>,
+            slots.title,
+          )
+        : null}
+
+      {slots && actions ? createPortal(actions, slots.actions) : null}
     </div>
   );
 }

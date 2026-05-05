@@ -17,7 +17,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { useScene } from "@/features/editor/hooks";
 import { useRenameScene, useSetSceneTags, useTags } from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
@@ -222,23 +221,34 @@ export default function EditorPage() {
           back={{ onClick: handleBack, label: "Back" }}
           onRequestRename={() => setRenameOpen(true)}
           actions={
+            // Rendered via portal into the draw.io iframe's `.geMenubarContainer`,
+            // so Tailwind/shadcn classes from the parent document don't apply.
+            // We use plain buttons with the `inkwell-native-btn` class injected
+            // into the iframe document by `DrawioEditor.tsx`.
             <>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setTagsOpen(true)}>
-                Tags
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-                Share
-              </Button>
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
+                className="inkwell-native-btn"
+                onClick={() => setTagsOpen(true)}
+              >
+                Tags
+              </button>
+              <button
+                type="button"
+                className="inkwell-native-btn"
+                onClick={() => setShareOpen(true)}
+              >
+                Share
+              </button>
+              <button
+                type="button"
+                className="inkwell-native-btn inkwell-native-btn--primary"
                 onClick={() => {
                   window.location.href = scenes.downloadUrl(id);
                 }}
               >
                 Download .drawio
-              </Button>
+              </button>
             </>
           }
         />
