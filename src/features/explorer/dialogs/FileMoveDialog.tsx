@@ -2,7 +2,7 @@
 // move-file mutation.
 
 import { toast } from "sonner";
-import { useMoveFile } from "@/features/explorer/hooks";
+import { useMoveFile } from "@/data/files";
 import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import type { FileMeta, FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";

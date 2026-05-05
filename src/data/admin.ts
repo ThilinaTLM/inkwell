@@ -1,16 +1,15 @@
 // Admin user + invite hooks.
 //
-// User mutations use `setQueryData` to splice the updated row into the
-// cached list (cheaper than a full refetch). Invite mutations invalidate
-// because the list is small and the response shape is variable
-// (creating returns a different type than `Invite`).
+// User mutations use `setQueryData` to splice the updated row into
+// the cached list (cheaper than a full refetch). Invite mutations
+// invalidate because the list is small and the response shape is
+// variable (creating returns a different type than `Invite`).
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type AdminUser, type ApiError, admin, type Invite, invites } from "@/lib/api/client";
+import { type AdminUser, type ApiError, admin, type Invite } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
 // ─── Users ────────────────────────────────────────────────────────────
-
 export function useAdminUsers() {
   return useQuery<AdminUser[], ApiError>({
     queryKey: keys.admin.users(),
@@ -47,7 +46,6 @@ export function useDeleteAdminUser() {
 }
 
 // ─── Invites (admin side) ─────────────────────────────────────────────
-
 export function useInvites() {
   return useQuery<Invite[], ApiError>({
     queryKey: keys.admin.invites(),
@@ -81,25 +79,5 @@ export function useRevokeInvite() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.admin.invites() });
     },
-  });
-}
-
-// ─── Invites (public side) ────────────────────────────────────────────
-
-/**
- * Validates an invite token before showing the signup form. Returns
- * `enabled === false` if no token is provided so the hook can be called
- * unconditionally above an early return.
- */
-export function useInvitePeek(token: string | undefined) {
-  return useQuery({
-    queryKey: keys.invitePeek(token ?? ""),
-    queryFn: () => {
-      if (!token) throw new Error("missing invite token");
-      return invites.peek(token);
-    },
-    enabled: !!token,
-    retry: false,
-    staleTime: Infinity,
   });
 }

@@ -19,7 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { EmptyDeskNote, FileCard, FolderCard } from "@/components/sketch";
 import { Button } from "@/components/ui/button";
-import { useFiles } from "@/features/explorer/hooks";
+import { useFiles } from "@/data/files";
 import { folderPath } from "@/features/folders/FolderTree";
 import type { FolderMeta } from "@/lib/api/client";
 import { relTime } from "@/lib/format";

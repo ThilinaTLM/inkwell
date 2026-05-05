@@ -4,7 +4,7 @@
 
 import { useMemo } from "react";
 import { toast } from "sonner";
-import { useUpdateFolder } from "@/features/explorer/hooks";
+import { useUpdateFolder } from "@/data/folders";
 import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import type { FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";

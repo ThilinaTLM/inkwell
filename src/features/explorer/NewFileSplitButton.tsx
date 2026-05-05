@@ -40,8 +40,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDefaultFileKind } from "@/features/explorer/hooks";
 import type { FileKind } from "@/lib/api/client";
+import { useDefaultFileKind } from "@/lib/preferences";
 
 export interface NewFileSplitButtonProps {
   /** Called with the file kind the user picked. The split-button itself

@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAdminUsers, useUpdateAdminUser } from "@/features/admin/hooks";
+import { useAdminUsers, useUpdateAdminUser } from "@/data/admin";
 import type { AdminUser } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { fmtDateTime } from "@/lib/format";

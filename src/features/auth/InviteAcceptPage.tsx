@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useInvitePeek } from "@/features/admin/hooks";
+import { useInvitePeek } from "@/data/auth";
 import { AuthShell } from "@/features/auth/AuthShell";
 import { type ApiError, invites, type MeResponse, type User } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";

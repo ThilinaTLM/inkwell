@@ -22,13 +22,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/data/auth";
 import {
   useAllShares,
-  useRevokeShareGeneric,
-  useRotateShareGeneric,
-  useUpdateShareGeneric,
-} from "@/features/sharing/hooks";
+  useRevokeShareByToken,
+  useRotateShareByToken,
+  useUpdateShareByToken,
+} from "@/data/shares";
 import type { Share, ShareTargetType } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -41,9 +41,9 @@ export default function SharesPage() {
   const me = useMe();
   const navigate = useNavigate();
   const sharesQuery = useAllShares();
-  const updateShare = useUpdateShareGeneric();
-  const rotateShare = useRotateShareGeneric();
-  const revokeShare = useRevokeShareGeneric();
+  const updateShare = useUpdateShareByToken();
+  const rotateShare = useRotateShareByToken();
+  const revokeShare = useRevokeShareByToken();
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TargetTypeFilter>("all");

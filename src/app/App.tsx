@@ -13,7 +13,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { InkwellMark } from "@/components/InkwellMark";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/data/auth";
 import { AppRoutes } from "./routes";
 
 const PUBLIC_PATHS = ["/login"] as const;

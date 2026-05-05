@@ -4,7 +4,7 @@
 import { toast } from "sonner";
 
 import { RenameDialog } from "@/components/RenameDialog";
-import { useRenameFile } from "@/features/explorer/hooks";
+import { useRenameFile } from "@/data/files";
 import type { FileMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 

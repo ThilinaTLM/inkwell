@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useDeleteFile } from "@/features/explorer/hooks";
+import { useDeleteFile } from "@/data/files";
 import type { FileMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 

@@ -5,7 +5,7 @@
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useDeleteFolder } from "@/features/explorer/hooks";
+import { useDeleteFolder } from "@/data/folders";
 import type { FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 

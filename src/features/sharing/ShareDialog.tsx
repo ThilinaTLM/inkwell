@@ -39,7 +39,7 @@ import {
   useRotateShare,
   useShareList,
   useUpdateShare,
-} from "@/features/sharing/hooks";
+} from "@/data/shares";
 import type { ShareTargetType } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";

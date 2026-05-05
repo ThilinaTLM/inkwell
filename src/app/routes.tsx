@@ -1,13 +1,13 @@
 // Centralized route table.
 //
 // Pages no longer take `user` / `onAuthed` / `onLogout` props — they
-// read auth state via `useMe()` from `@/features/auth/hooks`. The route
+// read auth state via `useMe()` from `@/data/auth`. The route
 // table only owns path-to-component mapping and the admin guard.
 
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { useMe } from "@/data/auth";
 import UsersPage from "@/features/admin/UsersPage";
 import AccountPage from "@/features/auth/AccountPage";
-import { useMe } from "@/features/auth/hooks";
 import InviteAcceptPage from "@/features/auth/InviteAcceptPage";
 import LoginPage from "@/features/auth/LoginPage";
 import EditorPage from "@/features/editor/EditorPage";

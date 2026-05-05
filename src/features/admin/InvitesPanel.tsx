@@ -41,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCreateInvite, useInvites, useRevokeInvite } from "@/features/admin/hooks";
+import { useCreateInvite, useInvites, useRevokeInvite } from "@/data/admin";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
 import { fmtDateTime } from "@/lib/format";

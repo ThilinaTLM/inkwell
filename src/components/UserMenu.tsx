@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLogout } from "@/features/auth/hooks";
+import { useLogout } from "@/data/auth";
 import type { User } from "@/lib/api/client";
 import { userDisplayName, userInitials } from "@/lib/user";
 

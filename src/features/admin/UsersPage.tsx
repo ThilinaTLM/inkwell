@@ -11,7 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { AppPage, AppPageHeader } from "@/components/AppPage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/data/auth";
 
 import { InvitesPanel } from "./InvitesPanel";
 import { UsersPanel } from "./UsersPanel";

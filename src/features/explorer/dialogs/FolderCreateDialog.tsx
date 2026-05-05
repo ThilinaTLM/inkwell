@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 
 import { RenameDialog } from "@/components/RenameDialog";
-import { useCreateFolder } from "@/features/explorer/hooks";
+import { useCreateFolder } from "@/data/folders";
 import { errorMessage } from "@/lib/errors";
 
 interface FolderCreateDialogProps {

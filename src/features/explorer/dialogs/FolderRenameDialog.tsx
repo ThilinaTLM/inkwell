@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 
 import { RenameDialog } from "@/components/RenameDialog";
-import { useUpdateFolder } from "@/features/explorer/hooks";
+import { useUpdateFolder } from "@/data/folders";
 import type { FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 

@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useChangePassword, useMe } from "@/features/auth/hooks";
+import { useChangePassword, useMe } from "@/data/auth";
 import { errorMessage } from "@/lib/errors";
 import { userDisplayName } from "@/lib/user";
 

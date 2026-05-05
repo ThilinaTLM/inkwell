@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDeleteAdminUser } from "@/features/admin/hooks";
+import { useDeleteAdminUser } from "@/data/admin";
 import type { AdminUser } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 

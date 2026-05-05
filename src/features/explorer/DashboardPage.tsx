@@ -21,15 +21,11 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { PaperSurface } from "@/components/PaperSurface";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/data/auth";
+import { useCreateFile, useSetFileTags } from "@/data/files";
+import { useFolders, useUpdateFolder } from "@/data/folders";
+import { useTags } from "@/data/tags";
 import { BrowseView, ExplorerHeader, type ItemMenuActions } from "@/features/explorer";
-import {
-  useCreateFile,
-  useFolders,
-  useSetFileTags,
-  useTags,
-  useUpdateFolder,
-} from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
