@@ -46,19 +46,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useDebounced } from "@/hooks/useDebounced";
-import { ApiError, type DrawioSceneBlob, type LoadedScene } from "@/lib/api/client";
+import { ApiError, type DrawioFileBlob, type LoadedFile } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { type ResolvedTheme, useTheme } from "@/lib/theme";
 
 export type DrawioSaveStatus = "dirty" | "saving" | "saved" | "error";
 
-type SaveFn = (version: number, blob: DrawioSceneBlob) => Promise<{ version: number }>;
+type SaveFn = (version: number, blob: DrawioFileBlob) => Promise<{ version: number }>;
 
 interface DrawioEditorProps {
-  loaded: LoadedScene;
+  loaded: LoadedFile;
   save: SaveFn;
-  onReload?: (loaded: LoadedScene) => void;
-  reload?: () => Promise<LoadedScene>;
+  /** Persists an SVG thumbnail to R2. `null` disables thumb upload
+   *  (read-only sessions). Wired in Step 10. */
+  saveThumb?: ((svg: string) => Promise<void>) | null;
+  /** Called after a successful thumb upload so the dashboard can
+   *  invalidate caches and pick up the new bust token. */
+  onThumbSaved?: () => void;
+  onReload?: (loaded: LoadedFile) => void;
+  reload?: () => Promise<LoadedFile>;
   back?: { onClick: () => void; label: string } | null;
   onRequestRename?: () => void;
   actions?: ReactNode;
@@ -68,12 +74,59 @@ interface DrawioMessage {
   event?: string;
   xml?: string;
   data?: string;
+  format?: string;
   error?: string;
 }
 
-// 30s autosave debounce, matching Excalidraw's `SceneEditor`. Manual
+// 30s autosave debounce, matching Excalidraw's `ExcalidrawEditor`. Manual
 // save (the floppy-disk icon in the title slot) bypasses this.
 const SAVE_DEBOUNCE_MS = 30_000;
+
+// 8s thumbnail debounce — matches `ExcalidrawEditor`'s window so an
+// active editor doesn't ship a thumb on every keystroke. Flushed on
+// `beforeunload` / visibilitychange:hidden so leaving the tab does
+// upload one final preview.
+const THUMB_DEBOUNCE_MS = 8_000;
+
+// Cheap O(n) hash used to dedup thumb exports against the XML they were
+// generated from. Same idea as the Excalidraw editor's fingerprint:
+// avoid re-uploading an identical SVG when the user nudges a shape and
+// then undoes it.
+function hashXml(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+// Decode the `data` payload of a drawio `event: "export"` message.
+// Drawio sends one of two forms depending on internal flags we don't
+// control:
+//   - raw SVG XML string (`<svg …>…</svg>`)
+//   - data URL: `data:image/svg+xml;base64,<base64>`
+// Returns the SVG XML string in both cases, or `null` if the payload
+// is empty / malformed.
+function decodeDrawioSvgPayload(data: string | undefined): string | null {
+  if (!data) return null;
+  const prefix = "data:image/svg+xml;base64,";
+  if (data.startsWith(prefix)) {
+    try {
+      // `atob` returns a binary-encoded string; SVG is ASCII (the XML
+      // header is `<?xml version="1.0" encoding="UTF-8"?>`), but if the
+      // diagram contains non-ASCII labels drawio percent-encodes them
+      // before base64. Decode via TextDecoder so emoji etc. survive.
+      const binary = atob(data.slice(prefix.length));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder("utf-8").decode(bytes);
+    } catch {
+      return null;
+    }
+  }
+  return data.startsWith("<") ? data : null;
+}
 
 // `noSaveBtn=1&saveAndExit=0` suppresses drawio's own embed Save
 // button — we render the only Save surface via the combined status
@@ -323,6 +376,8 @@ type StatusTone = "saved" | "dirty" | "saving" | "error" | "loading" | "readonly
 export default function DrawioEditor({
   loaded,
   save,
+  saveThumb,
+  onThumbSaved,
   onReload,
   reload,
   back = null,
@@ -336,7 +391,14 @@ export default function DrawioEditor({
   const savedXmlRef = useRef(initialXml);
   const latestXmlRef = useRef(initialXml);
   const inflightRef = useRef(false);
-  const previousSceneIdRef = useRef(loaded.meta.id);
+  const previousFileIdRef = useRef(loaded.meta.id);
+  // Thumb pipeline: `thumbFpRef` is the fingerprint of the XML last
+  // shipped successfully to /api/files/:id/thumb. `pendingThumbXmlRef`
+  // is the XML we just asked drawio to export — we compare the export
+  // reply's hash against this so a stale reply (e.g. user kept editing
+  // while the export was in flight) doesn't get uploaded.
+  const thumbFpRef = useRef<string | null>(null);
+  const pendingThumbXmlRef = useRef<string | null>(null);
   const [status, setStatus] = useState<DrawioSaveStatus>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -352,18 +414,24 @@ export default function DrawioEditor({
   }, [loaded.meta.version]);
 
   useEffect(() => {
-    const sceneChanged = previousSceneIdRef.current !== loaded.meta.id;
-    previousSceneIdRef.current = loaded.meta.id;
+    const fileChanged = previousFileIdRef.current !== loaded.meta.id;
+    previousFileIdRef.current = loaded.meta.id;
     savedXmlRef.current = initialXml;
     latestXmlRef.current = initialXml;
     versionRef.current = loaded.meta.version;
     setStatus("saved");
     setErrorMsg(null);
-    // Reset readiness only for a different scene. Parent save callbacks
+    if (fileChanged) {
+      // Different file → the previous file's thumb fingerprint is
+      // meaningless. Drop it so the next edit triggers a fresh export.
+      thumbFpRef.current = null;
+      pendingThumbXmlRef.current = null;
+    }
+    // Reset readiness only for a different file. Parent save callbacks
     // update `loaded.meta.version` after every successful PUT; resetting
     // readiness on those version bumps would leave the iframe loaded while
     // our status falls back to "Loading…".
-    if (sceneChanged) {
+    if (fileChanged) {
       setReady(false);
       setSlots(null);
     }
@@ -375,6 +443,34 @@ export default function DrawioEditor({
     },
     [targetOrigin],
   );
+
+  // Ask drawio to export the current diagram as SVG. The reply lands
+  // in the `onMessage` handler as `{ event: 'export', format: 'xmlsvg',
+  // data: … }` and we then PUT it to /api/files/:id/thumb.
+  //
+  // We don't pass `format: 'svg'` because some drawio builds gate plain
+  // SVG export through their server-side render pipeline; `'xmlsvg'`
+  // always runs locally inside the iframe via `Graph.getSvg()`. The
+  // resulting SVG embeds the source XML, but for a 200x150 thumbnail
+  // the byte cost is irrelevant and the round-trip-safe form is the
+  // safer default.
+  const requestThumbExport = useCallback(() => {
+    if (!saveThumb || readOnly) return;
+    const xml = savedXmlRef.current;
+    if (!xml) return;
+    const fp = hashXml(xml);
+    if (fp === thumbFpRef.current) return; // already uploaded this content
+    pendingThumbXmlRef.current = xml;
+    post({
+      action: "export",
+      format: "xmlsvg",
+      // Suppress the spinner overlay drawio shows during long exports.
+      // Thumbnail exports are sub-50ms; the spinner would just flash.
+      spin: "",
+    });
+  }, [post, readOnly, saveThumb]);
+
+  const debouncedThumb = useDebounced(requestThumbExport, THUMB_DEBOUNCE_MS);
 
   const saveLatest = useCallback(async (): Promise<boolean> => {
     if (readOnly) return true;
@@ -394,6 +490,10 @@ export default function DrawioEditor({
       versionRef.current = res.version;
       savedXmlRef.current = xml;
       setStatus("saved");
+      // Schedule a thumb refresh now that the canonical XML matches the
+      // editor's current state. Debounced so a flurry of saves still
+      // results in one upload at the tail.
+      debouncedThumb();
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && reload) {
@@ -426,7 +526,7 @@ export default function DrawioEditor({
     } finally {
       inflightRef.current = false;
     }
-  }, [readOnly, reload, onReload, post, save]);
+  }, [readOnly, reload, onReload, post, save, debouncedThumb]);
 
   const debouncedSave = useDebounced(() => {
     void saveLatest();
@@ -484,12 +584,36 @@ export default function DrawioEditor({
 
       if ((msg.event === "autosave" || msg.event === "save") && typeof msg.xml === "string") {
         acceptXmlChange(msg.xml, msg.event === "save");
+        return;
+      }
+
+      // Thumb export reply. Honour only the export we asked for and
+      // skip stale replies (user kept editing while the export was in
+      // flight) by comparing fingerprints against `pendingThumbXmlRef`.
+      if (msg.event === "export" && (msg.format === "xmlsvg" || msg.format === "svg")) {
+        const expectedXml = pendingThumbXmlRef.current;
+        pendingThumbXmlRef.current = null;
+        if (!saveThumb || !expectedXml) return;
+        const svg = decodeDrawioSvgPayload(msg.data);
+        if (!svg) return;
+        const fp = hashXml(expectedXml);
+        if (fp === thumbFpRef.current) return;
+        // Optimistically mark the fingerprint as shipped so concurrent
+        // saves don't queue a duplicate while the PUT is in flight.
+        // Roll it back if the PUT fails.
+        const previousFp = thumbFpRef.current;
+        thumbFpRef.current = fp;
+        void saveThumb(svg)
+          .then(() => onThumbSaved?.())
+          .catch(() => {
+            thumbFpRef.current = previousFp;
+          });
       }
     }
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [acceptXmlChange, loaded.meta.name, post, readOnly]);
+  }, [acceptXmlChange, loaded.meta.name, onThumbSaved, post, readOnly, saveThumb]);
 
   // Theme flip — drawio's embed protocol has no runtime dark-mode
   // toggle, so we force-save the current XML, drop our slot refs, and
@@ -501,10 +625,15 @@ export default function DrawioEditor({
     if (lastResolvedRef.current === resolved) return;
     lastResolvedRef.current = resolved;
     debouncedSave.flush();
+    // Cancel any pending thumb export — the iframe is about to remount
+    // and any in-flight export reply would arrive against a stale
+    // session. The next save after the remount will queue a fresh one.
+    debouncedThumb.cancel();
+    pendingThumbXmlRef.current = null;
     void saveLatest();
     setReady(false);
     setSlots(null);
-  }, [resolved, debouncedSave, saveLatest]);
+  }, [resolved, debouncedSave, debouncedThumb, saveLatest]);
 
   // Unsaved-changes guard for in-app back navigation. `beforeunload`
   // (below) covers tab close / hard reload; this dialog covers the
@@ -524,13 +653,19 @@ export default function DrawioEditor({
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       debouncedSave.flush();
+      // Flush the thumb so leaving the tab uploads a final preview that
+      // matches the canonical XML the user just saved.
+      debouncedThumb.flush();
       if (isDirtyRef.current) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") debouncedSave.flush();
+      if (document.visibilityState === "hidden") {
+        debouncedSave.flush();
+        debouncedThumb.flush();
+      }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onVisibility);
@@ -538,8 +673,13 @@ export default function DrawioEditor({
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onVisibility);
       debouncedSave.flush();
+      // On unmount we cancel — a pending thumb export may already have
+      // posted to the iframe; its reply would land after we're gone
+      // and there's no listener to handle it. Better to skip than to
+      // upload a half-stale preview.
+      debouncedThumb.cancel();
     };
-  }, [debouncedSave]);
+  }, [debouncedSave, debouncedThumb]);
 
   const requestBack = useCallback(() => {
     if (!back) return;
@@ -751,7 +891,7 @@ export default function DrawioEditor({
   );
 }
 
-function getDrawioXml(loaded: LoadedScene): string {
-  const blob = loaded.blob as Partial<DrawioSceneBlob>;
+function getDrawioXml(loaded: LoadedFile): string {
+  const blob = loaded.blob as Partial<DrawioFileBlob>;
   return typeof blob.xml === "string" ? blob.xml : "";
 }

@@ -104,8 +104,8 @@ export function ShareDialog({
           </DialogTitle>
           <DialogDescription>
             {targetType === "folder"
-              ? "Anyone with a link can access scenes inside this folder. Edit links can also create, edit and delete scenes."
-              : "Anyone with a link can access this scene. Edit links can also save changes back to it."}
+              ? "Anyone with a link can access files inside this folder. Edit links can also create, edit and delete files."
+              : "Anyone with a link can access this file. Edit links can also save changes back to it."}
           </DialogDescription>
         </DialogHeader>
 

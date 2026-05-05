@@ -1,55 +1,55 @@
 // Polymorphic share tokens.
 //
-// A `shares` row grants public, anonymous access to either a scene or a
+// A `shares` row grants public, anonymous access to either a file or a
 // folder subtree, at read or write permission. Anyone holding the token
 // can act on the linked target. Tokens are independent of the session
 // cookie; the token IS the credential.
 //
 // Owner-side endpoints (auth required):
-//   POST   /api/scenes/:id/shares
+//   POST   /api/files/:id/shares
 //   POST   /api/folders/:id/shares
-//   GET    /api/scenes/:id/shares
+//   GET    /api/files/:id/shares
 //   GET    /api/folders/:id/shares
 //   GET    /api/shares                    (all of caller's shares)
 //   PATCH  /api/shares/:token             (edit label/permission/expiry/download)
 //   POST   /api/shares/:token/rotate      (revoke + reissue with same settings)
-//   DELETE /api/scenes/:id/shares/:token
+//   DELETE /api/files/:id/shares/:token
 //   DELETE /api/folders/:id/shares/:token
 //   DELETE /api/shares/:token
 //
 // Public endpoints (no auth):
-//   GET  /api/share/:token                (scene blob, or folder listing)
-//   GET  /api/share/:token/thumb          (scene-share only)
-//   GET  /api/share/:token/download       (scene-share only)
-//   PUT  /api/share/:token                (scene-share write)
-//   GET  /api/share/:token/scenes/:sceneId
-//   GET  /api/share/:token/scenes/:sceneId/thumb
-//   GET  /api/share/:token/scenes/:sceneId/download
-//   PUT  /api/share/:token/scenes/:sceneId       (folder-share write)
-//   POST /api/share/:token/scenes                (folder-share write)
+//   GET  /api/share/:token                (file blob, or folder listing)
+//   GET  /api/share/:token/thumb          (file-share only)
+//   GET  /api/share/:token/download       (file-share only)
+//   PUT  /api/share/:token                (file-share write)
+//   GET  /api/share/:token/files/:fileId
+//   GET  /api/share/:token/files/:fileId/thumb
+//   GET  /api/share/:token/files/:fileId/download
+//   PUT  /api/share/:token/files/:fileId         (folder-share write)
+//   POST /api/share/:token/files                 (folder-share write)
 //   GET  /api/share/:token/folders               (folder-share subtree listing)
 
 import { and, count, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import {
+  createFileInFolder,
+  deleteFile as deleteOwnedFile,
+  loadRowAnyOwner,
+  putFile,
+  streamFileBody,
+  thumbKey,
+} from "./files";
+import {
+  fileInFolderSubtree,
   folderInSubtree,
   listSubtreeFolders,
-  loadScenesInFolders,
-  sceneInFolderSubtree,
+  loadFilesInFolders,
 } from "./folders";
-import {
-  createSceneInFolder,
-  deleteScene as deleteOwnedScene,
-  loadRowAnyOwner,
-  putScene,
-  streamSceneBody,
-  thumbKey,
-} from "./scenes";
 import { collectTagsForMany } from "./tags";
 import type {
   Env,
+  FilePreview,
   FolderRow,
-  ScenePreview,
   SharePermission,
   SharePublic,
   ShareRow,
@@ -57,7 +57,7 @@ import type {
 } from "./types";
 import {
   isShareActive,
-  normalizeSceneKind,
+  normalizeFileKind,
   rowToFolderMeta,
   rowToMeta,
   rowToSharePublic,
@@ -65,12 +65,12 @@ import {
 import { errorResponse, generateShareLabel, jsonResponse, newToken, now } from "./util";
 
 // ─── Owner-side helpers ────────────────────────────────────────────────
-async function ensureOwnsScene(env: Env, owner: string, sceneId: string): Promise<boolean> {
+async function ensureOwnsFile(env: Env, owner: string, fileId: string): Promise<boolean> {
   const db = getDb(env);
   const r = await db
-    .select({ id: t.scenes.id })
-    .from(t.scenes)
-    .where(and(eq(t.scenes.id, sceneId), eq(t.scenes.owner, owner)))
+    .select({ id: t.files.id })
+    .from(t.files)
+    .where(and(eq(t.files.id, fileId), eq(t.files.owner, owner)))
     .get();
   return !!r;
 }
@@ -145,20 +145,20 @@ async function createShareRow(
 }
 
 // ─── Owner: create / list / revoke ────────────────────────────────────
-export async function createSceneShare(
+export async function createFileShare(
   req: Request,
   env: Env,
   owner: string,
-  sceneId: string,
+  fileId: string,
 ): Promise<Response> {
-  if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
+  if (!(await ensureOwnsFile(env, owner, fileId))) return errorResponse(404, "file not found");
   let body: CreateShareBody = {};
   try {
     body = (await req.json()) as CreateShareBody;
   } catch {
     /* defaults are fine */
   }
-  const row = await createShareRow(env, owner, "scene", sceneId, body);
+  const row = await createShareRow(env, owner, "file", fileId, body);
   return jsonResponse(rowToSharePublic(row));
 }
 
@@ -180,9 +180,9 @@ export async function createFolderShare(
   return jsonResponse(rowToSharePublic(row));
 }
 
-export async function listSceneShares(env: Env, owner: string, sceneId: string): Promise<Response> {
-  if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
-  return await listSharesForTarget(env, owner, "scene", sceneId);
+export async function listFileShares(env: Env, owner: string, fileId: string): Promise<Response> {
+  if (!(await ensureOwnsFile(env, owner, fileId))) return errorResponse(404, "file not found");
+  return await listSharesForTarget(env, owner, "file", fileId);
 }
 
 export async function listFolderShares(
@@ -225,12 +225,12 @@ export async function listAllShares(env: Env, owner: string): Promise<Response> 
     .select({
       share: t.shares,
       target_name: sql<string | null>`CASE ${t.shares.target_type}
-        WHEN 'scene'  THEN ${t.scenes.name}
+        WHEN 'file'   THEN ${t.files.name}
         WHEN 'folder' THEN ${t.folders.name}
       END`,
     })
     .from(t.shares)
-    .leftJoin(t.scenes, and(eq(t.shares.target_type, "scene"), eq(t.scenes.id, t.shares.target_id)))
+    .leftJoin(t.files, and(eq(t.shares.target_type, "file"), eq(t.files.id, t.shares.target_id)))
     .leftJoin(
       t.folders,
       and(eq(t.shares.target_type, "folder"), eq(t.folders.id, t.shares.target_id)),
@@ -419,7 +419,7 @@ export async function rotateShareGeneric(
 }
 
 // ─── Public helper: count active shares per target ────────────────────
-// Used by `worker/scenes.ts` and `worker/folders.ts` to populate
+// Used by `worker/files.ts` and `worker/folders.ts` to populate
 // `activeShareCount` on each list row so the explorer can show a
 // "shared" pill without a per-card round trip. Single grouped query;
 // returns a Map default-0.
@@ -451,13 +451,13 @@ export async function countActiveSharesForTargets(
   return map;
 }
 
-export async function revokeSceneShare(
+export async function revokeFileShare(
   env: Env,
   owner: string,
-  sceneId: string,
+  fileId: string,
   token: string,
 ): Promise<Response> {
-  if (!(await ensureOwnsScene(env, owner, sceneId))) return errorResponse(404, "scene not found");
+  if (!(await ensureOwnsFile(env, owner, fileId))) return errorResponse(404, "file not found");
   return await revokeShareGeneric(env, owner, token);
 }
 
@@ -491,8 +491,8 @@ function touchAccess(env: Env, token: string, ctx: ExecutionContext | null): voi
   if (ctx) ctx.waitUntil(p.then(() => undefined).catch(() => undefined));
 }
 
-// ─── Public: scene-share endpoints ────────────────────────────────────
-// GET /api/share/:token — scene blob (scene-share) or folder listing (folder-share).
+// ─── Public: file-share endpoints ────────────────────────────────────
+// GET /api/share/:token — file blob (file-share) or folder listing (folder-share).
 export async function getViaShareToken(
   env: Env,
   token: string,
@@ -501,12 +501,12 @@ export async function getViaShareToken(
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   touchAccess(env, token, ctx);
-  if (tk.target_type === "scene") {
-    const scene = await loadRowAnyOwner(env, tk.target_id);
-    if (!scene) return errorResponse(404, "scene not found");
-    const resp = await streamSceneBody(env, scene);
+  if (tk.target_type === "file") {
+    const file = await loadRowAnyOwner(env, tk.target_id);
+    if (!file) return errorResponse(404, "file not found");
+    const resp = await streamFileBody(env, file);
     const merged = new Headers(resp.headers);
-    merged.set("x-share-target-type", "scene");
+    merged.set("x-share-target-type", "file");
     merged.set("x-share-permission", tk.permission);
     merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
     return new Response(resp.body, { status: resp.status, headers: merged });
@@ -529,20 +529,20 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
   // we don't rely on order — find by id.
   const rootRow: FolderRow = folders.find((f) => f.id === rootId) || folders[0];
   const folderIds = folders.map((f) => f.id);
-  const scenes = await loadScenesInFolders(env, owner, folderIds);
-  const sceneTags = await collectTagsForMany(
+  const files = await loadFilesInFolders(env, owner, folderIds);
+  const fileTags = await collectTagsForMany(
     env,
-    "scene",
-    scenes.map((s) => s.id),
+    "file",
+    files.map((s) => s.id),
   );
   const folderTags = await collectTagsForMany(env, "folder", folderIds);
 
-  // Compute per-folder top-3 previews (most recently updated scenes).
-  // The full scenes array is already in memory — doing it client-side
+  // Compute per-folder top-3 previews (most recently updated files).
+  // The full files array is already in memory — doing it client-side
   // here is cheaper than another DB query.
-  const previewsByFolder = new Map<string, ScenePreview[]>();
-  const sortedScenes = [...scenes].sort((a, b) => b.updated_at - a.updated_at);
-  for (const s of sortedScenes) {
+  const previewsByFolder = new Map<string, FilePreview[]>();
+  const sortedFiles = [...files].sort((a, b) => b.updated_at - a.updated_at);
+  for (const s of sortedFiles) {
     if (!s.folder_id) continue;
     const arr = previewsByFolder.get(s.folder_id) ?? [];
     if (arr.length >= 3) continue;
@@ -563,7 +563,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
       { ...f, parent_id: parent },
       {
         tags: folderTags.get(f.id) ?? [],
-        sceneCount: scenes.filter((s) => s.folder_id === f.id).length,
+        fileCount: files.filter((s) => s.folder_id === f.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === f.id).length,
         previews: previewsByFolder.get(f.id) ?? [],
       },
@@ -581,13 +581,13 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
       { ...rootRow, parent_id: null },
       {
         tags: folderTags.get(rootRow.id) ?? [],
-        sceneCount: scenes.filter((s) => s.folder_id === rootRow.id).length,
+        fileCount: files.filter((s) => s.folder_id === rootRow.id).length,
         subfolderCount: folders.filter((c) => c.parent_id === rootRow.id).length,
         previews: previewsByFolder.get(rootRow.id) ?? [],
       },
     ),
     folders: folderOut,
-    scenes: scenes.map((s) => rowToMeta(s, sceneTags.get(s.id) ?? [])),
+    files: files.map((s) => rowToMeta(s, fileTags.get(s.id) ?? [])),
   });
 }
 
@@ -599,7 +599,7 @@ export async function getThumbViaShareToken(
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
-  if (tk.target_type !== "scene") return errorResponse(404, "no thumbnail");
+  if (tk.target_type !== "file") return errorResponse(404, "no thumbnail");
   touchAccess(env, token, ctx);
 
   // Content-addressed via `?v=<thumbUpdatedAt>` from the client; safe to
@@ -610,9 +610,9 @@ export async function getThumbViaShareToken(
     if (cached) return cached;
   }
 
-  const scene = await loadRowAnyOwner(env, tk.target_id);
-  if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
-  const obj = await env.R2.get(thumbKey(scene.id));
+  const file = await loadRowAnyOwner(env, tk.target_id);
+  if (!file?.has_thumb) return errorResponse(404, "no thumbnail");
+  const obj = await env.R2.get(thumbKey(file.id));
   if (!obj) return errorResponse(404, "no thumbnail");
   const resp = new Response(obj.body, {
     headers: {
@@ -632,66 +632,66 @@ export async function downloadViaShareToken(
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
-  if (tk.target_type !== "scene") return errorResponse(404, "not a scene share");
+  if (tk.target_type !== "file") return errorResponse(404, "not a file share");
   if (!tk.allow_download) return errorResponse(403, "downloads disabled for this share");
   touchAccess(env, token, ctx);
-  const scene = await loadRowAnyOwner(env, tk.target_id);
-  if (!scene) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, scene, { download: true });
+  const file = await loadRowAnyOwner(env, tk.target_id);
+  if (!file) return errorResponse(404, "file not found");
+  return await streamFileBody(env, file, { download: true });
 }
 
 export async function putViaShareToken(req: Request, env: Env, token: string): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
-  if (tk.target_type !== "scene") return errorResponse(404, "use /scenes/:id under this token");
+  if (tk.target_type !== "file") return errorResponse(404, "use /files/:id under this token");
   if (tk.permission !== "write") return errorResponse(403, "read-only token");
-  const scene = await loadRowAnyOwner(env, tk.target_id);
-  if (!scene) return errorResponse(404, "scene not found");
-  return await putScene(req, env, scene.owner, scene.id);
+  const file = await loadRowAnyOwner(env, tk.target_id);
+  if (!file) return errorResponse(404, "file not found");
+  return await putFile(req, env, file.owner, file.id);
 }
 
 // ─── Public: folder-share scoped endpoints ────────────────────────────
-async function ensureFolderShareCoversScene(
+async function ensureFolderShareCoversFile(
   env: Env,
   tk: ShareRow,
-  sceneId: string,
+  fileId: string,
 ): Promise<boolean> {
   if (tk.target_type !== "folder") return false;
-  return await sceneInFolderSubtree(env, tk.owner, sceneId, tk.target_id);
+  return await fileInFolderSubtree(env, tk.owner, fileId, tk.target_id);
 }
 
-export async function getFolderShareScene(
+export async function getFolderShareFile(
   env: Env,
   token: string,
-  sceneId: string,
+  fileId: string,
   ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
-  if (!(await ensureFolderShareCoversScene(env, tk, sceneId))) {
-    return errorResponse(404, "scene not in shared folder");
+  if (!(await ensureFolderShareCoversFile(env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
   }
   touchAccess(env, token, ctx);
-  const scene = await loadRowAnyOwner(env, sceneId);
-  if (!scene) return errorResponse(404, "scene not found");
-  const resp = await streamSceneBody(env, scene);
+  const file = await loadRowAnyOwner(env, fileId);
+  if (!file) return errorResponse(404, "file not found");
+  const resp = await streamFileBody(env, file);
   const merged = new Headers(resp.headers);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
   return new Response(resp.body, { status: resp.status, headers: merged });
 }
 
-export async function getFolderShareSceneThumb(
+export async function getFolderShareFileThumb(
   env: Env,
   token: string,
-  sceneId: string,
+  fileId: string,
   ctx: ExecutionContext | null,
   req?: Request,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
-  if (!(await ensureFolderShareCoversScene(env, tk, sceneId))) {
-    return errorResponse(404, "scene not in shared folder");
+  if (!(await ensureFolderShareCoversFile(env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
   }
   touchAccess(env, token, ctx);
 
@@ -701,9 +701,9 @@ export async function getFolderShareSceneThumb(
     if (cached) return cached;
   }
 
-  const scene = await loadRowAnyOwner(env, sceneId);
-  if (!scene?.has_thumb) return errorResponse(404, "no thumbnail");
-  const obj = await env.R2.get(thumbKey(scene.id));
+  const file = await loadRowAnyOwner(env, fileId);
+  if (!file?.has_thumb) return errorResponse(404, "no thumbnail");
+  const obj = await env.R2.get(thumbKey(file.id));
   if (!obj) return errorResponse(404, "no thumbnail");
   const resp = new Response(obj.body, {
     headers: {
@@ -716,41 +716,41 @@ export async function getFolderShareSceneThumb(
   return resp;
 }
 
-export async function downloadFolderShareScene(
+export async function downloadFolderShareFile(
   env: Env,
   token: string,
-  sceneId: string,
+  fileId: string,
   ctx: ExecutionContext | null,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (!tk.allow_download) return errorResponse(403, "downloads disabled for this share");
-  if (!(await ensureFolderShareCoversScene(env, tk, sceneId))) {
-    return errorResponse(404, "scene not in shared folder");
+  if (!(await ensureFolderShareCoversFile(env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
   }
   touchAccess(env, token, ctx);
-  const scene = await loadRowAnyOwner(env, sceneId);
-  if (!scene) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, scene, { download: true });
+  const file = await loadRowAnyOwner(env, fileId);
+  if (!file) return errorResponse(404, "file not found");
+  return await streamFileBody(env, file, { download: true });
 }
 
-export async function putFolderShareScene(
+export async function putFolderShareFile(
   req: Request,
   env: Env,
   token: string,
-  sceneId: string,
+  fileId: string,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.permission !== "write") return errorResponse(403, "read-only token");
-  if (!(await ensureFolderShareCoversScene(env, tk, sceneId))) {
-    return errorResponse(404, "scene not in shared folder");
+  if (!(await ensureFolderShareCoversFile(env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
   }
-  return await putScene(req, env, tk.owner, sceneId);
+  return await putFile(req, env, tk.owner, fileId);
 }
 
-// POST /api/share/:token/scenes — create a scene inside a folder share.
-export async function createSceneViaFolderShare(
+// POST /api/share/:token/files — create a file inside a folder share.
+export async function createFileViaFolderShare(
   req: Request,
   env: Env,
   token: string,
@@ -769,29 +769,29 @@ export async function createSceneViaFolderShare(
   if (!(await folderInSubtree(env, tk.owner, targetFolder, tk.target_id))) {
     return errorResponse(403, "folder not in shared subtree");
   }
-  const meta = await createSceneInFolder(
+  const meta = await createFileInFolder(
     env,
     tk.owner,
     targetFolder,
     body.name || "Untitled",
-    normalizeSceneKind(body.kind),
+    normalizeFileKind(body.kind),
   );
   return jsonResponse(meta);
 }
 
-// DELETE /api/share/:token/scenes/:id — delete inside a folder write share.
-export async function deleteSceneViaFolderShare(
+// DELETE /api/share/:token/files/:id — delete inside a folder write share.
+export async function deleteFileViaFolderShare(
   env: Env,
   token: string,
-  sceneId: string,
+  fileId: string,
 ): Promise<Response> {
   const tk = await resolveToken(env, token);
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.permission !== "write") return errorResponse(403, "read-only token");
-  if (!(await ensureFolderShareCoversScene(env, tk, sceneId))) {
-    return errorResponse(404, "scene not in shared folder");
+  if (!(await ensureFolderShareCoversFile(env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
   }
-  return await deleteOwnedScene(env, tk.owner, sceneId);
+  return await deleteOwnedFile(env, tk.owner, fileId);
 }
 
 // GET /api/share/:token/folders — list folders in the shared subtree.

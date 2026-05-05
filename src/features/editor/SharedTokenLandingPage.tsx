@@ -1,6 +1,6 @@
 // Dispatcher for /share/:token.
 //
-// The same URL serves both scene shares and folder shares; we peek the
+// The same URL serves both file shares and folder shares; we peek the
 // token once and pick the right view. The peek result is fed to the
 // child as `preloaded` so neither child re-fetches.
 
@@ -48,5 +48,5 @@ export default function SharedTokenLandingPage() {
   if (data.type === "folder") {
     return <SharedFolderPage preloaded={data.payload} />;
   }
-  return <SharedEditorPage preloaded={data.scene} />;
+  return <SharedEditorPage preloaded={data.file} />;
 }

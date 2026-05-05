@@ -349,7 +349,7 @@
   filter: invert(1) hue-rotate(180deg);
 }
 
-.ink-scene__back {
+.ink-file__back {
   transform-box: fill-box;
   transform-origin: 50% 100%;
   opacity: 0;
@@ -358,22 +358,22 @@
     opacity 220ms ease-out;
   will-change: transform, opacity;
 }
-.ink-scene__back--l {
+.ink-file__back--l {
   transform: rotate(0deg) translate(0, 0);
 }
-.ink-scene__back--r {
+.ink-file__back--r {
   transform: rotate(0deg) translate(0, 0);
 }
-.group\/scene:hover .ink-scene__back--l,
-.group\/scene:focus-within .ink-scene__back--l {
+.group\/file:hover .ink-file__back--l,
+.group\/file:focus-within .ink-file__back--l {
   opacity: 1;
   /* Lower magnitude than the original draft — the back-stack rects are
      now inset 8px from the front sheet, so they only need to fan out
      ~half the previous distance to peek from behind the front. */
   transform: rotate(-4deg) translate(-3px, -1px);
 }
-.group\/scene:hover .ink-scene__back--r,
-.group\/scene:focus-within .ink-scene__back--r {
+.group\/file:hover .ink-file__back--r,
+.group\/file:focus-within .ink-file__back--r {
   opacity: 1;
   transform: rotate(4deg) translate(3px, -1px);
 }
@@ -417,7 +417,7 @@
   .ink-folder__inner--back,
   .ink-folder__inner--mid,
   .ink-folder__inner--front,
-  .ink-scene__back,
+  .ink-file__back,
   .ink-thumb-img {
     transition: none;
   }
@@ -426,11 +426,11 @@
   .group\/folder:hover .ink-folder__inner--front,
   .group\/folder:hover .ink-folder__front,
   .group\/folder:hover .ink-folder__back,
-  .group\/scene:hover .ink-scene__back--l,
-  .group\/scene:hover .ink-scene__back--r {
+  .group\/file:hover .ink-file__back--l,
+  .group\/file:hover .ink-file__back--r {
     transform: none;
   }
-  .group\/scene:hover .ink-scene__back {
+  .group\/file:hover .ink-file__back {
     opacity: 0.6;
   }
 }

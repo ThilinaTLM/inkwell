@@ -19,7 +19,7 @@ export function FolderCreateDialog({ parentId, open, onOpenChange }: FolderCreat
       open={open}
       onOpenChange={onOpenChange}
       title={parentId ? "New subfolder" : "New folder"}
-      description="Folders organize your scenes. You can nest them."
+      description="Folders organize your files. You can nest them."
       initialValue=""
       submitLabel="Create"
       busyLabel="Creating…"

@@ -1,4 +1,4 @@
-// SceneCard — file-explorer tile for a scene.
+// FileCard — file-explorer tile for a single file (Excalidraw or draw.io).
 //
 // Visual: a sheet of paper with the top-right corner *torn off*. The
 // card reads as paper, not a flat panel:
@@ -18,19 +18,25 @@
 //                   so the stack reads as "a notepad torn through"
 //                   rather than three independently-torn pages.
 //
-// Geometry: a single torn-corner polygon (deterministic per scene id)
+// Geometry: a single torn-corner polygon (deterministic per file id)
 // drives both the rough.js silhouette and the `clip-path` of the HTML
 // overlays. The thumbnail therefore stops cleanly at the torn edge —
 // nothing peeks past the silhouette.
 //
+// Top-left cluster: a permanent `<FileKindBadge>` sits at the top-left
+// of every card (so the user can tell Excalidraw vs draw.io at a
+// glance). When the file has active share tokens, a `<SharePill>` sits
+// just to its right. Both share one absolute container so they never
+// stack on top of each other.
+//
 // Interaction model (parity with `FolderCard`):
-//   - single click  → opens the scene (`onOpen`)
+//   - single click  → opens the file (`onOpen`)
 //   - right click   → context menu via the consumer's `<ContextMenuTrigger>`
 //   - keyboard      → Tab focuses the card; Enter / F2 / Delete are
 //                     consumed by `useExplorerHotkeys` based on which
 //                     card has focus.
 //
-// Hover animation (see `.ink-scene__*` in `index.css`):
+// Hover animation (see `.ink-file__*` in `index.css`):
 //   - back-left and back-right sheets fade in and rotate outward (inset
 //     from the front sheet at rest so they peek from *behind*, not beyond)
 //   - front sheet stays in place (so the thumbnail doesn't jitter)
@@ -41,8 +47,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { type Ref, useMemo } from "react";
 
 import { useRoughPath } from "@/components/rough";
+import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
+import { FileKindBadge, FileKindGlyph } from "./file-kind-icons";
 import { tiltFromId } from "./tilt";
 import { buildTornCorner } from "./tornCorner";
 
@@ -53,28 +61,29 @@ const SHEET_W = 200;
 const SHEET_H = 150;
 // Back-stack inset (in viewBox px) on each side. The two sheets behind
 // the front sit inset by this much so at rest they hide behind it; on
-// hover they fan out via the `.ink-scene__back--*` CSS rules.
+// hover they fan out via the `.ink-file__back--*` CSS rules.
 const BACK_INSET = 8;
 
-export interface SceneCardProps {
+export interface FileCardProps {
   id: string;
   name: string;
+  kind: FileKind;
   hasThumb: boolean;
   thumbUrl: string;
   /** Parent folder name. Currently unused in the visual (Recent shows
    *  it in the right-click menu) but kept on the prop for future use. */
   folderName?: string | null;
   updatedAtLabel: string;
-  /** Scene tags are still passed through from list data, but are not shown on the card. */
+  /** File tags are still passed through from list data, but are not shown on the card. */
   tags: string[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
-  /** Single click — opens the scene. */
+  /** Single click — opens the file. */
   onOpen?: () => void;
   /** Right click — open the context menu. */
   onContextMenu?: React.MouseEventHandler<HTMLButtonElement>;
-  /** Number of currently-active share tokens for this scene. When > 0
-   *  a small "shared" pill is rendered at the top-left of the card. */
+  /** Number of currently-active share tokens for this file. When > 0
+   *  a small "shared" pill is rendered alongside the kind badge. */
   activeShareCount?: number;
   /** Click handler for the share pill. Receives the click event so the
    *  caller can stop propagation if it wraps the card in another
@@ -83,9 +92,10 @@ export interface SceneCardProps {
   className?: string;
 }
 
-export function SceneCard({
+export function FileCard({
   id,
   name,
+  kind,
   hasThumb,
   thumbUrl,
   updatedAtLabel,
@@ -96,17 +106,17 @@ export function SceneCard({
   onOpenShare,
   className,
   ref,
-}: SceneCardProps & { ref?: Ref<HTMLDivElement> }) {
-  const tilt = tiltFromId(`scene:${id}`, 0.4);
+}: FileCardProps & { ref?: Ref<HTMLDivElement> }) {
+  const tilt = tiltFromId(`file:${id}`, 0.4);
 
   return (
     <div
       ref={ref}
-      data-explorer-item="scene"
+      data-explorer-item="file"
       data-explorer-id={id}
       title={updatedAtLabel ? `${name} · ${updatedAtLabel}` : name}
       className={cn(
-        "group/scene relative flex flex-col items-center gap-2 rounded-md",
+        "group/file relative flex flex-col items-center gap-2 rounded-md",
         "focus-within:ring-2 focus-within:ring-ring/60",
         className,
       )}
@@ -114,7 +124,7 @@ export function SceneCard({
     >
       <button
         type="button"
-        aria-label={`Scene: ${name}`}
+        aria-label={`File: ${name}`}
         onClick={onOpen}
         onContextMenu={onContextMenu}
         className={cn(
@@ -122,7 +132,7 @@ export function SceneCard({
           "focus-visible:outline-none",
         )}
       >
-        <SceneGlyph id={id} hasThumb={hasThumb} thumbUrl={thumbUrl} />
+        <FileGlyph id={id} kind={kind} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
         <div className="w-full min-w-0 text-center">
           <div className="truncate font-heading text-sm text-foreground" title={name}>
@@ -131,10 +141,15 @@ export function SceneCard({
         </div>
       </button>
 
-      {activeShareCount > 0 ? <SharePill count={activeShareCount} onClick={onOpenShare} /> : null}
+      {/* Top-left cluster: kind badge always; share pill conditionally.
+          Both live inside one flex container so they never overlap. */}
+      <div className="absolute left-1 top-1 z-10 flex items-center gap-1">
+        <FileKindBadge kind={kind} />
+        {activeShareCount > 0 ? <SharePill count={activeShareCount} onClick={onOpenShare} /> : null}
+      </div>
 
       {actions ? (
-        <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/scene:opacity-100 focus-within:opacity-100">
+        <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/file:opacity-100 focus-within:opacity-100">
           {actions}
         </div>
       ) : null}
@@ -159,7 +174,7 @@ function SharePill({ count, onClick }: { count: number; onClick?: () => void }) 
       onContextMenu={(e) => e.stopPropagation()}
       title={label}
       aria-label={label}
-      className="absolute left-1 top-1 z-10 inline-flex h-5 items-center gap-1 rounded-full bg-accent/70 px-1.5 text-[0.625rem] font-medium text-accent-foreground ring-1 ring-border/50 backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      className="inline-flex h-5 items-center gap-1 rounded-full bg-accent/70 px-1.5 text-[0.625rem] font-medium text-accent-foreground ring-1 ring-border/50 backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
     >
       <HugeiconsIcon icon={Link04Icon} strokeWidth={2} className="size-2.5" />
       <span>{count}</span>
@@ -184,16 +199,18 @@ function SharePill({ count, onClick }: { count: number; onClick?: () => void }) 
  *   5. Paper-fibre dots   (div, .bg-paper-dots, multiply/screen blend,
  *                          clip-path = torn polygon)
  */
-function SceneGlyph({
+function FileGlyph({
   id,
+  kind,
   hasThumb,
   thumbUrl,
 }: {
   id: string;
+  kind: FileKind;
   hasThumb: boolean;
   thumbUrl: string;
 }) {
-  // Torn-corner geometry. Computed once per scene id; both `pathD`
+  // Torn-corner geometry. Computed once per file id; both `pathD`
   // (viewBox units, fed to rough.js + back-stack <path>s) and
   // `clipPolygon` (CSS percentages, applied to HTML overlays) are
   // derived from the same vertex list so the silhouette and clip
@@ -203,7 +220,7 @@ function SceneGlyph({
       buildTornCorner({
         width: SHEET_W,
         height: SHEET_H,
-        seed: `scene-tear:${id}`,
+        seed: `file-tear:${id}`,
       }),
     [id],
   );
@@ -227,7 +244,7 @@ function SceneGlyph({
     height: SHEET_H,
     shape: "custom",
     customPathD: torn.pathD,
-    seed: `scene-paper:${id}`,
+    seed: `file-paper:${id}`,
     stroke: "var(--color-card-stroke)",
     strokeWidth: 1.3,
     fill: "var(--color-card)",
@@ -249,10 +266,10 @@ function SceneGlyph({
         className="absolute inset-0 h-full w-full overflow-visible"
         role="presentation"
       >
-        <title>Scene back stack</title>
+        <title>File back stack</title>
         <g transform={`translate(${BACK_INSET} ${BACK_INSET}) scale(${backSx} ${backSy})`}>
           <path
-            className="ink-scene__back ink-scene__back--l"
+            className="ink-file__back ink-file__back--l"
             d={torn.pathD}
             fill="var(--color-card)"
             stroke="var(--color-card-stroke)"
@@ -261,7 +278,7 @@ function SceneGlyph({
             strokeLinejoin="round"
           />
           <path
-            className="ink-scene__back ink-scene__back--r"
+            className="ink-file__back ink-file__back--r"
             d={torn.pathD}
             fill="var(--color-card)"
             stroke="var(--color-card-stroke)"
@@ -288,7 +305,7 @@ function SceneGlyph({
         }}
         role="presentation"
       >
-        <title>Scene paper</title>
+        <title>File paper</title>
         {paperPaths.map((p) => (
           <path
             key={`${p.stroke ?? ""}|${p.fill ?? ""}|${p.d}`}
@@ -304,7 +321,9 @@ function SceneGlyph({
 
       {/* 3. Thumbnail clipped to the torn silhouette. No inset — we
             *want* the image to bleed all the way to the torn edge so
-            the tear doesn't reveal a clean rectangle hidden under it. */}
+            the tear doesn't reveal a clean rectangle hidden under it.
+            For files without a thumbnail (yet) we fall back to a muted
+            kind glyph so the placeholder still hints at the file type. */}
       <div className="absolute inset-0 overflow-hidden" style={{ clipPath: torn.clipPolygon }}>
         {hasThumb ? (
           <img
@@ -316,7 +335,11 @@ function SceneGlyph({
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-muted-foreground/40">
-            <HugeiconsIcon icon={Image01Icon} strokeWidth={1.4} className="size-10" />
+            {kind === "drawio" ? (
+              <FileKindGlyph kind="drawio" className="size-10" />
+            ) : (
+              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.4} className="size-10" />
+            )}
           </div>
         )}
       </div>
@@ -341,6 +364,6 @@ function SceneGlyph({
 }
 
 /** Convenience icon for a "more actions" trigger. */
-export function SceneCardActionsIcon() {
+export function FileCardActionsIcon() {
   return <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />;
 }

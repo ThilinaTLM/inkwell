@@ -1,24 +1,25 @@
 // BrowseView — the file-explorer pane.
 //
-//   /                       → root (folders + scenes with `folder_id IS NULL`)
+//   /                       → root (folders + files with `folder_id IS NULL`)
 //   /folders/:folderId      → that folder's direct children
 //
 // Layout:
 //   - Page header: path strip (breadcrumb) + folder name title +
-//     "X folders · Y scenes" subtitle + "New folder" and "New scene"
-//     buttons.
+//     "X folders · Y files" subtitle + "New folder" outline button +
+//     `<NewFileSplitButton>` (primary action defaults to the user's
+//     last-picked file kind, dropdown lets them pick the other).
 //   - Body: a single responsive grid containing folders first, then
-//     scenes. The whole body is the empty-area `<ItemContextMenu>`
+//     files. The whole body is the empty-area `<ItemContextMenu>`
 //     target so right-click anywhere creates new.
 
-import { FolderAddIcon, Image01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import { FolderAddIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
+import { EmptyDeskNote, FileCard, FolderCard } from "@/components/sketch";
 import { Button } from "@/components/ui/button";
-import { useScenes } from "@/features/explorer/hooks";
+import { useFiles } from "@/features/explorer/hooks";
 import { folderPath } from "@/features/folders/FolderTree";
 import type { FolderMeta } from "@/lib/api/client";
 import { relTime } from "@/lib/format";
@@ -26,6 +27,7 @@ import { relTime } from "@/lib/format";
 import { Breadcrumb } from "../Breadcrumb";
 import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
+import { NewFileSplitButton } from "../NewFileSplitButton";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
@@ -43,9 +45,9 @@ interface BrowseViewProps {
 const GRID_CLASSES = "grid gap-3 px-6 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]";
 
 export function BrowseView({ folderId, onChangeFolder, folders, actions }: BrowseViewProps) {
-  const scenesQuery = useScenes({ folderId: folderId ?? "root" });
+  const filesQuery = useFiles({ folderId: folderId ?? "root" });
   const navigate = useNavigate();
-  const scenes = scenesQuery.data ?? null;
+  const files = filesQuery.data ?? null;
 
   const subfolders = useMemo(() => {
     if (!folders) return [];
@@ -62,27 +64,27 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
   const containerRef = useRef<HTMLDivElement | null>(null);
   useExplorerHotkeys(containerRef, {
     onRename: (item) => {
-      if (item.kind === "scene") {
-        const s = scenes?.find((x) => x.id === item.id);
-        if (s) actions.renameScene(s);
+      if (item.kind === "file") {
+        const s = files?.find((x) => x.id === item.id);
+        if (s) actions.renameFile(s);
       } else {
         const f = folders?.find((x) => x.id === item.id);
         if (f) actions.renameFolder(f);
       }
     },
     onDelete: (item) => {
-      if (item.kind === "scene") {
-        const s = scenes?.find((x) => x.id === item.id);
-        if (s) actions.deleteScene(s);
+      if (item.kind === "file") {
+        const s = files?.find((x) => x.id === item.id);
+        if (s) actions.deleteFile(s);
       } else {
         const f = folders?.find((x) => x.id === item.id);
         if (f) actions.deleteFolder(f);
       }
     },
     onOpen: (item) => {
-      if (item.kind === "scene") {
-        const s = scenes?.find((x) => x.id === item.id);
-        if (s) actions.openScene(s);
+      if (item.kind === "file") {
+        const s = files?.find((x) => x.id === item.id);
+        if (s) actions.openFile(s);
       } else {
         const f = folders?.find((x) => x.id === item.id);
         if (f) onChangeFolder(f.id);
@@ -90,15 +92,15 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
     },
   });
 
-  const isLoading = scenes === null || folders === null;
-  const isEmpty = !isLoading && subfolders.length === 0 && (scenes?.length ?? 0) === 0;
+  const isLoading = files === null || folders === null;
+  const isEmpty = !isLoading && subfolders.length === 0 && (files?.length ?? 0) === 0;
 
   // Heading-variant breadcrumb doubles as the page title: at root it
   // renders just "Home"; inside a folder it renders "Home › Parent ›
   // Current" at title size, with ancestors clickable. This avoids the
   // duplicate "breadcrumb on top, folder name below" stutter.
   const titleNode = <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />;
-  const subtitle = isLoading ? undefined : buildSubtitle(subfolders.length, scenes?.length ?? 0);
+  const subtitle = isLoading ? undefined : buildSubtitle(subfolders.length, files?.length ?? 0);
 
   // The body sits on a subtly lifted "deck" surface — `bg-muted/40`
   // tints just enough above `--background` to separate the working
@@ -119,14 +121,13 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
         ) : isEmpty ? (
           <CenteredEmpty
             folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
-            onCreateScene={() => actions.createSceneIn(folderId)}
-            onCreateDrawio={() => actions.createDrawioIn(folderId)}
+            onCreate={(kind) => actions.createFileIn(folderId, kind)}
             onCreateFolder={() => actions.createFolderIn(folderId)}
           />
         ) : (
           <>
-            {/* Single grid: folders first, then scenes. Folder/scene
-             *  keys are prefixed so a folder and a scene with the
+            {/* Single grid: folders first, then files. Folder/file
+             *  keys are prefixed so a folder and a file with the
              *  same uuid can never collide in React's reconciler. */}
             <div className={GRID_CLASSES}>
               {subfolders.map((f) => (
@@ -138,7 +139,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                   <FolderCard
                     id={f.id}
                     name={f.name}
-                    itemCount={f.sceneCount + f.subfolderCount}
+                    itemCount={f.fileCount + f.subfolderCount}
                     previews={f.previews}
                     activeShareCount={f.activeShareCount}
                     onOpenShare={() => actions.shareFolder(f)}
@@ -146,23 +147,24 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                   />
                 </ItemContextMenu>
               ))}
-              {scenes?.map((s) => (
+              {files?.map((s) => (
                 <ItemContextMenu
                   key={`s:${s.id}`}
-                  target={{ kind: "scene", scene: s }}
+                  target={{ kind: "file", file: s }}
                   actions={actions}
                 >
-                  <SceneCard
+                  <FileCard
                     id={s.id}
                     name={s.name}
+                    kind={s.kind}
                     hasThumb={s.hasThumb}
-                    thumbUrl={`/api/scenes/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
+                    thumbUrl={`/api/files/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
                     folderName={null}
                     updatedAtLabel={relTime(s.updatedAt)}
                     tags={s.tags}
                     activeShareCount={s.activeShareCount}
-                    onOpenShare={() => actions.shareScene(s)}
-                    onOpen={() => navigate(`/s/${s.id}`)}
+                    onOpenShare={() => actions.shareFile(s)}
+                    onOpen={() => navigate(`/f/${s.id}`)}
                   />
                 </ItemContextMenu>
               ))}
@@ -188,16 +190,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
           </Button>
         }
         primaryAction={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => actions.createDrawioIn(folderId)}>
-              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
-              New draw.io
-            </Button>
-            <Button onClick={() => actions.createSceneIn(folderId)}>
-              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
-              New scene
-            </Button>
-          </div>
+          <NewFileSplitButton onCreate={(kind) => actions.createFileIn(folderId, kind)} />
         }
       />
 
@@ -206,27 +199,25 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
   );
 }
 
-function buildSubtitle(folderCount: number, sceneCount: number): string {
-  if (folderCount === 0 && sceneCount === 0) return "Empty folder";
+function buildSubtitle(folderCount: number, fileCount: number): string {
+  if (folderCount === 0 && fileCount === 0) return "Empty folder";
   const parts: string[] = [];
   if (folderCount > 0) {
     parts.push(folderCount === 1 ? "1 folder" : `${folderCount} folders`);
   }
-  if (sceneCount > 0) {
-    parts.push(sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`);
+  if (fileCount > 0) {
+    parts.push(fileCount === 1 ? "1 file" : `${fileCount} files`);
   }
   return parts.join(" · ");
 }
 
 function CenteredEmpty({
   folderName,
-  onCreateScene,
-  onCreateDrawio,
+  onCreate,
   onCreateFolder,
 }: {
   folderName: string | null;
-  onCreateScene: () => void;
-  onCreateDrawio: () => void;
+  onCreate: (kind: import("@/lib/api/client").FileKind) => void;
   onCreateFolder: () => void;
 }) {
   return (
@@ -234,17 +225,10 @@ function CenteredEmpty({
       <EmptyDeskNote
         seed={`empty-${folderName ?? "root"}`}
         title={folderName ? `"${folderName}" is empty` : "Nothing here yet"}
-        body="Start sketching — your first scene is one click away."
+        body="Pick a file type and start drawing — your first file is one click away."
         action={
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button onClick={onCreateScene} size="lg">
-              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-              New scene
-            </Button>
-            <Button onClick={onCreateDrawio} variant="outline" size="lg">
-              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-              New draw.io
-            </Button>
+            <NewFileSplitButton onCreate={onCreate} size="lg" />
             <Button onClick={onCreateFolder} variant="outline" size="lg">
               <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
               New folder

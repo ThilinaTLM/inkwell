@@ -51,17 +51,17 @@ export function rowToUserPublic(r: UserRow): UserPublic {
   };
 }
 
-// Admin-list rows include an aggregated scene count.
-export type AdminUserRow = UserRow & { scene_count: number };
+// Admin-list rows include an aggregated file count.
+export type AdminUserRow = UserRow & { file_count: number };
 
 export interface AdminUserPublic extends UserPublic {
-  sceneCount: number;
+  fileCount: number;
 }
 
 export function rowToAdminUserPublic(r: AdminUserRow): AdminUserPublic {
   return {
     ...rowToUserPublic(r),
-    sceneCount: r.scene_count,
+    fileCount: r.file_count,
   };
 }
 
@@ -118,22 +118,22 @@ export function rowToInvitePublic(r: InviteRow | InviteAdminRow, nowMs: number):
 // ─── Folders ──────────────────────────────────────────────────────────
 export type FolderRow = InferSelectModel<typeof t.folders>;
 
-// Compact preview info for a single scene inside a folder. Used by
+// Compact preview info for a single file inside a folder. Used by
 // `FolderCard` to render thumbnails between the folds. Carries only
-// what the card needs — not the full SceneMeta.
-export type SceneKind = "excalidraw" | "drawio";
+// what the card needs — not the full FileMeta.
+export type FileKind = "excalidraw" | "drawio";
 
-/** Coerce arbitrary user input to a valid SceneKind. Anything that
+/** Coerce arbitrary user input to a valid FileKind. Anything that
  *  isn't an explicit known variant collapses to "excalidraw" — the
  *  default file type. This is the single boundary where untrusted
  *  `kind` values become typed. */
-export function normalizeSceneKind(input: unknown): SceneKind {
+export function normalizeFileKind(input: unknown): FileKind {
   return input === "drawio" ? "drawio" : "excalidraw";
 }
 
-export interface ScenePreview {
+export interface FilePreview {
   id: string;
-  kind: SceneKind;
+  kind: FileKind;
   hasThumb: boolean;
   thumbUpdatedAt: number;
 }
@@ -143,11 +143,11 @@ export interface FolderMeta {
   parentId: string | null;
   name: string;
   tags: string[];
-  sceneCount: number; // direct children only
+  fileCount: number; // direct children only
   subfolderCount: number; // direct children only
-  /** Up to 3 most-recently-updated scenes inside this folder, newest first.
+  /** Up to 3 most-recently-updated files inside this folder, newest first.
    *  `previews[0]` is the front-most paper in the FolderCard stack. */
-  previews: ScenePreview[];
+  previews: FilePreview[];
   /** Number of currently-active share tokens whose target is this folder.
    *  Used by `FolderCard` to render the "shared" pill. Always 0 in
    *  visitor (folder-share) responses so recipients can't infer how many
@@ -161,9 +161,9 @@ export function rowToFolderMeta(
   r: FolderRow,
   extras: {
     tags?: string[];
-    sceneCount?: number;
+    fileCount?: number;
     subfolderCount?: number;
-    previews?: ScenePreview[];
+    previews?: FilePreview[];
     activeShareCount?: number;
   } = {},
 ): FolderMeta {
@@ -172,7 +172,7 @@ export function rowToFolderMeta(
     parentId: r.parent_id,
     name: r.name,
     tags: extras.tags ?? [],
-    sceneCount: extras.sceneCount ?? 0,
+    fileCount: extras.fileCount ?? 0,
     subfolderCount: extras.subfolderCount ?? 0,
     previews: extras.previews ?? [],
     activeShareCount: extras.activeShareCount ?? 0,
@@ -181,25 +181,25 @@ export function rowToFolderMeta(
   };
 }
 
-// ─── Scenes ───────────────────────────────────────────────────────────
-export type SceneRow = InferSelectModel<typeof t.scenes>;
+// ─── Files ────────────────────────────────────────────────────────────
+export type FileRow = InferSelectModel<typeof t.files>;
 
 // API-facing metadata (omits internal fields). `folderId` is `null` when
-// the scene lives at the root level (no parent folder).
-export interface SceneMeta {
+// the file lives at the root level (no parent folder).
+export interface FileMeta {
   id: string;
   folderId: string | null;
   name: string;
-  kind: SceneKind;
+  kind: FileKind;
   tags: string[];
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
-  /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
+  /** Cache-bust token for `/api/files/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
   thumbUpdatedAt: number;
-  /** Number of currently-active share tokens whose target is this scene.
-   *  Used by `SceneCard` to render the "shared" pill. Always 0 in
+  /** Number of currently-active share tokens whose target is this file.
+   *  Used by `FileCard` to render the "shared" pill. Always 0 in
    *  visitor responses (folder-share listing) so recipients can't infer
    *  how many other shares the owner has. */
   activeShareCount: number;
@@ -208,10 +208,10 @@ export interface SceneMeta {
 }
 
 export function rowToMeta(
-  r: SceneRow,
+  r: FileRow,
   tags: string[] = [],
   extras: { activeShareCount?: number } = {},
-): SceneMeta {
+): FileMeta {
   return {
     id: r.id,
     folderId: r.folder_id ?? null,
@@ -234,18 +234,18 @@ export type TagRow = InferSelectModel<typeof t.tags>;
 export interface TagPublic {
   id: string;
   name: string;
-  sceneCount: number;
+  fileCount: number;
   folderCount: number;
 }
 
-export type TagTargetType = "scene" | "folder";
+export type TagTargetType = "file" | "folder";
 
 export type TaggingRow = InferSelectModel<typeof t.taggings>;
 
-// What the client PUTs as a scene blob. We don't validate the inner shape
+// What the client PUTs as a file blob. We don't validate the inner shape
 // of `elements` / `appState` / `files` — Excalidraw owns that schema and
 // it changes between versions. We just round-trip the JSON.
-export interface ExcalidrawSceneBlob {
+export interface ExcalidrawFileBlob {
   /** Optional for backward compatibility with existing stored blobs. */
   kind?: "excalidraw";
   elements: unknown[];
@@ -253,16 +253,16 @@ export interface ExcalidrawSceneBlob {
   files?: Record<string, unknown>;
 }
 
-export interface DrawioSceneBlob {
+export interface DrawioFileBlob {
   kind: "drawio";
   xml: string;
 }
 
-export type SceneBlob = ExcalidrawSceneBlob | DrawioSceneBlob;
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob;
 
 // ─── Shares (polymorphic) ────────────────────────────────────────────
 export type SharePermission = "read" | "write";
-export type ShareTargetType = "scene" | "folder";
+export type ShareTargetType = "file" | "folder";
 
 export type ShareRow = InferSelectModel<typeof t.shares>;
 

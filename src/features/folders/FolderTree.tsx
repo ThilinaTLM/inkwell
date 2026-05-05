@@ -58,7 +58,7 @@ export interface FolderTreeProps {
   /** Disable interactions on rows that fail the predicate (used by move-to). */
   disabledFor?: (folder: FolderMeta) => boolean;
   /** When set, prepends a virtual "Top level" row whose id is `null`.
-   *  Used by the move-to dialog so users can move a scene/folder to
+   *  Used by the move-to dialog so users can move a file/folder to
    *  the literal root. */
   rootLabel?: string;
   className?: string;
@@ -182,9 +182,9 @@ function FolderNode({
             className="size-4 shrink-0 opacity-80"
           />
           <span className="truncate">{folder.name}</span>
-          {showCounts && folder.sceneCount > 0 ? (
+          {showCounts && folder.fileCount > 0 ? (
             <span className="ml-auto shrink-0 text-xs text-muted-foreground/70">
-              {folder.sceneCount}
+              {folder.fileCount}
             </span>
           ) : null}
         </button>

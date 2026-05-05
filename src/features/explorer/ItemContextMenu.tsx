@@ -4,11 +4,11 @@
 // `<ContextMenuContent>` populated with the items appropriate for the
 // target kind:
 //
-//   scene  → Open · Open in new tab · Share · Download · Edit tags ·
+//   file   → Open · Open in new tab · Share · Download · Edit tags ·
 //            Move to · Rename · Delete
-//   folder → Open · Share · New scene inside · New subfolder ·
-//            Edit tags · Move to · Rename · Delete
-//   empty  → New scene · New folder
+//   folder → Open · Share · New file inside (Excalidraw / draw.io) ·
+//            New subfolder · Edit tags · Move to · Rename · Delete
+//   empty  → New file (Excalidraw / draw.io) · New folder
 //
 // "empty" is used for the right-click background of the Browse grid so
 // users can create items without first selecting one.
@@ -23,7 +23,6 @@ import {
   Edit02Icon,
   FolderAddIcon,
   HashtagIcon,
-  Image01Icon,
   Link04Icon,
   PlusSignIcon,
   Share08Icon,
@@ -31,6 +30,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -38,29 +38,29 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import type { FolderMeta, SceneMeta } from "@/lib/api/client";
-import { scenes } from "@/lib/api/client";
+import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
+import { files } from "@/lib/api/client";
 
 export type ItemContextMenuTarget =
-  | { kind: "scene"; scene: SceneMeta }
+  | { kind: "file"; file: FileMeta }
   | { kind: "folder"; folder: FolderMeta }
   | { kind: "empty"; folderId: string | null };
 
 export interface ItemMenuActions {
-  openScene: (s: SceneMeta) => void;
+  openFile: (s: FileMeta) => void;
   openFolder: (f: FolderMeta) => void;
-  shareScene: (s: SceneMeta) => void;
+  shareFile: (s: FileMeta) => void;
   shareFolder: (f: FolderMeta) => void;
-  editSceneTags: (s: SceneMeta) => void;
+  editFileTags: (s: FileMeta) => void;
   editFolderTags: (f: FolderMeta) => void;
-  moveScene: (s: SceneMeta) => void;
+  moveFile: (s: FileMeta) => void;
   moveFolder: (f: FolderMeta) => void;
-  renameScene: (s: SceneMeta) => void;
+  renameFile: (s: FileMeta) => void;
   renameFolder: (f: FolderMeta) => void;
-  deleteScene: (s: SceneMeta) => void;
+  deleteFile: (s: FileMeta) => void;
   deleteFolder: (f: FolderMeta) => void;
-  createSceneIn: (folderId: string | null) => void;
-  createDrawioIn: (folderId: string | null) => void;
+  /** Create a file of the given kind inside `folderId` (or at root when null). */
+  createFileIn: (folderId: string | null, kind: FileKind) => void;
   createFolderIn: (parentId: string | null) => void;
 }
 
@@ -76,8 +76,8 @@ export function ItemContextMenu({ target, actions, children, className }: ItemCo
     <ContextMenu>
       <ContextMenuTrigger className={className}>{children}</ContextMenuTrigger>
       <ContextMenuContent>
-        {target.kind === "scene" ? (
-          <SceneItems scene={target.scene} actions={actions} />
+        {target.kind === "file" ? (
+          <FileItems file={target.file} actions={actions} />
         ) : target.kind === "folder" ? (
           <FolderItems folder={target.folder} actions={actions} />
         ) : (
@@ -88,44 +88,44 @@ export function ItemContextMenu({ target, actions, children, className }: ItemCo
   );
 }
 
-function SceneItems({ scene: s, actions }: { scene: SceneMeta; actions: ItemMenuActions }) {
+function FileItems({ file: s, actions }: { file: FileMeta; actions: ItemMenuActions }) {
   return (
     <>
-      <ContextMenuItem onClick={() => actions.openScene(s)}>
+      <ContextMenuItem onClick={() => actions.openFile(s)}>
         <HugeiconsIcon icon={TaskDone01Icon} strokeWidth={2} />
         Open
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => window.open(`/s/${s.id}`, "_blank", "noopener")}>
+      <ContextMenuItem onClick={() => window.open(`/f/${s.id}`, "_blank", "noopener")}>
         <HugeiconsIcon icon={Link04Icon} strokeWidth={2} />
         Open in new tab
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem onClick={() => actions.shareScene(s)}>
+      <ContextMenuItem onClick={() => actions.shareFile(s)}>
         <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
         Share…
       </ContextMenuItem>
       <ContextMenuItem
         render={
-          <a href={scenes.downloadUrl(s.id)} download>
+          <a href={files.downloadUrl(s.id)} download>
             <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />
             Download
           </a>
         }
       />
-      <ContextMenuItem onClick={() => actions.editSceneTags(s)}>
+      <ContextMenuItem onClick={() => actions.editFileTags(s)}>
         <HugeiconsIcon icon={HashtagIcon} strokeWidth={2} />
         Edit tags…
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.moveScene(s)}>
+      <ContextMenuItem onClick={() => actions.moveFile(s)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
         Move to…
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.renameScene(s)}>
+      <ContextMenuItem onClick={() => actions.renameFile(s)}>
         <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} />
         Rename
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem variant="destructive" onClick={() => actions.deleteScene(s)}>
+      <ContextMenuItem variant="destructive" onClick={() => actions.deleteFile(s)}>
         <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
         Delete
       </ContextMenuItem>
@@ -145,13 +145,13 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
         <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
         Share…
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createSceneIn(f.id)}>
-        <HugeiconsIcon icon={Image01Icon} strokeWidth={2} />
-        New Excalidraw scene inside
+      <ContextMenuItem onClick={() => actions.createFileIn(f.id, "excalidraw")}>
+        <FileKindGlyph kind="excalidraw" />
+        New Excalidraw file inside
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createDrawioIn(f.id)}>
-        <HugeiconsIcon icon={Image01Icon} strokeWidth={2} />
-        New draw.io diagram inside
+      <ContextMenuItem onClick={() => actions.createFileIn(f.id, "drawio")}>
+        <FileKindGlyph kind="drawio" />
+        New draw.io file inside
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(f.id)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
@@ -181,13 +181,15 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
 function EmptyItems({ folderId, actions }: { folderId: string | null; actions: ItemMenuActions }) {
   return (
     <>
-      <ContextMenuItem onClick={() => actions.createSceneIn(folderId)}>
-        <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-        New Excalidraw scene
+      <ContextMenuItem onClick={() => actions.createFileIn(folderId, "excalidraw")}>
+        <PlusGlyph />
+        <FileKindGlyph kind="excalidraw" />
+        New Excalidraw file
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createDrawioIn(folderId)}>
-        <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-        New draw.io diagram
+      <ContextMenuItem onClick={() => actions.createFileIn(folderId, "drawio")}>
+        <PlusGlyph />
+        <FileKindGlyph kind="drawio" />
+        New draw.io file
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(folderId)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
@@ -195,4 +197,8 @@ function EmptyItems({ folderId, actions }: { folderId: string | null; actions: I
       </ContextMenuItem>
     </>
   );
+}
+
+function PlusGlyph() {
+  return <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />;
 }

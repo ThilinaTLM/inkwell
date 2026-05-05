@@ -1,20 +1,21 @@
 // SharedEditor handles both forms of share token:
-//   /share/:token                  → scene-share (loads /api/share/:token)
-//   /share/:token/scenes/:sceneId  → folder-share scene (loads /api/share/:token/scenes/:sceneId)
+//   /share/:token                  → file-share (loads /api/share/:token)
+//   /share/:token/files/:fileId    → folder-share file (loads /api/share/:token/files/:fileId)
 //
-// Like Editor, this is a zero-chrome canvas page. Scene name + save / read-only
-// status are rendered in the patched-in top-left slot via SceneEditor's
-// internal `renderTopLeftUI` wiring (see `SceneTopLeftStrip`). The dedicated
-// back icon button in that strip handles "back to folder" on folder-share
-// scene routes; on a top-level scene-share token there's no parent and the
-// back button is hidden. The MainMenu hamburger (relocated to the top-right
-// next to Library by our Excalidraw patch) surfaces a reduced action set:
+// Like Editor, this is a zero-chrome canvas page. File name + save / read-only
+// status are rendered in the patched-in top-left slot via ExcalidrawEditor's
+// internal `renderTopLeftUI` wiring (see `ExcalidrawTopLeftStrip`). The
+// dedicated back icon button in that strip handles "back to folder" on
+// folder-share file routes; on a top-level file-share token there's no parent
+// and the back button is hidden. The MainMenu hamburger (relocated to the
+// top-right next to Library by our Excalidraw patch) surfaces a reduced
+// action set:
 //   • Share-permission sub-label ("Shared · can edit" / "Shared · view only")
 //   • Download (only when the share grants downloads)
 //   • Default Excalidraw items (theme, save-as-image, help)
 // Read-only shares get the canvas in view mode; the top-left strip surfaces
 // the read-only state via the EyeIcon variant. Visitors never see
-// rename/share-from-share since they don't own the scene.
+// rename/share-from-share since they don't own the file.
 
 import { MainMenu } from "@excalidraw/excalidraw";
 import { Download01Icon, EyeIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
@@ -23,9 +24,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DrawioEditor from "@/features/editor/DrawioEditor";
-import { useSharedScene } from "@/features/editor/hooks";
-import SceneEditor from "@/features/editor/SceneEditor";
-import type { LoadedScene, SceneBlob } from "@/lib/api/client";
+import ExcalidrawEditor from "@/features/editor/ExcalidrawEditor";
+import { useSharedFile } from "@/features/editor/hooks";
+import type { FileBlob, LoadedFile } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
@@ -33,48 +34,48 @@ import { useTheme } from "@/lib/theme";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 
 interface SharedEditorProps {
-  /** Optional preloaded scene; used by SharedTokenLanding to avoid a double fetch. */
-  preloaded?: LoadedScene;
+  /** Optional preloaded file; used by SharedTokenLanding to avoid a double fetch. */
+  preloaded?: LoadedFile;
 }
 
 export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
-  const params = useParams<{ token: string; sceneId?: string }>();
+  const params = useParams<{ token: string; fileId?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const token = params.token || "";
-  const sceneId = params.sceneId; // present only on folder-share routes
+  const fileId = params.fileId; // present only on folder-share routes
 
-  // Skip the network when the parent page already resolved the scene.
-  const sceneQuery = useSharedScene(preloaded ? "" : token, sceneId);
+  // Skip the network when the parent page already resolved the file.
+  const fileQuery = useSharedFile(preloaded ? "" : token, fileId);
 
-  const [loaded, setLoaded] = useState<LoadedScene | null>(preloaded ?? null);
+  const [loaded, setLoaded] = useState<LoadedFile | null>(preloaded ?? null);
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   // Seed working copy on first arrival; thereafter the editor owns it.
   useEffect(() => {
     if (loaded) return;
-    if (sceneQuery.data) setLoaded(sceneQuery.data);
-  }, [sceneQuery.data, loaded]);
+    if (fileQuery.data) setLoaded(fileQuery.data);
+  }, [fileQuery.data, loaded]);
 
   // Force-fresh reload after a 409 conflict.
   const reload = useCallback(async () => {
     const ls = await qc.fetchQuery({
-      queryKey: keys.publicShare.token(token, sceneId),
-      queryFn: () => (sceneId ? shares.loadFolderScene(token, sceneId) : shares.load(token)),
+      queryKey: keys.publicShare.token(token, fileId),
+      queryFn: () => (fileId ? shares.loadFolderFile(token, fileId) : shares.load(token)),
       staleTime: 0,
     });
     setLoaded(ls);
     return ls;
-  }, [qc, token, sceneId]);
+  }, [qc, token, fileId]);
 
   const save = useCallback(
-    async (version: number, blob: SceneBlob) => {
-      const m = sceneId
-        ? await shares.saveFolderScene(token, sceneId, version, blob)
+    async (version: number, blob: FileBlob) => {
+      const m = fileId
+        ? await shares.saveFolderFile(token, fileId, version, blob)
         : await shares.save(token, version, blob);
-      const nextLoaded: LoadedScene = {
+      const nextLoaded: LoadedFile = {
         meta: {
-          id: loaded?.meta.id ?? sceneId ?? "",
+          id: loaded?.meta.id ?? fileId ?? "",
           name: m.name,
           kind: m.kind,
           version: m.version,
@@ -86,7 +87,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
         allowDownload: loaded?.allowDownload ?? true,
       };
       setLoaded(nextLoaded);
-      qc.setQueryData(keys.publicShare.token(token, sceneId), nextLoaded);
+      qc.setQueryData(keys.publicShare.token(token, fileId), nextLoaded);
       return { version: m.version };
     },
     [
@@ -96,20 +97,20 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
       loaded?.permission,
       qc,
       token,
-      sceneId,
+      fileId,
     ],
   );
 
-  if (sceneQuery.isError) {
+  if (fileQuery.isError) {
     return (
-      <EditorErrorState message={errorMessage(sceneQuery.error, "could not load shared scene")} />
+      <EditorErrorState message={errorMessage(fileQuery.error, "could not load shared file")} />
     );
   }
-  if (!loaded) return <EditorLoadingState label="Loading shared scene…" />;
+  if (!loaded) return <EditorLoadingState label="Loading shared file…" />;
 
   const writable = loaded.permission === "write";
-  const downloadHref = sceneId
-    ? shares.folderSceneDownloadUrl(token, sceneId)
+  const downloadHref = fileId
+    ? shares.folderFileDownloadUrl(token, fileId)
     : shares.downloadUrl(token);
 
   if (loaded.meta.kind === "drawio") {
@@ -120,7 +121,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
           save={writable ? save : async () => ({ version: loaded.meta.version })}
           reload={reload}
           onReload={(ls) => setLoaded(ls)}
-          back={sceneId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
+          back={fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
           actions={
             // Rendered into draw.io's native menubar via portal — see
             // DrawioEditor.tsx. Tailwind/shadcn classes don't apply inside
@@ -145,18 +146,18 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
 
   return (
     <div className="h-dvh w-dvw bg-background">
-      <SceneEditor
+      <ExcalidrawEditor
         loaded={loaded}
         save={writable ? save : async () => ({ version: loaded.meta.version })}
         saveThumb={null}
         reload={reload}
         onReload={(ls) => setLoaded(ls)}
         back={
-          sceneId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
+          fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
         }
         chrome={
           <MainMenu>
-            {/* Scene name + save status / read-only state render in the
+            {/* File name + save status / read-only state render in the
                 top-left strip. Here we keep just the share-permission
                 line, which clarifies the *source* of any "Read-only"
                 indicator users see in that strip. */}

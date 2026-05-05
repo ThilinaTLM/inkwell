@@ -15,7 +15,7 @@ export function errorResponse(status: number, message: string): Response {
 }
 
 // 16-char crockford-base32-ish id (96 bits of randomness). Short, URL-safe,
-// no ambiguous chars. Used for scene ids.
+// no ambiguous chars. Used for file ids.
 const ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 export function newId(len = 16): string {
   const bytes = new Uint8Array(len);

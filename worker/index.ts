@@ -13,6 +13,18 @@ import {
   type Session,
   validateSession,
 } from "./auth";
+import {
+  createFile,
+  deleteFile,
+  downloadFile,
+  getFile,
+  getThumb,
+  listFiles,
+  patchFile,
+  putFile,
+  putFileTags,
+  putThumb,
+} from "./files";
 import { createFolder, deleteFolder, listFolders, patchFolder } from "./folders";
 import {
   acceptInvite,
@@ -22,36 +34,24 @@ import {
   revokeInviteAdmin,
 } from "./invites";
 import {
-  createScene,
-  deleteScene,
-  downloadScene,
-  getScene,
-  getThumb,
-  listScenes,
-  patchScene,
-  putScene,
-  putSceneTags,
-  putThumb,
-} from "./scenes";
-import {
+  createFileShare,
+  createFileViaFolderShare,
   createFolderShare,
-  createSceneShare,
-  createSceneViaFolderShare,
-  deleteSceneViaFolderShare,
-  downloadFolderShareScene,
+  deleteFileViaFolderShare,
+  downloadFolderShareFile,
   downloadViaShareToken,
-  getFolderShareScene,
-  getFolderShareSceneThumb,
+  getFolderShareFile,
+  getFolderShareFileThumb,
   getThumbViaShareToken,
   getViaShareToken,
   listAllShares,
+  listFileShares,
   listFolderShareFolders,
   listFolderShares,
-  listSceneShares,
-  putFolderShareScene,
+  putFolderShareFile,
   putViaShareToken,
+  revokeFileShare,
   revokeFolderShare,
-  revokeSceneShare,
   revokeShareGeneric,
   rotateShareGeneric,
   updateShareGeneric,
@@ -114,30 +114,30 @@ async function handleApi(
   }
 
   // ─── Public: share tokens ─────────────────────────────────────────
-  // /api/share/:token/scenes  (folder-share write: create new scene)
-  const shareCreateScene = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/scenes$`));
-  if (shareCreateScene && req.method === "POST") {
-    return createSceneViaFolderShare(req, env, shareCreateScene[1]);
+  // /api/share/:token/files  (folder-share write: create new file)
+  const shareCreateFile = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/files$`));
+  if (shareCreateFile && req.method === "POST") {
+    return createFileViaFolderShare(req, env, shareCreateFile[1]);
   }
-  // /api/share/:token/scenes/:sceneId(/thumb|/download)
-  const shareScene = path.match(
-    new RegExp(`^/api/share/(${TOKEN_RE})/scenes/(${ID_RE})(/thumb|/download)?$`),
+  // /api/share/:token/files/:fileId(/thumb|/download)
+  const shareFile = path.match(
+    new RegExp(`^/api/share/(${TOKEN_RE})/files/(${ID_RE})(/thumb|/download)?$`),
   );
-  if (shareScene) {
-    const tk = shareScene[1];
-    const sid = shareScene[2];
-    const sub = shareScene[3];
+  if (shareFile) {
+    const tk = shareFile[1];
+    const fid = shareFile[2];
+    const sub = shareFile[3];
     if (sub === "/thumb") {
-      if (req.method === "GET") return getFolderShareSceneThumb(env, tk, sid, ctx, req);
+      if (req.method === "GET") return getFolderShareFileThumb(env, tk, fid, ctx, req);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/download") {
-      if (req.method === "GET") return downloadFolderShareScene(env, tk, sid, ctx);
+      if (req.method === "GET") return downloadFolderShareFile(env, tk, fid, ctx);
       return errorResponse(405, "method not allowed");
     }
-    if (req.method === "GET") return getFolderShareScene(env, tk, sid, ctx);
-    if (req.method === "PUT") return putFolderShareScene(req, env, tk, sid);
-    if (req.method === "DELETE") return deleteSceneViaFolderShare(env, tk, sid);
+    if (req.method === "GET") return getFolderShareFile(env, tk, fid, ctx);
+    if (req.method === "PUT") return putFolderShareFile(req, env, tk, fid);
+    if (req.method === "DELETE") return deleteFileViaFolderShare(env, tk, fid);
     return errorResponse(405, "method not allowed");
   }
   // /api/share/:token/folders  (folder-share folder listing)
@@ -145,17 +145,17 @@ async function handleApi(
   if (shareFolders && req.method === "GET") {
     return listFolderShareFolders(env, shareFolders[1], ctx);
   }
-  // /api/share/:token/thumb (scene-share thumbnail)
+  // /api/share/:token/thumb (file-share thumbnail)
   const shareThumbMatch = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/thumb$`));
   if (shareThumbMatch && req.method === "GET") {
     return getThumbViaShareToken(env, shareThumbMatch[1], ctx, req);
   }
-  // /api/share/:token/download (scene-share download)
+  // /api/share/:token/download (file-share download)
   const shareDownload = path.match(new RegExp(`^/api/share/(${TOKEN_RE})/download$`));
   if (shareDownload && req.method === "GET") {
     return downloadViaShareToken(env, shareDownload[1], ctx);
   }
-  // /api/share/:token (scene-share GET/PUT or folder-share listing)
+  // /api/share/:token (file-share GET/PUT or folder-share listing)
   const shareMatch = path.match(new RegExp(`^/api/share/(${TOKEN_RE})$`));
   if (shareMatch) {
     const token = shareMatch[1];
@@ -238,23 +238,23 @@ async function handleApi(
     return rotateShareGeneric(env, userId, sharesRotate[1]);
   }
 
-  // ─── Scenes ───────────────────────────────────────────────────────
-  if (path === "/api/scenes") {
-    if (req.method === "GET") return listScenes(req, env, userId);
-    if (req.method === "POST") return createScene(req, env, userId);
+  // ─── Files ────────────────────────────────────────────────────────
+  if (path === "/api/files") {
+    if (req.method === "GET") return listFiles(req, env, userId);
+    if (req.method === "POST") return createFile(req, env, userId);
     return errorResponse(405, "method not allowed");
   }
 
-  const sceneMatch = path.match(new RegExp(`^/api/scenes/(${ID_RE})(/[^/]+)?$`));
-  if (sceneMatch) {
-    const id = sceneMatch[1];
-    const sub = sceneMatch[2];
+  const fileMatch = path.match(new RegExp(`^/api/files/(${ID_RE})(/[^/]+)?$`));
+  if (fileMatch) {
+    const id = fileMatch[1];
+    const sub = fileMatch[2];
 
     if (!sub) {
-      if (req.method === "GET") return getScene(env, userId, id);
-      if (req.method === "PUT") return putScene(req, env, userId, id);
-      if (req.method === "PATCH") return patchScene(req, env, userId, id);
-      if (req.method === "DELETE") return deleteScene(env, userId, id);
+      if (req.method === "GET") return getFile(env, userId, id);
+      if (req.method === "PUT") return putFile(req, env, userId, id);
+      if (req.method === "PATCH") return patchFile(req, env, userId, id);
+      if (req.method === "DELETE") return deleteFile(env, userId, id);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/thumb") {
@@ -263,24 +263,24 @@ async function handleApi(
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/download") {
-      if (req.method === "GET") return downloadScene(env, userId, id);
+      if (req.method === "GET") return downloadFile(env, userId, id);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/tags") {
-      if (req.method === "PUT") return putSceneTags(req, env, userId, id);
+      if (req.method === "PUT") return putFileTags(req, env, userId, id);
       return errorResponse(405, "method not allowed");
     }
     if (sub === "/shares") {
-      if (req.method === "GET") return listSceneShares(env, userId, id);
-      if (req.method === "POST") return createSceneShare(req, env, userId, id);
+      if (req.method === "GET") return listFileShares(env, userId, id);
+      if (req.method === "POST") return createFileShare(req, env, userId, id);
       return errorResponse(405, "method not allowed");
     }
   }
 
-  // /api/scenes/:id/shares/:token  (revoke)
-  const shareRevokeMatch = path.match(new RegExp(`^/api/scenes/(${ID_RE})/shares/(${TOKEN_RE})$`));
+  // /api/files/:id/shares/:token  (revoke)
+  const shareRevokeMatch = path.match(new RegExp(`^/api/files/(${ID_RE})/shares/(${TOKEN_RE})$`));
   if (shareRevokeMatch && req.method === "DELETE") {
-    return revokeSceneShare(env, userId, shareRevokeMatch[1], shareRevokeMatch[2]);
+    return revokeFileShare(env, userId, shareRevokeMatch[1], shareRevokeMatch[2]);
   }
 
   return errorResponse(404, "not found");

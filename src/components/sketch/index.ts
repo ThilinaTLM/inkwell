@@ -1,9 +1,10 @@
 export type { EmptyDeskNoteProps } from "./EmptyDeskNote";
 export { EmptyDeskNote } from "./EmptyDeskNote";
+export type { FileCardProps } from "./FileCard";
+export { FileCard, FileCardActionsIcon } from "./FileCard";
 export type { FolderCardProps } from "./FolderCard";
 export { FolderCard, FolderCardActionsIcon } from "./FolderCard";
-export type { SceneCardProps } from "./SceneCard";
-export { SceneCard, SceneCardActionsIcon } from "./SceneCard";
+export { FileKindBadge, FileKindGlyph, fileKindLabel } from "./file-kind-icons";
 export type { TapeChipProps } from "./TapeChip";
 export { TapeChip } from "./TapeChip";
 export { pickFromPalette, tiltFromId } from "./tilt";

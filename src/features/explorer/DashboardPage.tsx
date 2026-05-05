@@ -2,7 +2,7 @@
 //
 // Owns:
 //   - URL state (path: `/` for root, `/folders/:folderId` for a folder).
-//   - Dialog state (which scene/folder a rename / delete / move / share /
+//   - Dialog state (which file/folder a rename / delete / move / share /
 //     edit-tags dialog is currently targeting).
 //   - The `actions` table handed to the Browse view's right-click menu.
 //
@@ -12,7 +12,7 @@
 // they came from.
 //
 // Does NOT own data fetching: `<BrowseView>` consumes the explorer
-// query hooks (`useFolders`, `useScenes`) directly. Mutations from
+// query hooks (`useFolders`, `useFiles`) directly. Mutations from
 // the dialog hooks invalidate those queries, so the view refreshes
 // without any manual `refreshTick` plumbing.
 
@@ -24,26 +24,26 @@ import { PaperSurface } from "@/components/PaperSurface";
 import { useMe } from "@/features/auth/hooks";
 import { BrowseView, ExplorerHeader, type ItemMenuActions } from "@/features/explorer";
 import {
-  useCreateScene,
+  useCreateFile,
   useFolders,
-  useSetSceneTags,
+  useSetFileTags,
   useTags,
   useUpdateFolder,
 } from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
-import type { FolderMeta, SceneMeta } from "@/lib/api/client";
+import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 
+import { FileDeleteDialog } from "./dialogs/FileDeleteDialog";
+import { FileMoveDialog } from "./dialogs/FileMoveDialog";
+import { FileRenameDialog } from "./dialogs/FileRenameDialog";
 import { FolderCreateDialog } from "./dialogs/FolderCreateDialog";
 import { FolderDeleteDialog } from "./dialogs/FolderDeleteDialog";
 import { FolderMoveDialog } from "./dialogs/FolderMoveDialog";
 import { FolderRenameDialog } from "./dialogs/FolderRenameDialog";
-import { SceneDeleteDialog } from "./dialogs/SceneDeleteDialog";
-import { SceneMoveDialog } from "./dialogs/SceneMoveDialog";
-import { SceneRenameDialog } from "./dialogs/SceneRenameDialog";
 
-type ShareTarget = { kind: "scene"; scene: SceneMeta } | { kind: "folder"; folder: FolderMeta };
+type ShareTarget = { kind: "file"; file: FileMeta } | { kind: "folder"; folder: FolderMeta };
 
 export default function DashboardPage() {
   const me = useMe();
@@ -64,8 +64,8 @@ export default function DashboardPage() {
 
   const folders = useFolders();
   const tags = useTags();
-  const createScene = useCreateScene();
-  const setSceneTags = useSetSceneTags();
+  const createFile = useCreateFile();
+  const setFileTags = useSetFileTags();
   const updateFolder = useUpdateFolder();
 
   // ─── URL helpers ──────────────────────────────────────────────────
@@ -75,10 +75,10 @@ export default function DashboardPage() {
   }
 
   // ─── Dialog state ─────────────────────────────────────────────────
-  const [renameSceneTarget, setRenameSceneTarget] = useState<SceneMeta | null>(null);
-  const [deleteSceneTarget, setDeleteSceneTarget] = useState<SceneMeta | null>(null);
-  const [moveSceneTarget, setMoveSceneTarget] = useState<SceneMeta | null>(null);
-  const [tagSceneTarget, setTagSceneTarget] = useState<SceneMeta | null>(null);
+  const [renameFileTarget, setRenameFileTarget] = useState<FileMeta | null>(null);
+  const [deleteFileTarget, setDeleteFileTarget] = useState<FileMeta | null>(null);
+  const [moveFileTarget, setMoveFileTarget] = useState<FileMeta | null>(null);
+  const [tagFileTarget, setTagFileTarget] = useState<FileMeta | null>(null);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [folderRenameTarget, setFolderRenameTarget] = useState<FolderMeta | null>(null);
   const [folderMoveTarget, setFolderMoveTarget] = useState<FolderMeta | null>(null);
@@ -86,40 +86,36 @@ export default function DashboardPage() {
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
   const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
 
-  async function newScene(
-    parentFolderId: string | null,
-    kind: "excalidraw" | "drawio" = "excalidraw",
-  ) {
-    if (createScene.isPending) return;
+  async function newFile(parentFolderId: string | null, kind: FileKind = "excalidraw") {
+    if (createFile.isPending) return;
     try {
-      const m = await createScene.mutateAsync({
+      const m = await createFile.mutateAsync({
         folderId: parentFolderId ?? undefined,
-        name: kind === "drawio" ? "Untitled diagram" : undefined,
+        name: kind === "drawio" ? "Untitled diagram" : "Untitled drawing",
         kind,
       });
-      navigate(`/s/${m.id}`);
+      navigate(`/f/${m.id}`);
     } catch (e) {
-      toast.error(errorMessage(e, "failed to create scene"));
+      toast.error(errorMessage(e, "failed to create file"));
     }
   }
 
   // ─── Menu actions handed to every view ────────────────────────────
   const tagSuggestions = useMemo(() => (tags.data || []).map((t) => t.name), [tags.data]);
   const actions: ItemMenuActions = {
-    openScene: (s) => navigate(`/s/${s.id}`),
+    openFile: (s) => navigate(`/f/${s.id}`),
     openFolder: (f) => setFolder(f.id),
-    shareScene: (s) => setShareTarget({ kind: "scene", scene: s }),
+    shareFile: (s) => setShareTarget({ kind: "file", file: s }),
     shareFolder: (f) => setShareTarget({ kind: "folder", folder: f }),
-    editSceneTags: (s) => setTagSceneTarget(s),
+    editFileTags: (s) => setTagFileTarget(s),
     editFolderTags: (f) => setFolderTagsTarget(f),
-    moveScene: (s) => setMoveSceneTarget(s),
+    moveFile: (s) => setMoveFileTarget(s),
     moveFolder: (f) => setFolderMoveTarget(f),
-    renameScene: (s) => setRenameSceneTarget(s),
+    renameFile: (s) => setRenameFileTarget(s),
     renameFolder: (f) => setFolderRenameTarget(f),
-    deleteScene: (s) => setDeleteSceneTarget(s),
+    deleteFile: (s) => setDeleteFileTarget(s),
     deleteFolder: (f) => setFolderDeleteTarget(f),
-    createSceneIn: (parentFolderId) => void newScene(parentFolderId, "excalidraw"),
-    createDrawioIn: (parentFolderId) => void newScene(parentFolderId, "drawio"),
+    createFileIn: (parentFolderId, kind) => void newFile(parentFolderId, kind),
     createFolderIn: (parentId) => setFolderCreate({ parentId }),
   };
 
@@ -140,33 +136,33 @@ export default function DashboardPage() {
         />
       </main>
 
-      {/* ─── Scene dialogs ─── */}
-      <SceneRenameDialog
-        scene={renameSceneTarget}
-        onOpenChange={(o) => !o && setRenameSceneTarget(null)}
+      {/* ─── File dialogs ─── */}
+      <FileRenameDialog
+        file={renameFileTarget}
+        onOpenChange={(o) => !o && setRenameFileTarget(null)}
       />
-      <SceneDeleteDialog
-        scene={deleteSceneTarget}
-        onOpenChange={(o) => !o && setDeleteSceneTarget(null)}
+      <FileDeleteDialog
+        file={deleteFileTarget}
+        onOpenChange={(o) => !o && setDeleteFileTarget(null)}
       />
       {folderList ? (
-        <SceneMoveDialog
-          scene={moveSceneTarget}
+        <FileMoveDialog
+          file={moveFileTarget}
           folders={folderList}
-          onOpenChange={(o) => !o && setMoveSceneTarget(null)}
+          onOpenChange={(o) => !o && setMoveFileTarget(null)}
         />
       ) : null}
-      {tagSceneTarget ? (
+      {tagFileTarget ? (
         <TagEditDialog
           open
-          onOpenChange={(o) => !o && setTagSceneTarget(null)}
-          initialTags={tagSceneTarget.tags}
+          onOpenChange={(o) => !o && setTagFileTarget(null)}
+          initialTags={tagFileTarget.tags}
           suggestions={tagSuggestions}
-          title={`Tags for "${tagSceneTarget.name}"`}
+          title={`Tags for "${tagFileTarget.name}"`}
           onSave={async (next) =>
             (
-              await setSceneTags.mutateAsync({
-                id: tagSceneTarget.id,
+              await setFileTags.mutateAsync({
+                id: tagFileTarget.id,
                 tags: next,
               })
             ).tags
@@ -174,16 +170,14 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {/* ─── Share dialog (scene or folder) ─── */}
+      {/* ─── Share dialog (file or folder) ─── */}
       {shareTarget ? (
         <ShareDialog
           open
           onOpenChange={(o) => !o && setShareTarget(null)}
           targetType={shareTarget.kind}
-          targetId={shareTarget.kind === "scene" ? shareTarget.scene.id : shareTarget.folder.id}
-          targetName={
-            shareTarget.kind === "scene" ? shareTarget.scene.name : shareTarget.folder.name
-          }
+          targetId={shareTarget.kind === "file" ? shareTarget.file.id : shareTarget.folder.id}
+          targetName={shareTarget.kind === "file" ? shareTarget.file.name : shareTarget.folder.name}
         />
       ) : null}
 

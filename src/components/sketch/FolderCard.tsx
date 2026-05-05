@@ -7,8 +7,8 @@
 //   - Front pocket     → primary mixed with 15% black (slightly darker
 //                        flat shade — works in both themes via color-mix)
 //   - Inner papers     → `--color-card` with `--color-card-stroke` outline,
-//                        each can be overlaid with a scene-thumbnail
-//                        `<image>` when the folder has previewable scenes.
+//                        each can be overlaid with a file-thumbnail
+//                        `<image>` when the folder has previewable files.
 //                        Hidden behind the front pocket at rest. Only
 //                        rendered when the folder actually has the
 //                        corresponding preview — empty folders show no
@@ -33,20 +33,20 @@ import { Link04Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Ref } from "react";
 
-import type { ScenePreview } from "@/lib/api/client";
+import type { FilePreview } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { tiltFromId } from "./tilt";
 
 export interface FolderCardProps {
   id: string;
   name: string;
-  /** Number of direct children (scenes + subfolders) inside this folder. */
+  /** Number of direct children (files + subfolders) inside this folder. */
   itemCount?: number | null;
-  /** Up to 3 most-recently-updated scenes inside this folder, newest
+  /** Up to 3 most-recently-updated files inside this folder, newest
    *  first. Used to render thumbnails on the inner papers. `previews[0]`
    *  sits on top of the inner-paper stack (front), `[1]` is the middle
    *  sheet, `[2]` is the back. */
-  previews?: ScenePreview[];
+  previews?: FilePreview[];
   /** Slot for a hover-revealed actions trigger (DropdownMenu trigger). */
   actions?: React.ReactNode;
   /** Single click — opens the folder. */
@@ -122,7 +122,7 @@ export function FolderCard({
 }
 
 /**
- * Top-left "shared" pill, identical to the one on SceneCard. Lives in
+ * Top-left "shared" pill, identical to the one on FileCard. Lives in
  * its own component for click-isolation: it stops propagation so the
  * card's parent ContextMenuTrigger doesn't fire on a left-click.
  */
@@ -161,11 +161,11 @@ function SharePill({ count, onClick }: { count: number; onClick?: () => void }) 
  *                               render none)
  *   3. Front pocket            (primary, slightly darker; tilts on hover)
  */
-function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
+function FolderGlyph({ previews }: { previews?: FilePreview[] }) {
   // Render one inner paper rect per available preview, up to three.
   // Empty folders render no inner papers at all so nothing peeks out
   // of the pocket on hover — otherwise the blank cream sheets read as
-  // phantom previews for a folder that has no scenes.
+  // phantom previews for a folder that has no files.
   //
   // `previews[0]` is the most recent → drawn on TOP of the stack
   // (front, `(12, 38)`). `previews[1]` sits in the middle (`(22, 42)`).
@@ -180,10 +180,10 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
   // have a thumbnail uploaded. SVG `<image>` rendering when `href` is
   // missing is undefined, so guard the conditional render.
   const frontThumb = front?.hasThumb
-    ? `/api/scenes/${front.id}/thumb?v=${front.thumbUpdatedAt}`
+    ? `/api/files/${front.id}/thumb?v=${front.thumbUpdatedAt}`
     : null;
-  const midThumb = mid?.hasThumb ? `/api/scenes/${mid.id}/thumb?v=${mid.thumbUpdatedAt}` : null;
-  const backThumb = back?.hasThumb ? `/api/scenes/${back.id}/thumb?v=${back.thumbUpdatedAt}` : null;
+  const midThumb = mid?.hasThumb ? `/api/files/${mid.id}/thumb?v=${mid.thumbUpdatedAt}` : null;
+  const backThumb = back?.hasThumb ? `/api/files/${back.id}/thumb?v=${back.thumbUpdatedAt}` : null;
 
   return (
     <div
@@ -224,7 +224,7 @@ function FolderGlyph({ previews }: { previews?: ScenePreview[] }) {
               most, back the least). They sit between the back panel
               and the front pocket, so they're hidden at rest and
               translate upward on hover. Each rect has an optional
-              `<image>` overlay carrying the scene preview thumbnail.
+              `<image>` overlay carrying the file preview thumbnail.
               `clipPath` on the `<image>` keeps it inside the rect's
               rounded corners. */}
         <defs>

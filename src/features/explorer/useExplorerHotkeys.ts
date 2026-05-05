@@ -2,9 +2,9 @@
 // focused explorer item.
 //
 // Selection state is implicit: the DOM-focused card *is* the selected
-// item. Cards stamp `data-explorer-item` ("scene" | "folder") and
+// item. Cards stamp `data-explorer-item` ("file" | "folder") and
 // `data-explorer-id` so this hook can identify what's focused without
-// any selection registry. Cards in `<SceneCard>` / `<FolderCard>` are
+// any selection registry. Cards in `<FileCard>` / `<FolderCard>` are
 // already focusable (`tabIndex={0}`).
 //
 // Bindings:
@@ -25,7 +25,7 @@ export interface ExplorerHotkeyHandlers {
 }
 
 export interface ExplorerItemFocus {
-  kind: "scene" | "folder";
+  kind: "file" | "folder";
   id: string;
   element: HTMLElement;
 }
@@ -45,7 +45,7 @@ export function useExplorerHotkeys(
       if (!card) return null;
       const kind = card.dataset.explorerItem;
       const id = card.dataset.explorerId;
-      if ((kind !== "scene" && kind !== "folder") || !id) return null;
+      if ((kind !== "file" && kind !== "folder") || !id) return null;
       return { kind, id, element: card };
     }
 

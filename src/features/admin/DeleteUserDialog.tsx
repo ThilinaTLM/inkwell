@@ -58,8 +58,8 @@ export function DeleteUserDialog({ target, onOpenChange, onDeleted }: DeleteUser
         <AlertDialogHeader>
           <AlertDialogTitle>Delete user</AlertDialogTitle>
           <AlertDialogDescription>
-            This permanently deletes <strong>{target?.email}</strong>, all of their scenes (
-            {target?.sceneCount}), and any share tokens they own. This cannot be undone.
+            This permanently deletes <strong>{target?.email}</strong>, all of their files (
+            {target?.fileCount}), and any share tokens they own. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-2">

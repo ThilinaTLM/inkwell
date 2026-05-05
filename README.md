@@ -1,15 +1,16 @@
 # Inkwell
 
-A small, self-hosted dashboard for [Excalidraw](https://excalidraw.com/) scenes,
-built to run entirely on Cloudflare. Scene blobs live in **R2**, the metadata
-index lives in **D1**, and a single **Worker** serves both the React SPA and
-the API. No servers to babysit, no egress fees.
+A small, self-hosted dashboard for [Excalidraw](https://excalidraw.com/) and
+[draw.io](https://www.drawio.com/) diagrams, built to run entirely on
+Cloudflare. File blobs live in **R2**, the metadata index lives in **D1**,
+and a single **Worker** serves both the React SPA and the API. No servers
+to babysit, no egress fees.
 
 > **Honoring the work this stands on.** Inkwell is just a thin wrapper around
 > the wonderful [Excalidraw](https://github.com/excalidraw/excalidraw) editor
 > — all the actual drawing, the hand-drawn aesthetic, the interaction model,
 > and the file format are theirs. This project only adds: persistent storage,
-> a multi-scene dashboard, and share links. If you like Inkwell, the credit
+> a multi-file dashboard, and share links. If you like Inkwell, the credit
 > belongs upstream; please consider supporting [Excalidraw+](https://plus.excalidraw.com/)
 > or contributing to the open-source project.
 >
@@ -21,15 +22,17 @@ the API. No servers to babysit, no egress fees.
 ## Why this exists
 
 The free Excalidraw web app keeps your drawings in browser local storage —
-one canvas at a time. Excalidraw+ solves the multi-scene problem but is a
+one canvas at a time. Excalidraw+ solves the multi-file problem but is a
 hosted paid product. Inkwell is the smallest thing that could possibly be:
-**"my Excalidraw, with many saved scenes, organized in folders, on Cloudflare."**
+**"my Excalidraw and draw.io, with many saved files, organized in folders,
+on Cloudflare."**
 
 Features at a glance:
 
-- Multi-scene dashboard with **folders** (nested, per-user) and **tags**
-- **Share links** for individual scenes or whole folder subtrees, read or
-  read-write, with optional expiry and `.excalidraw` download
+- Multi-file dashboard with **folders** (nested, per-user) and **tags**
+- Two equal-priority file types today (Excalidraw, draw.io), more later
+- **Share links** for individual files or whole folder subtrees, read or
+  read-write, with optional expiry and downloads
 - **Email + password auth**, invitation-only signup, super-admin bootstrap
 - Client-rendered SVG thumbnails, debounced autosave, optimistic concurrency
 
@@ -40,8 +43,8 @@ Browser (React + @excalidraw/excalidraw)
    │
    │  fetch (HttpOnly cookie session)
    ▼
-Cloudflare Worker  ──►  R2  scene blobs + SVG thumbnails
-                   ──►  D1  metadata index (users, folders, scenes, tags, shares)
+Cloudflare Worker  ──►  R2  file blobs + SVG thumbnails
+                   ──►  D1  metadata index (users, folders, files, tags, shares)
 ```
 
 Key choices:
@@ -66,7 +69,7 @@ Prerequisites: Node 20+, pnpm, a Cloudflare account, and
 
 ```bash
 pnpm install                     # also installs the repo Git hooks
-pnpm drawio:assets               # optional but required for draw.io scenes
+pnpm drawio:assets               # optional but required for draw.io files
 wrangler login
 
 # 1. Provision storage
@@ -105,13 +108,13 @@ See [`package.json`](./package.json) for the full script list.
 
 ## Costs
 
-For a personal instance (hundreds of scenes, infrequent saves), expected
+For a personal instance (hundreds of files, infrequent saves), expected
 monthly cost is **$0** — Workers, R2, and D1 free tiers cover it
 comfortably, and R2 has no egress fees.
 
 ## Limitations
 
-- **No real-time collaboration.** Single-writer per scene; last-write-wins
+- **No real-time collaboration.** Single-writer per file; last-write-wins
   across tabs (with a `version` check that catches the common case).
 - **No password recovery flow.** Admins can re-issue an invite; there is
   no email-bound reset.

@@ -29,7 +29,7 @@ export function FolderDeleteDialog({ folder, onOpenChange, onDeleted }: FolderDe
       title="Delete folder?"
       description={
         <>
-          "{folder?.name}" will be removed. Its scenes and subfolders move up one level (to{" "}
+          "{folder?.name}" will be removed. Its files and subfolders move up one level (to{" "}
           {destination}). Active share links for this folder are revoked.
         </>
       }
