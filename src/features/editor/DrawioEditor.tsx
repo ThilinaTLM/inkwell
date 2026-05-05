@@ -82,10 +82,13 @@ interface DrawioMessage {
 // save (the floppy-disk icon in the title slot) bypasses this.
 const SAVE_DEBOUNCE_MS = 30_000;
 
-// 8s thumbnail debounce — matches `ExcalidrawEditor`'s window so an
-// active editor doesn't ship a thumb on every keystroke. Flushed on
-// `beforeunload` / visibilitychange:hidden so leaving the tab does
-// upload one final preview.
+// 8s thumbnail debounce — used ONLY for the on-init backfill path
+// (a file the server has no thumb for yet). Drawio needs a few
+// seconds to render the loaded XML before an `xmlsvg` export reply
+// returns useful SVG, so we wait. Edit-driven and save-driven thumbs
+// don't go through this debounce: thumb generation is now coupled to
+// `saveLatest`, which fires `requestThumbExport()` synchronously on
+// every successful save.
 const THUMB_DEBOUNCE_MS = 8_000;
 
 // Cheap O(n) hash used to dedup thumb exports against the XML they were
@@ -499,9 +502,12 @@ export default function DrawioEditor({
       versionRef.current = res.version;
       savedXmlRef.current = xml;
       setStatus("saved");
-      // Thumb scheduling is owned by `acceptXmlChange` — it fires on
-      // every real edit, mirroring `ExcalidrawEditor`. No need to
-      // re-trigger here.
+      // Thumb generation is coupled to save: every successful save
+      // schedules a fresh thumb export so the dashboard's preview
+      // matches the just-saved XML. `requestThumbExport` reads
+      // `latestXmlRef.current` and dedups on `thumbFpRef`, so a
+      // no-content-change save short-circuits the export+upload.
+      requestThumbExport();
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && reload) {
@@ -534,7 +540,7 @@ export default function DrawioEditor({
     } finally {
       inflightRef.current = false;
     }
-  }, [readOnly, reload, onReload, post, save]);
+  }, [readOnly, reload, onReload, post, save, requestThumbExport]);
 
   const debouncedSave = useDebounced(() => {
     void saveLatest();
@@ -546,22 +552,19 @@ export default function DrawioEditor({
       latestXmlRef.current = xml;
       if (xml === savedXmlRef.current) {
         debouncedSave.cancel();
-        debouncedThumb.cancel();
         setStatus("saved");
         setErrorMsg(null);
         return;
       }
       setStatus("dirty");
       setErrorMsg(null);
-      // Schedule a thumb refresh on every real edit. Mirrors
-      // ExcalidrawEditor, which generates thumbs on `onChange` rather
-      // than after save — without this, a drawio file only gets a
-      // thumb ~38s after editing starts (30s autosave + 8s thumb).
-      debouncedThumb();
+      // Thumb generation is no longer scheduled on edit — it now fires
+      // from `saveLatest` on every successful save (auto + manual), so
+      // every saved blob has a matching dashboard preview.
       if (immediate) void saveLatest();
       else debouncedSave();
     },
-    [debouncedSave, debouncedThumb, readOnly, saveLatest],
+    [debouncedSave, readOnly, saveLatest],
   );
 
   useEffect(() => {
@@ -686,8 +689,10 @@ export default function DrawioEditor({
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       debouncedSave.flush();
-      // Flush the thumb so leaving the tab uploads a final preview that
-      // matches the canonical XML the user just saved.
+      // Flush any pending on-init thumb backfill so a user who opens
+      // a file (no thumb yet) and leaves before 8s elapses still ends
+      // up with a preview. Save-driven thumbs are already triggered
+      // synchronously from `saveLatest`'s success branch above.
       debouncedThumb.flush();
       if (isDirtyRef.current) {
         e.preventDefault();

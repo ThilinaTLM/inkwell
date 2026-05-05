@@ -20,10 +20,14 @@
 // Lifecycle:
 //   1. Page calls `load()` once on mount and passes `loaded` here.
 //   2. Excalidraw mounts with `initialData = loaded.blob`.
-//   3. onChange stores the latest meaningful snapshot, schedules a
-//      debounced scene save (30s), and schedules a debounced thumb (8s).
+//   3. onChange stores the latest meaningful snapshot and schedules a
+//      debounced scene save (30s).
 //   4. Manual save and Save & Leave both bypass the 30s debounce and
 //      persist the latest queued snapshot immediately.
+//   4a. Every successful save (auto or manual) fires a fresh thumb
+//       export + upload so the dashboard preview always reflects the
+//       just-saved blob. The thumb pipeline self-dedups via a content
+//       fingerprint so a no-op save doesn't re-PUT an identical SVG.
 //   5. We track `version` locally and bump it after each successful save
 //      so subsequent saves keep using a fresh If-Match.
 //
@@ -65,6 +69,11 @@ import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
 import { ExcalidrawTopLeftStrip } from "./ExcalidrawTopLeftStrip";
+
+// 30s autosave debounce. Same value as `DrawioEditor`'s
+// `SAVE_DEBOUNCE_MS` — kept in sync deliberately so both editors
+// have identical autosave cadence.
+const SAVE_DEBOUNCE_MS = 30_000;
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -257,6 +266,50 @@ export default function ExcalidrawEditor({
     });
   }, [api, loaded.meta.name]);
 
+  // ─── Thumbnail (fired from `saveLatest`) ────────────────────────────
+  // Defined before `saveLatest` because `saveLatest` references it in
+  // its success branch. The function exports an SVG of the supplied
+  // scene and PUTs it to /api/files/:id/thumb; `thumbFpRef` dedups so
+  // the same content isn't re-uploaded.
+  const doThumb = useCallback(
+    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+      if (!saveThumb || readOnly) return;
+      if (elements.length === 0) return;
+
+      // Skip the SVG export + upload if the scene hasn't meaningfully
+      // changed since the last successful thumb.
+      const fp = fingerprintScene(elements, appState, files);
+      if (fp === thumbFpRef.current) return;
+
+      try {
+        const svg = await exportToSvg({
+          elements: normalizeImagesForExport(elements, files),
+          appState: {
+            ...appState,
+            // Transparent export: the dashboard's card body provides the
+            // paper, and dark mode applies a CSS invert filter on top of
+            // this SVG so dark strokes read as light strokes on the dark
+            // card. Baking a white background here would defeat both.
+            exportBackground: false,
+          } as AppState,
+          files,
+          exportPadding: 12,
+        });
+        svg.setAttribute("width", "640");
+        svg.removeAttribute("height");
+        await saveThumb(svg.outerHTML);
+        thumbFpRef.current = fp;
+        // Tell the page so it can invalidate scene/folder list queries.
+        // Done after `thumbFpRef` so a duplicate fingerprint check
+        // short-circuits the next call.
+        onThumbSaved?.();
+      } catch {
+        // Best-effort.
+      }
+    },
+    [saveThumb, readOnly, onThumbSaved],
+  );
+
   // ─── Persist scene ──────────────────────────────────────────────────
   const saveLatest = useCallback(async (): Promise<boolean> => {
     if (readOnly) return true;
@@ -292,6 +345,13 @@ export default function ExcalidrawEditor({
             const res = await save(versionRef.current, blob);
             versionRef.current = res.version;
             savedFpRef.current = snapshot.fp;
+            // Thumb generation is coupled to save: every successful
+            // save schedules a fresh thumb upload so the dashboard
+            // preview matches the just-saved scene. Fire-and-forget;
+            // `doThumb`'s internal `thumbFpRef` dedup short-circuits
+            // the upload when the saved content already matches the
+            // last-uploaded thumb.
+            void doThumb(snapshot.elements, snapshot.appState, snapshot.files);
           } catch (e) {
             if (e instanceof ApiError && e.status === 409 && reload) {
               try {
@@ -334,74 +394,28 @@ export default function ExcalidrawEditor({
 
     savePromiseRef.current = task;
     return task;
-  }, [save, reload, onReload, loaded.meta.name, readOnly]);
+  }, [save, reload, onReload, loaded.meta.name, readOnly, doThumb]);
 
   const debouncedSave = useDebounced(() => {
     void saveLatest();
-  }, 30_000);
-
-  // ─── Thumbnail (debounced 8s) ───────────────────────────────────────
-  const doThumb = useCallback(
-    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      if (!saveThumb || readOnly) return;
-      if (elements.length === 0) return;
-
-      // Skip the SVG export + upload if the scene hasn't meaningfully
-      // changed since the last successful thumb.
-      const fp = fingerprintScene(elements, appState, files);
-      if (fp === thumbFpRef.current) return;
-
-      try {
-        const svg = await exportToSvg({
-          elements: normalizeImagesForExport(elements, files),
-          appState: {
-            ...appState,
-            // Transparent export: the dashboard's card body provides the
-            // paper, and dark mode applies a CSS invert filter on top of
-            // this SVG so dark strokes read as light strokes on the dark
-            // card. Baking a white background here would defeat both.
-            exportBackground: false,
-          } as AppState,
-          files,
-          exportPadding: 12,
-        });
-        svg.setAttribute("width", "640");
-        svg.removeAttribute("height");
-        await saveThumb(svg.outerHTML);
-        thumbFpRef.current = fp;
-        // Tell the page so it can invalidate scene/folder list queries.
-        // Done after `thumbFpRef` so a duplicate fingerprint check
-        // short-circuits the next call.
-        onThumbSaved?.();
-      } catch {
-        // Best-effort.
-      }
-    },
-    [saveThumb, readOnly, onThumbSaved],
-  );
-
-  // 8s debounce: long enough to coalesce an editing burst, short enough
-  // that returning to the dashboard within ~10s shows the fresh thumb.
-  const debouncedThumb = useDebounced(doThumb, 8_000);
+  }, SAVE_DEBOUNCE_MS);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
     if (readOnly) return true;
     debouncedSave.cancel();
-    const ok = await saveLatest();
-    if (ok) debouncedThumb.flush();
-    return ok;
-  }, [debouncedSave, debouncedThumb, saveLatest, readOnly]);
+    // Thumb is fired transitively from `saveLatest`'s success branch.
+    return saveLatest();
+  }, [debouncedSave, saveLatest, readOnly]);
 
   const discardPendingLocalWork = useCallback(() => {
     debouncedSave.cancel();
-    debouncedThumb.cancel();
     saveQueuedRef.current = false;
     latestSnapshotRef.current = inflightRef.current ? inflightSnapshotRef.current : null;
     if (!inflightRef.current) {
       setStatus("saved");
       setErrorMsg(null);
     }
-  }, [debouncedSave, debouncedThumb]);
+  }, [debouncedSave]);
 
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
@@ -418,11 +432,9 @@ export default function ExcalidrawEditor({
       if (snapshot.fp === savedFpRef.current) {
         if (inflightRef.current) {
           saveQueuedRef.current = true;
-          debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
         } else {
           saveQueuedRef.current = false;
           debouncedSave.cancel();
-          debouncedThumb.cancel();
           setStatus("saved");
           setErrorMsg(null);
         }
@@ -433,23 +445,23 @@ export default function ExcalidrawEditor({
       setStatus((s) => (s === "saving" ? s : "dirty"));
       setErrorMsg(null);
       debouncedSave();
-      debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
+      // Thumb is no longer scheduled on edit — it fires from
+      // `saveLatest` after each successful save (auto + manual).
     },
-    [debouncedSave, debouncedThumb, readOnly],
+    [debouncedSave, readOnly],
   );
 
-  // Flush pending save AND thumb on unmount / page hide. Without this,
-  // a user who edits and navigates back to the dashboard within the 8s
-  // thumb-debounce window would see no preview — `useDebounced` cancels
-  // the pending call on unmount, dropping the upload entirely.
+  // Flush pending save on unmount / page hide. The flushed save will
+  // itself trigger a thumb upload via `saveLatest`'s success branch,
+  // so we don't need a separate thumb flush here.
   //
   // `flush()` synchronously invokes the wrapped function, which kicks
-  // off `exportToSvg` + `saveThumb` (a fetch). The fetch completes in
-  // the background after this component unmounts — React Query's
-  // `qc.invalidateQueries` from `onThumbSaved` still works because the
-  // QueryClient is mounted at the app root, not here. On true
-  // `beforeunload` (tab close) the fetch may be killed mid-flight; that's
-  // the same risk as `debouncedSave` and we accept it.
+  // off the save fetch (and, on success, the thumb fetch). Both
+  // complete in the background after this component unmounts — React
+  // Query's `qc.invalidateQueries` from `onThumbSaved` still works
+  // because the QueryClient is mounted at the app root, not here. On
+  // true `beforeunload` (tab close) the fetches may be killed
+  // mid-flight; that's an accepted risk.
   //
   // While unsaved (`isDirty`), `beforeunload` also fires the native
   // browser prompt so the user can cancel a tab close / hard reload
@@ -463,7 +475,6 @@ export default function ExcalidrawEditor({
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       debouncedSave.flush();
-      debouncedThumb.flush();
       if (isDirtyRef.current) {
         e.preventDefault();
         // Modern browsers ignore the string but require `returnValue` to
@@ -473,7 +484,6 @@ export default function ExcalidrawEditor({
     };
     const onVisibility = () => {
       debouncedSave.flush();
-      debouncedThumb.flush();
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onVisibility);
@@ -481,9 +491,8 @@ export default function ExcalidrawEditor({
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onVisibility);
       debouncedSave.flush();
-      debouncedThumb.flush();
     };
-  }, [debouncedSave, debouncedThumb]);
+  }, [debouncedSave]);
 
   // In-app navigation guard. The app uses `<BrowserRouter>` rather
   // than a data router, so `useBlocker` isn't available; instead we

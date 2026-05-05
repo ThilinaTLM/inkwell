@@ -120,6 +120,13 @@ export default function EditorPage() {
       // also match `keys.files.detail(id)` (prefix match) and trigger a
       // refetch of the active file on every save, racing the autosave loop.
       qc.invalidateQueries({ queryKey: ["files", "list"] });
+      // Folder previews carry `thumbUpdatedAt` and order by file
+      // `updatedAt`. Invalidate so dashboards under this file's folder
+      // refresh promptly, even before the post-save thumb PUT lands
+      // (which will re-invalidate via `onThumbSaved` once the SVG
+      // upload completes — that second pass is what propagates the
+      // new `thumb_updated_at` cache-bust token).
+      qc.invalidateQueries({ queryKey: ["folders", "list"] });
       return { version: m.version };
     },
     [id, loaded?.meta.folderId, loaded?.meta.hasThumb, qc],
