@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useScene } from "@/features/editor/hooks";
 import { useRenameScene, useSetSceneTags, useTags } from "@/features/explorer/hooks";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
@@ -25,6 +26,7 @@ import { type LoadedScene, type SceneBlob, type SceneMeta, scenes } from "@/lib/
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
+import DrawioEditor from "./DrawioEditor";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { RenameSceneDialog } from "./RenameSceneDialog";
 import SceneEditor from "./SceneEditor";
@@ -97,6 +99,7 @@ export default function EditorPage() {
         meta: {
           id,
           name: m.name,
+          kind: m.kind,
           version: m.version,
           updatedAt: m.updatedAt,
           folderId: loaded?.meta.folderId ?? null,
@@ -157,6 +160,93 @@ export default function EditorPage() {
   }
   if (!loaded) return <EditorLoadingState label="Loading scene…" />;
 
+  const sceneDialogs = (
+    <>
+      <RenameSceneDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        currentName={loaded.meta.name}
+        onRename={async (next) => {
+          try {
+            const m = await renameMutation.mutateAsync({ id, name: next });
+            setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
+            toast.success(`Renamed to "${m.name}".`);
+            setRenameOpen(false);
+          } catch (e) {
+            toast.error(errorMessage(e, "rename failed"));
+          }
+        }}
+      />
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        targetType="scene"
+        targetId={id}
+        targetName={loaded.meta.name}
+      />
+
+      {tagsOpen && sceneTags.status === "ok" && tagsQuery.data ? (
+        <TagEditDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setTagsOpen(false);
+          }}
+          initialTags={sceneTags.tags}
+          suggestions={tagsQuery.data.map((t) => t.name)}
+          title={`Tags for "${loaded.meta.name}"`}
+          onSave={async (next) => {
+            const result = await setTagsMutation.mutateAsync({
+              id,
+              tags: next,
+            });
+            return result.tags;
+          }}
+          onSaved={(next) => {
+            sceneTags.write(next);
+            toast.success("Tags updated.");
+          }}
+        />
+      ) : null}
+    </>
+  );
+
+  if (loaded.meta.kind === "drawio") {
+    return (
+      <div className="h-dvh w-dvw bg-background">
+        <DrawioEditor
+          loaded={loaded}
+          save={save}
+          reload={reload}
+          onReload={(ls) => setLoaded(ls)}
+          back={{ onClick: handleBack, label: "Back" }}
+          onRequestRename={() => setRenameOpen(true)}
+          actions={
+            <>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setTagsOpen(true)}>
+                Tags
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
+                Share
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = scenes.downloadUrl(id);
+                }}
+              >
+                Download .drawio
+              </Button>
+            </>
+          }
+        />
+        {sceneDialogs}
+      </div>
+    );
+  }
+
   return (
     <div className="h-dvh w-dvw bg-background">
       <SceneEditor
@@ -214,52 +304,7 @@ export default function EditorPage() {
         }
       />
 
-      <RenameSceneDialog
-        open={renameOpen}
-        onOpenChange={setRenameOpen}
-        currentName={loaded.meta.name}
-        onRename={async (next) => {
-          try {
-            const m = await renameMutation.mutateAsync({ id, name: next });
-            setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
-            toast.success(`Renamed to "${m.name}".`);
-            setRenameOpen(false);
-          } catch (e) {
-            toast.error(errorMessage(e, "rename failed"));
-          }
-        }}
-      />
-
-      <ShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        targetType="scene"
-        targetId={id}
-        targetName={loaded.meta.name}
-      />
-
-      {tagsOpen && sceneTags.status === "ok" && tagsQuery.data ? (
-        <TagEditDialog
-          open
-          onOpenChange={(o) => {
-            if (!o) setTagsOpen(false);
-          }}
-          initialTags={sceneTags.tags}
-          suggestions={tagsQuery.data.map((t) => t.name)}
-          title={`Tags for "${loaded.meta.name}"`}
-          onSave={async (next) => {
-            const result = await setTagsMutation.mutateAsync({
-              id,
-              tags: next,
-            });
-            return result.tags;
-          }}
-          onSaved={(next) => {
-            sceneTags.write(next);
-            toast.success("Tags updated.");
-          }}
-        />
-      ) : null}
+      {sceneDialogs}
     </div>
   );
 }

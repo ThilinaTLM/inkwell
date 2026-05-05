@@ -86,11 +86,16 @@ export default function DashboardPage() {
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
   const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
 
-  async function newScene(parentFolderId: string | null) {
+  async function newScene(
+    parentFolderId: string | null,
+    kind: "excalidraw" | "drawio" = "excalidraw",
+  ) {
     if (createScene.isPending) return;
     try {
       const m = await createScene.mutateAsync({
         folderId: parentFolderId ?? undefined,
+        name: kind === "drawio" ? "Untitled diagram" : undefined,
+        kind,
       });
       navigate(`/s/${m.id}`);
     } catch (e) {
@@ -113,7 +118,8 @@ export default function DashboardPage() {
     renameFolder: (f) => setFolderRenameTarget(f),
     deleteScene: (s) => setDeleteSceneTarget(s),
     deleteFolder: (f) => setFolderDeleteTarget(f),
-    createSceneIn: (parentFolderId) => void newScene(parentFolderId),
+    createSceneIn: (parentFolderId) => void newScene(parentFolderId, "excalidraw"),
+    createDrawioIn: (parentFolderId) => void newScene(parentFolderId, "drawio"),
     createFolderIn: (parentId) => setFolderCreate({ parentId }),
   };
 

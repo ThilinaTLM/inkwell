@@ -39,11 +39,14 @@ export interface Invite {
   revokedAt: number | null;
 }
 
+export type SceneKind = "excalidraw" | "drawio";
+
 export interface SceneMeta {
   id: string;
   /** `null` when the scene lives at the root level (no parent folder). */
   folderId: string | null;
   name: string;
+  kind: SceneKind;
   tags: string[];
   version: number;
   sizeBytes: number;
@@ -65,6 +68,7 @@ export interface SceneMeta {
  *  between the folds without an extra round trip. */
 export interface ScenePreview {
   id: string;
+  kind: SceneKind;
   hasThumb: boolean;
   thumbUpdatedAt: number;
 }
@@ -95,16 +99,26 @@ export interface Tag {
   folderCount: number;
 }
 
-export interface SceneBlob {
+export interface ExcalidrawSceneBlob {
+  /** Optional for backward compatibility with existing stored blobs. */
+  kind?: "excalidraw";
   elements: unknown[];
   appState?: Record<string, unknown>;
   files?: Record<string, unknown>;
 }
 
+export interface DrawioSceneBlob {
+  kind: "drawio";
+  xml: string;
+}
+
+export type SceneBlob = ExcalidrawSceneBlob | DrawioSceneBlob;
+
 export interface LoadedScene {
   meta: {
     id: string;
     name: string;
+    kind: SceneKind;
     version: number;
     updatedAt: number;
     /** Parent folder, or `null` when the scene lives at the root.
@@ -299,8 +313,9 @@ function buildScenesUrl(q: ScenesQuery): string {
 export const scenes = {
   list: (query: ScenesQuery = {}) =>
     request<{ scenes: SceneMeta[] }>(buildScenesUrl(query)).then((r) => r.scenes),
-  create: (body: { name?: string; folderId?: string | null; tags?: string[] } = {}) =>
-    postJson<SceneMeta>("/api/scenes", body),
+  create: (
+    body: { name?: string; folderId?: string | null; tags?: string[]; kind?: SceneKind } = {},
+  ) => postJson<SceneMeta>("/api/scenes", body),
   rename: (id: string, name: string) => patchJson<SceneMeta>(`/api/scenes/${id}`, { name }),
   /** Move a scene. `folderId === null` moves to the root level. */
   move: (id: string, folderId: string | null) =>
@@ -503,13 +518,14 @@ async function readSceneResponse(
 ): Promise<LoadedScene> {
   const id = resp.headers.get("x-scene-id") || "";
   const name = decodeURIComponent(resp.headers.get("x-scene-name") || "Untitled");
+  const kind = ((resp.headers.get("x-scene-kind") || "excalidraw") as SceneKind) || "excalidraw";
   const version = Number(resp.headers.get("x-scene-version") || "1");
   const updatedAt = Number(resp.headers.get("x-scene-updated-at") || "0");
   const folderHeader = resp.headers.get("x-scene-folder-id");
   const folderId = folderHeader ? folderHeader : null;
   const blob = (await resp.json()) as SceneBlob;
   return {
-    meta: { id, name, version, updatedAt, folderId },
+    meta: { id, name, kind, version, updatedAt, folderId },
     blob,
     permission,
     allowDownload,

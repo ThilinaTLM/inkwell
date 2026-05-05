@@ -17,7 +17,15 @@ import { getDb, t } from "./db/client";
 import { descendantFolderIds, loadScenesInFolders } from "./folders";
 import { countActiveSharesForTargets } from "./share";
 import { collectTagsForMany, listTagsFor, replaceTagsFor } from "./tags";
-import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
+import type {
+  DrawioSceneBlob,
+  Env,
+  ExcalidrawSceneBlob,
+  SceneBlob,
+  SceneKind,
+  SceneMeta,
+  SceneRow,
+} from "./types";
 import { rowToMeta } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 
@@ -29,6 +37,56 @@ function r2SceneKey(id: string) {
 }
 function r2ThumbKey(id: string) {
   return `thumbs/${id}.svg`;
+}
+
+function seedBlobForKind(kind: SceneKind, name: string): SceneBlob {
+  if (kind === "drawio") {
+    return { kind: "drawio", xml: emptyDrawioXml(name) };
+  }
+  return { elements: [], appState: { name }, files: {} };
+}
+
+function emptyDrawioXml(name: string): string {
+  const safeName = escapeXml(name || "Page-1");
+  return `<mxfile host="Inkwell" version="1.0"><diagram id="${newId()}" name="${safeName}"><mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function isDrawioBlob(blob: SceneBlob): blob is DrawioSceneBlob {
+  return (
+    (blob as { kind?: unknown }).kind === "drawio" &&
+    typeof (blob as { xml?: unknown }).xml === "string"
+  );
+}
+
+function validateBlobForKind(kind: SceneKind, parsed: SceneBlob): string | null {
+  if (kind === "drawio") {
+    if (!isDrawioBlob(parsed)) return "draw.io blob must include kind=drawio and xml";
+    if (!parsed.xml.trim()) return "draw.io xml required";
+    return null;
+  }
+  if (!Array.isArray((parsed as { elements?: unknown }).elements))
+    return "elements must be an array";
+  return null;
+}
+
+async function parseStoredSceneBlob(obj: R2ObjectBody): Promise<SceneBlob | null> {
+  try {
+    return JSON.parse(await obj.text()) as SceneBlob;
+  } catch {
+    return null;
+  }
+}
+
+function downloadExtensionForKind(kind: SceneKind): "excalidraw" | "drawio" {
+  return kind === "drawio" ? "drawio" : "excalidraw";
 }
 
 // ─── List ─────────────────────────────────────────────────────────────
@@ -126,7 +184,7 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
 
 // ─── Create ───────────────────────────────────────────────────────────
 export async function createScene(req: Request, env: Env, owner: string): Promise<Response> {
-  let body: { name?: string; folderId?: string | null; tags?: string[] } = {};
+  let body: { name?: string; folderId?: string | null; tags?: string[]; kind?: SceneKind } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -147,9 +205,10 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
   const id = newId();
   const ts = now();
   const name = (body.name || "Untitled").slice(0, 200);
+  const kind: SceneKind = body.kind === "drawio" ? "drawio" : "excalidraw";
 
   // Seed an empty scene so subsequent GETs return something predictable.
-  const seed: SceneBlob = { elements: [], appState: { name }, files: {} };
+  const seed = seedBlobForKind(kind, name);
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
   await env.R2.put(r2SceneKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
@@ -162,6 +221,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
       owner,
       folder_id: folderId,
       name,
+      kind,
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
@@ -179,6 +239,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     id,
     folderId,
     name,
+    kind,
     tags,
     version: 1,
     sizeBytes: seedBytes.byteLength,
@@ -227,6 +288,7 @@ export async function streamSceneBody(
     etag: `"${row.version}"`,
     "x-scene-id": row.id,
     "x-scene-name": encodeURIComponent(row.name),
+    "x-scene-kind": row.kind,
     "x-scene-version": String(row.version),
     "x-scene-updated-at": String(row.updated_at),
     "cache-control": "no-store",
@@ -238,7 +300,14 @@ export async function streamSceneBody(
     headers["x-scene-folder-id"] = row.folder_id ?? "";
   }
   if (opts.download) {
-    headers["content-disposition"] = `attachment; filename="${safeFilename(row.name)}.excalidraw"`;
+    headers["content-disposition"] =
+      `attachment; filename="${safeFilename(row.name)}.${downloadExtensionForKind(row.kind)}"`;
+    if (row.kind === "drawio") {
+      const parsed = await parseStoredSceneBlob(obj);
+      if (!parsed || !isDrawioBlob(parsed)) return errorResponse(500, "invalid draw.io blob");
+      headers["content-type"] = "application/xml; charset=utf-8";
+      return new Response(parsed.xml, { headers });
+    }
   }
   return new Response(obj.body, { headers });
 }
@@ -294,7 +363,8 @@ export async function putScene(
   } catch {
     return errorResponse(400, "invalid JSON");
   }
-  if (!Array.isArray(parsed.elements)) return errorResponse(400, "elements must be an array");
+  const validationError = validateBlobForKind(row.kind, parsed);
+  if (validationError) return errorResponse(400, validationError);
 
   // The DB row's `name` is the single canonical source of truth for the
   // scene's display name; PUT only writes the blob bytes + version /
@@ -330,6 +400,7 @@ export async function putScene(
     id,
     folderId: row.folder_id ?? null,
     name: row.name,
+    kind: row.kind,
     tags,
     version: nextVersion,
     sizeBytes: buf.byteLength,
@@ -397,7 +468,7 @@ export async function patchScene(
   // `scenes.version` here — version is the autosave optimistic-
   // concurrency token, and bumping it would surface as spurious 409s in
   // an open editor mid-rename.
-  if (body.name !== undefined && nextName !== row.name) {
+  if (row.kind === "excalidraw" && body.name !== undefined && nextName !== row.name) {
     const obj = await env.R2.get(r2SceneKey(id));
     if (obj) {
       let parsed: SceneBlob | null = null;
@@ -407,9 +478,10 @@ export async function patchScene(
         parsed = null;
       }
       if (parsed) {
+        const excalidraw = parsed as ExcalidrawSceneBlob;
         const nextBlob: SceneBlob = {
-          ...parsed,
-          appState: { ...(parsed.appState ?? {}), name: nextName },
+          ...excalidraw,
+          appState: { ...(excalidraw.appState ?? {}), name: nextName },
         };
         await env.R2.put(r2SceneKey(id), JSON.stringify(nextBlob), {
           httpMetadata: { contentType: "application/json" },
@@ -564,11 +636,13 @@ export async function createSceneInFolder(
   owner: string,
   folderId: string,
   name: string,
+  kind: SceneKind = "excalidraw",
 ): Promise<SceneMeta> {
   const id = newId();
   const ts = now();
   const safe = (name || "Untitled").slice(0, 200);
-  const seed: SceneBlob = { elements: [], appState: { name: safe }, files: {} };
+  const safeKind: SceneKind = kind === "drawio" ? "drawio" : "excalidraw";
+  const seed = seedBlobForKind(safeKind, safe);
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
   await env.R2.put(r2SceneKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
@@ -581,6 +655,7 @@ export async function createSceneInFolder(
       owner,
       folder_id: folderId,
       name: safe,
+      kind: safeKind,
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
@@ -593,6 +668,7 @@ export async function createSceneInFolder(
     id,
     folderId,
     name: safe,
+    kind: safeKind,
     tags: [],
     version: 1,
     sizeBytes: seedBytes.byteLength,

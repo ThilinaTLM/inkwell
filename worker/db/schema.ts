@@ -117,6 +117,9 @@ export const scenes = sqliteTable(
       onDelete: "set null",
     }),
     name: text("name").notNull().default("Untitled"),
+    kind: text("kind", { enum: ["excalidraw", "drawio"] })
+      .notNull()
+      .default("excalidraw"),
     version: integer("version").notNull().default(1),
     size_bytes: integer("size_bytes").notNull().default(0),
     has_thumb: integer("has_thumb", { mode: "boolean" }).notNull().default(false),

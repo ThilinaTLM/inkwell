@@ -542,6 +542,7 @@ async function renderFolderShareListing(env: Env, tk: ShareRow): Promise<Respons
     if (arr.length >= 3) continue;
     arr.push({
       id: s.id,
+      kind: s.kind,
       hasThumb: s.has_thumb,
       thumbUpdatedAt: s.thumb_updated_at,
     });
@@ -752,7 +753,7 @@ export async function createSceneViaFolderShare(
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.target_type !== "folder") return errorResponse(400, "not a folder share");
   if (tk.permission !== "write") return errorResponse(403, "read-only token");
-  let body: { name?: string; folderId?: string } = {};
+  let body: { name?: string; folderId?: string; kind?: "excalidraw" | "drawio" } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -762,7 +763,13 @@ export async function createSceneViaFolderShare(
   if (!(await folderInSubtree(env, tk.owner, targetFolder, tk.target_id))) {
     return errorResponse(403, "folder not in shared subtree");
   }
-  const meta = await createSceneInFolder(env, tk.owner, targetFolder, body.name || "Untitled");
+  const meta = await createSceneInFolder(
+    env,
+    tk.owner,
+    targetFolder,
+    body.name || "Untitled",
+    body.kind === "drawio" ? "drawio" : "excalidraw",
+  );
   return jsonResponse(meta);
 }
 

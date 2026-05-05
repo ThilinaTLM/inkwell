@@ -66,6 +66,7 @@ Prerequisites: Node 20+, pnpm, a Cloudflare account, and
 
 ```bash
 pnpm install                     # also installs the repo Git hooks
+pnpm drawio:assets               # optional but required for draw.io scenes
 wrangler login
 
 # 1. Provision storage
@@ -86,6 +87,7 @@ pnpm dev:worker                    # wrangler dev
 pnpm dev                           # vite
 
 # 5. Deploy
+pnpm drawio:assets               # ensure ./public/drawio exists before building
 pnpm deploy
 ```
 
@@ -93,6 +95,11 @@ For local dev, copy `.dev.vars.example` to `.dev.vars` and adjust. The
 super-admin row is created lazily on the first login attempt that matches
 `SUPER_ADMIN_EMAIL` + `SUPER_ADMIN_PASSWORD`. Further accounts come in via
 single-use invite links generated from the **Users** panel.
+
+Draw.io support uses a pinned first-party static asset snapshot under
+`public/drawio/`. That directory is intentionally git-ignored because the
+upstream webapp is large; regenerate it with `pnpm drawio:assets` before a
+build or deploy that needs draw.io editing.
 
 See [`package.json`](./package.json) for the full script list.
 

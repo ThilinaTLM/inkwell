@@ -120,6 +120,7 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
           <CenteredEmpty
             folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
             onCreateScene={() => actions.createSceneIn(folderId)}
+            onCreateDrawio={() => actions.createDrawioIn(folderId)}
             onCreateFolder={() => actions.createFolderIn(folderId)}
           />
         ) : (
@@ -187,10 +188,16 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
           </Button>
         }
         primaryAction={
-          <Button onClick={() => actions.createSceneIn(folderId)}>
-            <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
-            New scene
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => actions.createDrawioIn(folderId)}>
+              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
+              New draw.io
+            </Button>
+            <Button onClick={() => actions.createSceneIn(folderId)}>
+              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.7} />
+              New scene
+            </Button>
+          </div>
         }
       />
 
@@ -214,10 +221,12 @@ function buildSubtitle(folderCount: number, sceneCount: number): string {
 function CenteredEmpty({
   folderName,
   onCreateScene,
+  onCreateDrawio,
   onCreateFolder,
 }: {
   folderName: string | null;
   onCreateScene: () => void;
+  onCreateDrawio: () => void;
   onCreateFolder: () => void;
 }) {
   return (
@@ -231,6 +240,10 @@ function CenteredEmpty({
             <Button onClick={onCreateScene} size="lg">
               <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
               New scene
+            </Button>
+            <Button onClick={onCreateDrawio} variant="outline" size="lg">
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+              New draw.io
             </Button>
             <Button onClick={onCreateFolder} variant="outline" size="lg">
               <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />

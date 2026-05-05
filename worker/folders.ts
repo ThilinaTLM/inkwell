@@ -133,6 +133,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
   const previewRowsP = db.all<{
     folder_id: string;
     id: string;
+    kind: "excalidraw" | "drawio";
     has_thumb: number;
     thumb_updated_at: number;
     rn: number;
@@ -141,13 +142,14 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
       SELECT
         folder_id,
         id,
+        kind,
         has_thumb,
         thumb_updated_at,
         ROW_NUMBER() OVER (PARTITION BY folder_id ORDER BY updated_at DESC, id DESC) AS rn
       FROM scenes
       WHERE owner = ${owner} AND folder_id IS NOT NULL
     )
-    SELECT folder_id, id, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
+    SELECT folder_id, id, kind, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
   `);
 
   const [folderRows, sceneCounts, subCounts, tagRows, previewRows] = await Promise.all([
@@ -179,6 +181,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     const arr = previewMap.get(p.folder_id) ?? [];
     arr.push({
       id: p.id,
+      kind: p.kind,
       hasThumb: p.has_thumb === 1,
       thumbUpdatedAt: p.thumb_updated_at,
     });

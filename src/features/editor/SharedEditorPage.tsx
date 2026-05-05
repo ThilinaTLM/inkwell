@@ -22,6 +22,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import DrawioEditor from "@/features/editor/DrawioEditor";
 import { useSharedScene } from "@/features/editor/hooks";
 import SceneEditor from "@/features/editor/SceneEditor";
 import type { LoadedScene, SceneBlob } from "@/lib/api/client";
@@ -75,6 +77,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
         meta: {
           id: loaded?.meta.id ?? sceneId ?? "",
           name: m.name,
+          kind: m.kind,
           version: m.version,
           updatedAt: m.updatedAt,
           folderId: loaded?.meta.folderId ?? null,
@@ -109,6 +112,34 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
   const downloadHref = sceneId
     ? shares.folderSceneDownloadUrl(token, sceneId)
     : shares.downloadUrl(token);
+
+  if (loaded.meta.kind === "drawio") {
+    return (
+      <div className="h-dvh w-dvw bg-background">
+        <DrawioEditor
+          loaded={loaded}
+          save={writable ? save : async () => ({ version: loaded.meta.version })}
+          reload={reload}
+          onReload={(ls) => setLoaded(ls)}
+          back={sceneId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
+          actions={
+            loaded.allowDownload ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = downloadHref;
+                }}
+              >
+                Download .drawio
+              </Button>
+            ) : null
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-dvh w-dvw bg-background">

@@ -121,8 +121,11 @@ export type FolderRow = InferSelectModel<typeof t.folders>;
 // Compact preview info for a single scene inside a folder. Used by
 // `FolderCard` to render thumbnails between the folds. Carries only
 // what the card needs — not the full SceneMeta.
+export type SceneKind = "excalidraw" | "drawio";
+
 export interface ScenePreview {
   id: string;
+  kind: SceneKind;
   hasThumb: boolean;
   thumbUpdatedAt: number;
 }
@@ -179,6 +182,7 @@ export interface SceneMeta {
   id: string;
   folderId: string | null;
   name: string;
+  kind: SceneKind;
   tags: string[];
   version: number;
   sizeBytes: number;
@@ -204,6 +208,7 @@ export function rowToMeta(
     id: r.id,
     folderId: r.folder_id ?? null,
     name: r.name,
+    kind: r.kind,
     tags,
     version: r.version,
     sizeBytes: r.size_bytes,
@@ -232,11 +237,20 @@ export type TaggingRow = InferSelectModel<typeof t.taggings>;
 // What the client PUTs as a scene blob. We don't validate the inner shape
 // of `elements` / `appState` / `files` — Excalidraw owns that schema and
 // it changes between versions. We just round-trip the JSON.
-export interface SceneBlob {
+export interface ExcalidrawSceneBlob {
+  /** Optional for backward compatibility with existing stored blobs. */
+  kind?: "excalidraw";
   elements: unknown[];
   appState?: Record<string, unknown>;
   files?: Record<string, unknown>;
 }
+
+export interface DrawioSceneBlob {
+  kind: "drawio";
+  xml: string;
+}
+
+export type SceneBlob = ExcalidrawSceneBlob | DrawioSceneBlob;
 
 // ─── Shares (polymorphic) ────────────────────────────────────────────
 export type SharePermission = "read" | "write";

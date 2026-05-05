@@ -60,7 +60,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useDebounced } from "@/hooks/useDebounced";
-import type { LoadedScene, SceneBlob } from "@/lib/api/client";
+import type { ExcalidrawSceneBlob, LoadedScene, SceneBlob } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
@@ -188,10 +188,11 @@ export default function SceneEditor({
   const inflightSnapshotRef = useRef<SceneSnapshot | null>(null);
   const saveQueuedRef = useRef(false);
   const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const initialBlob = loaded.blob as ExcalidrawSceneBlob;
   const initialSnapshot = makeSceneSnapshot(
-    (loaded.blob.elements as ExcalidrawElement[]) || [],
-    ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
-    (loaded.blob.files as BinaryFiles) || {},
+    (initialBlob.elements as ExcalidrawElement[]) || [],
+    ((initialBlob.appState as Partial<AppState>) || {}) as AppState,
+    (initialBlob.files as BinaryFiles) || {},
   );
   const latestSnapshotRef = useRef<SceneSnapshot | null>(initialSnapshot);
   const readOnly = loaded.permission !== "write";
@@ -222,10 +223,11 @@ export default function SceneEditor({
   }, [loaded.meta.version]);
 
   useEffect(() => {
+    const blob = loaded.blob as ExcalidrawSceneBlob;
     const nextSnapshot = makeSceneSnapshot(
-      (loaded.blob.elements as ExcalidrawElement[]) || [],
-      ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
-      (loaded.blob.files as BinaryFiles) || {},
+      (blob.elements as ExcalidrawElement[]) || [],
+      ((blob.appState as Partial<AppState>) || {}) as AppState,
+      (blob.files as BinaryFiles) || {},
     );
     latestSnapshotRef.current = nextSnapshot;
     inflightSnapshotRef.current = null;
@@ -537,10 +539,11 @@ export default function SceneEditor({
     [back, requestBack],
   );
 
+  const currentBlob = loaded.blob as ExcalidrawSceneBlob;
   const initial = {
-    elements: (loaded.blob.elements as ExcalidrawElement[]) || [],
-    appState: (loaded.blob.appState as Partial<AppState>) || {},
-    files: (loaded.blob.files as BinaryFiles) || {},
+    elements: (currentBlob.elements as ExcalidrawElement[]) || [],
+    appState: (currentBlob.appState as Partial<AppState>) || {},
+    files: (currentBlob.files as BinaryFiles) || {},
   };
 
   // `renderTopLeftUI` is invoked by Excalidraw on every render. We

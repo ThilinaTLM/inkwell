@@ -19,6 +19,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply inkwell --remote",
     "db:studio": "drizzle-kit studio",
     "cf-typegen": "wrangler types",
+    "drawio:assets": "node scripts/fetch-drawio-assets.mjs",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",

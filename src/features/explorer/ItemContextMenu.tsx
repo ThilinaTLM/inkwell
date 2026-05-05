@@ -60,6 +60,7 @@ export interface ItemMenuActions {
   deleteScene: (s: SceneMeta) => void;
   deleteFolder: (f: FolderMeta) => void;
   createSceneIn: (folderId: string | null) => void;
+  createDrawioIn: (folderId: string | null) => void;
   createFolderIn: (parentId: string | null) => void;
 }
 
@@ -146,7 +147,11 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createSceneIn(f.id)}>
         <HugeiconsIcon icon={Image01Icon} strokeWidth={2} />
-        New scene inside
+        New Excalidraw scene inside
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => actions.createDrawioIn(f.id)}>
+        <HugeiconsIcon icon={Image01Icon} strokeWidth={2} />
+        New draw.io diagram inside
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(f.id)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
@@ -178,7 +183,11 @@ function EmptyItems({ folderId, actions }: { folderId: string | null; actions: I
     <>
       <ContextMenuItem onClick={() => actions.createSceneIn(folderId)}>
         <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-        New scene
+        New Excalidraw scene
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => actions.createDrawioIn(folderId)}>
+        <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+        New draw.io diagram
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(folderId)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
