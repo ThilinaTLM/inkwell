@@ -8,7 +8,7 @@
 // still work for older rows. To rotate to a different KDF (argon2, scrypt)
 // later, branch on the leading scheme tag.
 
-import { base64url, fromBase64url, timingSafeEqual } from "./util";
+import { base64url, fromBase64url, timingSafeEqual } from "./lib/crypto";
 
 // Cloudflare Workers caps PBKDF2 iterations at 100,000 (NotSupportedError
 // is thrown for higher values). OWASP currently recommends 600,000 for

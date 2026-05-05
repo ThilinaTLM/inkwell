@@ -1,31 +1,21 @@
-// Tag CRUD helpers.
+// Tag repository: pure data access for `tags` and `taggings`.
 //
-// A tag has per-user identity: `tags(id, owner, name)` with a unique
-// `(owner, name)` index. `name` is normalized as `trim().toLowerCase()`
-// and capped at 50 characters. Tags attach to files or folders via the
-// polymorphic `taggings` table.
-//
-// API surface intentionally small:
-//   * listTags(env, owner)            → for the sidebar with counts.
-//   * renameTag / deleteTag           → admin-style edits.
-//   * listTagsFor(targetType, id)     → for rendering on a card.
-//   * replaceTagsFor(...)             → atomic set replacement on a target.
-//   * collectTagsForMany(...)         → batch fetch tags for a list of cards.
-//
-// All write paths upsert tags lazily — no separate "create tag" call.
+// Includes the shared "normalize a string into a tag name" helpers so
+// every route uses the same length cap + lowercasing rules.
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import { getDb, t } from "./db/client";
-import type { Env, TagPublic, TagTargetType } from "./types";
-import { errorResponse, jsonResponse, newId, now } from "./util";
+import { newId } from "../../lib/crypto";
+import { now } from "../../lib/util";
+import type { Env, TagPublic, TagRow, TagTargetType } from "../../types";
+import { getDb, t } from "../client";
 
 type SqliteBatchItem = BatchItem<"sqlite">;
 
 const MAX_TAG_LENGTH = 50;
 const MAX_TAGS_PER_TARGET = 20;
 
-// ─── Normalization ────────────────────────────────────────────────────
+// ─── Normalization (shared) ──────────────────────────────────────────
 export function normalizeTagName(raw: string): string | null {
   if (typeof raw !== "string") return null;
   const n = raw.trim().toLowerCase();
@@ -48,8 +38,32 @@ export function normalizeTagSet(raw: unknown): string[] {
   return out;
 }
 
-// ─── Read paths ───────────────────────────────────────────────────────
-export async function listTags(env: Env, owner: string): Promise<Response> {
+// ─── Reads ───────────────────────────────────────────────────────────
+export async function findById(env: Env, owner: string, id: string): Promise<TagRow | null> {
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.tags)
+    .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
+    .get();
+  return row ?? null;
+}
+
+export async function findByName(
+  env: Env,
+  owner: string,
+  name: string,
+): Promise<{ id: string } | null> {
+  const db = getDb(env);
+  const row = await db
+    .select({ id: t.tags.id })
+    .from(t.tags)
+    .where(and(eq(t.tags.owner, owner), eq(t.tags.name, name)))
+    .get();
+  return row ?? null;
+}
+
+export async function listForOwnerWithCounts(env: Env, owner: string): Promise<TagPublic[]> {
   const db = getDb(env);
   const rows = await db
     .select({
@@ -64,16 +78,15 @@ export async function listTags(env: Env, owner: string): Promise<Response> {
     .groupBy(t.tags.id)
     .orderBy(sql`${t.tags.name} COLLATE NOCASE ASC`)
     .all();
-  const tags: TagPublic[] = rows.map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     name: r.name,
     fileCount: r.file_count ?? 0,
     folderCount: r.folder_count ?? 0,
   }));
-  return jsonResponse({ tags });
 }
 
-export async function listTagsFor(
+export async function listForEntity(
   env: Env,
   targetType: TagTargetType,
   targetId: string,
@@ -89,8 +102,7 @@ export async function listTagsFor(
   return rows.map((r) => r.name);
 }
 
-// Batch loader: returns a Map<targetId, string[]> for the given ids.
-export async function collectTagsForMany(
+export async function collectForMany(
   env: Env,
   targetType: TagTargetType,
   targetIds: string[],
@@ -113,10 +125,10 @@ export async function collectTagsForMany(
   return out;
 }
 
-// ─── Write paths ──────────────────────────────────────────────────────
+// ─── Writes ──────────────────────────────────────────────────────────
 // Replaces the tag set on a target, creating any missing tag rows.
 // Returns the (normalized) tag list now attached to the target.
-export async function replaceTagsFor(
+export async function replaceForEntity(
   env: Env,
   owner: string,
   targetType: TagTargetType,
@@ -132,17 +144,18 @@ export async function replaceTagsFor(
   // an upsert-and-return primitive that respects our app-generated ids.
   const tagIds: string[] = [];
   for (const name of desired) {
-    let row = await db
+    const existing = await db
       .select({ id: t.tags.id })
       .from(t.tags)
       .where(and(eq(t.tags.owner, owner), eq(t.tags.name, name)))
       .get();
-    if (!row) {
+    if (existing) {
+      tagIds.push(existing.id);
+    } else {
       const id = newId();
       await db.insert(t.tags).values({ id, owner, name, created_at: ts }).run();
-      row = { id };
+      tagIds.push(id);
     }
-    tagIds.push(row.id);
   }
 
   // Replace the tagging set + GC orphan tags atomically. D1 batches run
@@ -176,40 +189,20 @@ export async function replaceTagsFor(
   return desired;
 }
 
-// PATCH /api/tags/:id — rename a tag everywhere.
-export async function renameTag(
-  req: Request,
+// Rename `id` to `next`. If a different tag with `next` already exists,
+// merge taggings into it and delete the old row. Returns the canonical
+// id+name post-merge (which may be a different id than the input).
+export async function rename(
   env: Env,
   owner: string,
   id: string,
-): Promise<Response> {
+  current: TagRow,
+  next: string,
+): Promise<{ id: string; name: string }> {
   const db = getDb(env);
-  const tag = await db
-    .select()
-    .from(t.tags)
-    .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
-    .get();
-  if (!tag) return errorResponse(404, "tag not found");
-  let body: { name?: string };
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return errorResponse(400, "invalid JSON");
-  }
-  const next = normalizeTagName(body.name ?? "");
-  if (!next) return errorResponse(400, "invalid tag name");
-  if (next === tag.name) {
-    return jsonResponse({ id: tag.id, name: tag.name });
-  }
-  // If a tag with the new name already exists for this owner, merge
-  // taggings into it and delete the old row.
-  const existing = await db
-    .select({ id: t.tags.id })
-    .from(t.tags)
-    .where(and(eq(t.tags.owner, owner), eq(t.tags.name, next)))
-    .get();
+  if (next === current.name) return { id: current.id, name: current.name };
+  const existing = await findByName(env, owner, next);
   if (existing) {
-    // Merge: rewrite taggings to point at the existing tag, dedupe.
     await db.batch([
       db.run(
         sql`INSERT OR IGNORE INTO ${t.taggings} (tag_id, target_type, target_id, owner, created_at)
@@ -218,22 +211,20 @@ export async function renameTag(
       ),
       db.delete(t.tags).where(eq(t.tags.id, id)),
     ]);
-    return jsonResponse({ id: existing.id, name: next });
+    return { id: existing.id, name: next };
   }
   await db
     .update(t.tags)
     .set({ name: next })
     .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
     .run();
-  return jsonResponse({ id, name: next });
+  return { id, name: next };
 }
 
-// DELETE /api/tags/:id — drop the tag (and its taggings via FK CASCADE).
-export async function deleteTag(env: Env, owner: string, id: string): Promise<Response> {
+export async function remove(env: Env, owner: string, id: string): Promise<void> {
   const db = getDb(env);
   await db
     .delete(t.tags)
     .where(and(eq(t.tags.id, id), eq(t.tags.owner, owner)))
     .run();
-  return jsonResponse({ ok: true });
 }

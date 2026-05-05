@@ -15,11 +15,11 @@
 // admin manages their password via the UI; the env var is only consulted
 // again if no row exists for that email.
 
-import { eq } from "drizzle-orm";
-import { getDb, t } from "./db/client";
+import * as usersRepo from "./db/repos/users";
+import { hmacSha256, newId, timingSafeEqual } from "./lib/crypto";
+import { now } from "./lib/util";
 import { hashPassword, verifyPassword } from "./passwords";
 import type { Env, UserRow } from "./types";
-import { base64url, newId, now, timingSafeEqual } from "./util";
 
 const COOKIE_NAME = "inkwell_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -32,22 +32,10 @@ export interface Session {
 }
 
 // ─── Cookie helpers ───────────────────────────────────────────────────
-async function hmac(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return base64url(new Uint8Array(sig));
-}
-
 export async function createSessionCookie(env: Env, userId: string): Promise<string> {
   const expiresAt = Date.now() + SESSION_TTL_MS;
   const payload = `${userId}.${expiresAt}`;
-  const sig = await hmac(env.SESSION_SECRET, payload);
+  const sig = await hmacSha256(env.SESSION_SECRET, payload);
   const value = `${payload}.${sig}`;
   return `${COOKIE_NAME}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
     SESSION_TTL_MS / 1000,
@@ -72,7 +60,7 @@ export async function validateSession(req: Request, env: Env): Promise<Session |
 
   const payload = value.slice(0, lastDot);
   const sig = value.slice(lastDot + 1);
-  const expected = await hmac(env.SESSION_SECRET, payload);
+  const expected = await hmacSha256(env.SESSION_SECRET, payload);
   if (!timingSafeEqual(sig, expected)) return null;
 
   const [userId, expiresAtStr] = payload.split(".");
@@ -80,7 +68,7 @@ export async function validateSession(req: Request, env: Env): Promise<Session |
   if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
   if (!userId) return null;
 
-  const user = await getUserById(env, userId);
+  const user = await usersRepo.findById(env, userId);
   if (!user || user.disabled) return null;
 
   return {
@@ -89,23 +77,6 @@ export async function validateSession(req: Request, env: Env): Promise<Session |
     isAdmin: user.is_admin,
     expiresAt,
   };
-}
-
-// ─── User-row helpers ─────────────────────────────────────────────────
-// These live here (rather than `users.ts`) because the auth path needs them
-// before any of the admin handlers are imported. `users.ts` re-exports the
-// ones it needs for the admin surface.
-
-export async function getUserById(env: Env, id: string): Promise<UserRow | null> {
-  const db = getDb(env);
-  const row = await db.select().from(t.users).where(eq(t.users.id, id)).get();
-  return row ?? null;
-}
-
-export async function getUserByEmail(env: Env, email: string): Promise<UserRow | null> {
-  const db = getDb(env);
-  const row = await db.select().from(t.users).where(eq(t.users.email, email.toLowerCase())).get();
-  return row ?? null;
 }
 
 // ─── Login + bootstrap ────────────────────────────────────────────────
@@ -133,7 +104,7 @@ export async function loginWithPassword(
 
   // Bootstrap super-admin on demand.
   if (env.SUPER_ADMIN_EMAIL && email === env.SUPER_ADMIN_EMAIL.trim().toLowerCase()) {
-    const existing = await getUserByEmail(env, email);
+    const existing = await usersRepo.findByEmail(env, email);
     if (!existing) {
       if (!env.SUPER_ADMIN_PASSWORD) {
         return { ok: false, reason: "misconfigured" };
@@ -149,7 +120,7 @@ export async function loginWithPassword(
     }
   }
 
-  const user = await getUserByEmail(env, email);
+  const user = await usersRepo.findByEmail(env, email);
   if (!user) return { ok: false, reason: "invalid" };
   if (user.disabled) return { ok: false, reason: "disabled" };
 
@@ -157,10 +128,7 @@ export async function loginWithPassword(
   if (!ok) return { ok: false, reason: "invalid" };
 
   // Update last_login_at; ignore failures (non-critical).
-  const ts = now();
-  const db = getDb(env);
-  await db.update(t.users).set({ last_login_at: ts }).where(eq(t.users.id, user.id)).run();
-  user.last_login_at = ts;
+  user.last_login_at = await usersRepo.bumpLastLogin(env, user.id);
   return { ok: true, user };
 }
 
@@ -168,23 +136,7 @@ async function createSuperAdmin(env: Env, email: string, password: string): Prom
   const id = newId();
   const ts = now();
   const hash = await hashPassword(password);
-  const db = getDb(env);
-  await db
-    .insert(t.users)
-    .values({
-      id,
-      email,
-      password_hash: hash,
-      first_name: "Super",
-      last_name: "Admin",
-      is_admin: true,
-      disabled: false,
-      created_at: ts,
-      updated_at: ts,
-      last_login_at: ts,
-    })
-    .run();
-  return {
+  const row: UserRow = {
     id,
     email,
     password_hash: hash,
@@ -196,6 +148,8 @@ async function createSuperAdmin(env: Env, email: string, password: string): Prom
     updated_at: ts,
     last_login_at: ts,
   };
+  await usersRepo.insert(env, row);
+  return row;
 }
 
 // ─── Self-service password change ─────────────────────────────────────
@@ -207,16 +161,11 @@ export async function changeOwnPassword(
   newPassword: string,
 ): Promise<{ ok: true } | { ok: false; reason: "invalid_current" | "weak" | "missing" }> {
   if (!newPassword || newPassword.length < 8) return { ok: false, reason: "weak" };
-  const user = await getUserById(env, userId);
+  const user = await usersRepo.findById(env, userId);
   if (!user) return { ok: false, reason: "missing" };
   const ok = await verifyPassword(currentPassword, user.password_hash);
   if (!ok) return { ok: false, reason: "invalid_current" };
   const newHash = await hashPassword(newPassword);
-  const db = getDb(env);
-  await db
-    .update(t.users)
-    .set({ password_hash: newHash, updated_at: now() })
-    .where(eq(t.users.id, userId))
-    .run();
+  await usersRepo.update(env, userId, { password_hash: newHash, updated_at: now() });
   return { ok: true };
 }
