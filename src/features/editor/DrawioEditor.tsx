@@ -479,6 +479,16 @@ export default function DrawioEditor({
       // Suppress the spinner overlay drawio shows during long exports.
       // Thumbnail exports are sub-50ms; the spinner would just flash.
       spin: "",
+      // Always render thumbnails with drawio's light stylesheet — the
+      // dashboard adapts to dark mode via `.dark .ink-thumb-img`'s
+      // invert/hue-rotate filter (see src/index.css). Matching the
+      // Excalidraw thumbnail pipeline (`exportBackground: false` +
+      // light-themed strokes) keeps both editors on the same contract
+      // and avoids double-inversion on dark dashboards. Without this
+      // override drawio's embed export resolves the theme to "auto"
+      // when the editor is in dark mode and bakes the dark stylesheet
+      // (dark canvas + colour-shifted shapes) into the SVG.
+      theme: "light",
     });
   }, [post, readOnly, saveThumb]);
 
