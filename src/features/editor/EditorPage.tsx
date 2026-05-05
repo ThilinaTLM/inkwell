@@ -102,6 +102,12 @@ export default function EditorPage() {
           version: m.version,
           updatedAt: m.updatedAt,
           folderId: loaded?.meta.folderId ?? null,
+          // Once we've saved at least once, the editor's thumb pipeline
+          // will have shipped (or is about to ship) a thumb. Mark it as
+          // present so a remount of the editor doesn't re-trigger the
+          // backfill-on-open path. Server `loadRow` is the source of
+          // truth on next cold load.
+          hasThumb: loaded?.meta.hasThumb ?? false,
         },
         blob,
         permission: "write",
@@ -116,7 +122,7 @@ export default function EditorPage() {
       qc.invalidateQueries({ queryKey: ["files", "list"] });
       return { version: m.version };
     },
-    [id, loaded?.meta.folderId, qc],
+    [id, loaded?.meta.folderId, loaded?.meta.hasThumb, qc],
   );
 
   const saveThumb = useCallback((svg: string) => files.putThumb(id, svg), [id]);

@@ -81,6 +81,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
           version: m.version,
           updatedAt: m.updatedAt,
           folderId: loaded?.meta.folderId ?? null,
+          hasThumb: loaded?.meta.hasThumb ?? false,
         },
         blob,
         permission: loaded?.permission ?? "write",
@@ -93,6 +94,7 @@ export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) 
     [
       loaded?.allowDownload,
       loaded?.meta.folderId,
+      loaded?.meta.hasThumb,
       loaded?.meta.id,
       loaded?.permission,
       qc,

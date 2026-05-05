@@ -124,6 +124,10 @@ export interface LoadedFile {
     /** Parent folder, or `null` when the file lives at the root.
      *  Only populated for owner-loaded files; share-token loads omit it. */
     folderId: string | null;
+    /** Whether the server already has a thumbnail for this file. The
+     *  drawio editor uses this to backfill a one-shot thumb on open
+     *  for files that don't have one yet. */
+    hasThumb: boolean;
   };
   blob: FileBlob;
   /** Permission when loaded via a share token. Owner-loaded files are 'write'. */
@@ -521,9 +525,10 @@ async function readFileResponse(
   const updatedAt = Number(resp.headers.get("x-file-updated-at") || "0");
   const folderHeader = resp.headers.get("x-file-folder-id");
   const folderId = folderHeader ? folderHeader : null;
+  const hasThumb = resp.headers.get("x-file-has-thumb") === "1";
   const blob = (await resp.json()) as FileBlob;
   return {
-    meta: { id, name, kind, version, updatedAt, folderId },
+    meta: { id, name, kind, version, updatedAt, folderId, hasThumb },
     blob,
     permission,
     allowDownload,

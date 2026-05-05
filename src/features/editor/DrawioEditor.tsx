@@ -445,8 +445,9 @@ export default function DrawioEditor({
   );
 
   // Ask drawio to export the current diagram as SVG. The reply lands
-  // in the `onMessage` handler as `{ event: 'export', format: 'xmlsvg',
-  // data: … }` and we then PUT it to /api/files/:id/thumb.
+  // in the `onMessage` handler as `{ event: 'export', format: 'svg',
+  // data: … }` (drawio rewrites our `xmlsvg` request to `svg` on the
+  // reply) and we then PUT it to /api/files/:id/thumb.
   //
   // We don't pass `format: 'svg'` because some drawio builds gate plain
   // SVG export through their server-side render pipeline; `'xmlsvg'`
@@ -454,9 +455,17 @@ export default function DrawioEditor({
   // resulting SVG embeds the source XML, but for a 200x150 thumbnail
   // the byte cost is irrelevant and the round-trip-safe form is the
   // safer default.
+  //
+  // The fingerprint is taken against `latestXmlRef` (the live editor
+  // state), not `savedXmlRef`, so a thumb captures in-flight edits
+  // without waiting for a save round-trip. Drawio renders its own
+  // current internal state regardless of what we pass, so the SVG
+  // we get back reflects whatever is on the canvas at export time —
+  // `pendingThumbXmlRef` is best-effort dedup against rapid follow-up
+  // edits while the export is in flight.
   const requestThumbExport = useCallback(() => {
     if (!saveThumb || readOnly) return;
-    const xml = savedXmlRef.current;
+    const xml = latestXmlRef.current;
     if (!xml) return;
     const fp = hashXml(xml);
     if (fp === thumbFpRef.current) return; // already uploaded this content
@@ -490,10 +499,9 @@ export default function DrawioEditor({
       versionRef.current = res.version;
       savedXmlRef.current = xml;
       setStatus("saved");
-      // Schedule a thumb refresh now that the canonical XML matches the
-      // editor's current state. Debounced so a flurry of saves still
-      // results in one upload at the tail.
-      debouncedThumb();
+      // Thumb scheduling is owned by `acceptXmlChange` — it fires on
+      // every real edit, mirroring `ExcalidrawEditor`. No need to
+      // re-trigger here.
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && reload) {
@@ -526,7 +534,7 @@ export default function DrawioEditor({
     } finally {
       inflightRef.current = false;
     }
-  }, [readOnly, reload, onReload, post, save, debouncedThumb]);
+  }, [readOnly, reload, onReload, post, save]);
 
   const debouncedSave = useDebounced(() => {
     void saveLatest();
@@ -538,16 +546,22 @@ export default function DrawioEditor({
       latestXmlRef.current = xml;
       if (xml === savedXmlRef.current) {
         debouncedSave.cancel();
+        debouncedThumb.cancel();
         setStatus("saved");
         setErrorMsg(null);
         return;
       }
       setStatus("dirty");
       setErrorMsg(null);
+      // Schedule a thumb refresh on every real edit. Mirrors
+      // ExcalidrawEditor, which generates thumbs on `onChange` rather
+      // than after save — without this, a drawio file only gets a
+      // thumb ~38s after editing starts (30s autosave + 8s thumb).
+      debouncedThumb();
       if (immediate) void saveLatest();
       else debouncedSave();
     },
-    [debouncedSave, readOnly, saveLatest],
+    [debouncedSave, debouncedThumb, readOnly, saveLatest],
   );
 
   useEffect(() => {
@@ -579,6 +593,16 @@ export default function DrawioEditor({
           noSaveBtn: 1,
           noExitBtn: 1,
         });
+        // Backfill: if the server has no thumb for this file yet,
+        // schedule one so opening an existing file (no edits required)
+        // generates a preview. The 8s debounce gives drawio time to
+        // render the loaded XML before we ask for an SVG export.
+        // Gated on `!hasThumb` so we don't bump `thumb_updated_at`
+        // (and bust the CF cache) on every open of a file that
+        // already has a recent thumb.
+        if (!loaded.meta.hasThumb && !readOnly && saveThumb) {
+          debouncedThumb();
+        }
         return;
       }
 
@@ -613,7 +637,16 @@ export default function DrawioEditor({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [acceptXmlChange, loaded.meta.name, onThumbSaved, post, readOnly, saveThumb]);
+  }, [
+    acceptXmlChange,
+    debouncedThumb,
+    loaded.meta.hasThumb,
+    loaded.meta.name,
+    onThumbSaved,
+    post,
+    readOnly,
+    saveThumb,
+  ]);
 
   // Theme flip — drawio's embed protocol has no runtime dark-mode
   // toggle, so we force-save the current XML, drop our slot refs, and

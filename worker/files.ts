@@ -312,6 +312,7 @@ export async function streamFileBody(
     "x-file-kind": row.kind,
     "x-file-version": String(row.version),
     "x-file-updated-at": String(row.updated_at),
+    "x-file-has-thumb": row.has_thumb ? "1" : "0",
     "cache-control": "no-store",
   };
   // Owner-only: file's parent folder, used by the editor's "Back" button
