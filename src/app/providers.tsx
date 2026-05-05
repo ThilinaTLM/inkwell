@@ -25,7 +25,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <TooltipProvider>
             {children}
             <Toaster position="bottom-right" />
-            {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
+            {import.meta.env.DEV && import.meta.env.VITE_ENABLE_QUERY_DEVTOOLS === "true" && (
+              <ReactQueryDevtools buttonPosition="bottom-left" />
+            )}
           </TooltipProvider>
         </ThemeProvider>
       </BrowserRouter>
