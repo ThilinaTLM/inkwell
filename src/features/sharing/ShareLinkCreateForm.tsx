@@ -4,15 +4,19 @@
 // successful create. The parent decides where to mount it (expanded
 // inline when there are zero existing links, or behind a `+ New link`
 // toggle when there are some).
+//
+// Field UI lives in `./fields/*` so the create and edit forms render
+// the same controls.
 
 import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { Share, SharePermission } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
+import { AllowDownloadField } from "./fields/AllowDownloadField";
+import { ExpiryChips, type ExpiryOption } from "./fields/ExpiryChips";
+import { LabelField } from "./fields/LabelField";
+import { PermissionSegment } from "./fields/PermissionSegment";
 
 interface CreateBody {
   permission: SharePermission;
@@ -21,12 +25,17 @@ interface CreateBody {
   label: string | null;
 }
 
-const EXPIRY_OPTIONS: { id: string; label: string; ms: number | null }[] = [
+// Each preset id maps to a relative offset in ms. `null` means "no
+// expiry"; the resolved `expiresAt` is computed at submit time so the
+// timestamp is fresh even if the form sat open for a while.
+const EXPIRY_PRESETS: { id: string; label: string; ms: number | null }[] = [
   { id: "never", label: "Never", ms: null },
   { id: "1d", label: "1 day", ms: 24 * 60 * 60 * 1000 },
   { id: "7d", label: "7 days", ms: 7 * 24 * 60 * 60 * 1000 },
   { id: "30d", label: "30 days", ms: 30 * 24 * 60 * 60 * 1000 },
 ];
+const EXPIRY_OPTIONS: ExpiryOption[] = EXPIRY_PRESETS.map(({ id, label }) => ({ id, label }));
+const DEFAULT_EXPIRY_ID = "1d";
 
 export function ShareLinkCreateForm({
   pending,
@@ -44,10 +53,8 @@ export function ShareLinkCreateForm({
 }) {
   const [perm, setPerm] = useState<SharePermission>("read");
   const [allowDownload, setAllowDownload] = useState(true);
-  const [expiryIdx, setExpiryIdx] = useState(1); // default 1 day
+  const [expiryId, setExpiryId] = useState<string>(DEFAULT_EXPIRY_ID);
   const [label, setLabel] = useState("");
-  const downloadId = useId();
-  const labelId = useId();
 
   // Reset every time the parent bumps `resetSignal`. The signal value
   // itself is unused inside the body — it's a dependency-only trigger.
@@ -55,18 +62,18 @@ export function ShareLinkCreateForm({
   useEffect(() => {
     setPerm("read");
     setAllowDownload(true);
-    setExpiryIdx(1);
+    setExpiryId(DEFAULT_EXPIRY_ID);
     setLabel("");
   }, [resetSignal]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (pending) return;
-    const expiresMs = EXPIRY_OPTIONS[expiryIdx].ms;
+    const preset = EXPIRY_PRESETS.find((p) => p.id === expiryId) ?? EXPIRY_PRESETS[0];
     const body: CreateBody = {
       permission: perm,
       allowDownload: perm === "write" ? true : allowDownload,
-      expiresAt: expiresMs === null ? null : Date.now() + expiresMs,
+      expiresAt: preset.ms === null ? null : Date.now() + preset.ms,
       label: label.trim() || null,
     };
     try {
@@ -81,99 +88,20 @@ export function ShareLinkCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Permission */}
-      <div className="grid grid-cols-2 gap-2">
-        <PermSegment
-          active={perm === "read"}
-          onClick={() => setPerm("read")}
-          title="View only"
-          subtitle="Read-only access."
-        />
-        <PermSegment
-          active={perm === "write"}
-          onClick={() => setPerm("write")}
-          title="Can edit"
-          subtitle="Read-write access."
-        />
-      </div>
-
-      {/* Allow download */}
-      <label
-        htmlFor={downloadId}
-        className={cn(
-          "flex items-center gap-2 text-sm",
-          perm === "write" && "text-muted-foreground",
-        )}
-      >
-        <input
-          id={downloadId}
-          type="checkbox"
-          className="size-4"
-          checked={perm === "write" ? true : allowDownload}
-          disabled={perm === "write"}
-          onChange={(e) => setAllowDownload(e.target.checked)}
-        />
-        Allow download (.excalidraw)
-      </label>
-
-      {/* Expiry */}
-      <div className="flex flex-col gap-2">
-        <Label>Expires</Label>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          {EXPIRY_OPTIONS.map((opt, i) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setExpiryIdx(i)}
-              data-active={expiryIdx === i}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs transition-colors data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground hover:bg-accent/40"
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Label */}
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={labelId}>Label (optional)</Label>
-        <Input
-          id={labelId}
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="e.g. Q4 review"
-          maxLength={200}
-        />
-      </div>
+      <PermissionSegment value={perm} onChange={setPerm} />
+      <AllowDownloadField permission={perm} value={allowDownload} onChange={setAllowDownload} />
+      <ExpiryChips
+        options={EXPIRY_OPTIONS}
+        value={expiryId}
+        onChange={setExpiryId}
+        smGridCols="sm:grid-cols-4"
+      />
+      <LabelField value={label} onChange={setLabel} />
 
       <Button type="submit" disabled={pending}>
         <HugeiconsIcon icon={Link01Icon} strokeWidth={2} />
         {pending ? "Creating…" : "Create link"}
       </Button>
     </form>
-  );
-}
-
-function PermSegment({
-  active,
-  onClick,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-active={active}
-      className="rounded-md border border-border bg-background px-3 py-2.5 text-left transition-colors data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground hover:bg-accent/40"
-    >
-      <div className="text-sm font-medium">{title}</div>
-      <div className="text-xs text-muted-foreground">{subtitle}</div>
-    </button>
   );
 }
