@@ -292,7 +292,9 @@
 
 /* ─── FolderCard / SceneCard glyph animations ────────────────────────
    Flat-design hover animations that change the SVG itself, not chrome.
-   - Folder: front pocket tilts forward, inner papers peek above the lip.
+   - Folder: inner papers always peek above the pocket lip; on hover
+             they fan out (back-left, mid-up, front-right) and the
+             front pocket tilts slightly forward.
    - Scene:  two back sheets fan out from behind the front sheet.
    Tailwind v4 escapes `/` in `group/folder` selectors as `group\/folder`.
    ────────────────────────────────────────────────────────────────── */
@@ -304,7 +306,6 @@
 .ink-folder__inner--front {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  transform: translateY(0);
   transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
   will-change: transform;
 }
@@ -313,23 +314,41 @@
   transform-origin: 50% 0%;
   transform: rotateX(0deg);
 }
-/* Three inner papers fan out by different amounts on hover: the
-   front (most recent) comes out the most, the back (oldest) least. */
+/* Rest state — every available preview peeks above the pocket lip
+   (y=38) by a different amount thanks to its starting y position
+   (front=38, mid=42, back=46). A uniform -14 translate cascades to
+   ~14 / 10 / 6 viewbox units of visible top edge, with the most
+   recent (front) showing the most. */
+.ink-folder__inner--back {
+  transform: translate(0, -14px);
+}
+.ink-folder__inner--mid {
+  transform: translate(0, -14px);
+}
+.ink-folder__inner--front {
+  transform: translate(0, -14px);
+}
+/* Hover state — fan: back swings left, mid pushes further straight
+   up, front swings right. Rotation pivot is bottom-center of each
+   rect (set on the shared selector above) so the parts deep in the
+   pocket act as a hinge and the visible tops swing widely. */
 .group\/folder:hover .ink-folder__inner--back,
 .group\/folder:focus-within .ink-folder__inner--back {
-  transform: translateY(-10px);
+  transform: translate(-10px, -22px) rotate(-10deg);
 }
 .group\/folder:hover .ink-folder__inner--mid,
 .group\/folder:focus-within .ink-folder__inner--mid {
-  transform: translateY(-18px);
+  transform: translate(0, -30px) rotate(0deg);
 }
 .group\/folder:hover .ink-folder__inner--front,
 .group\/folder:focus-within .ink-folder__inner--front {
-  transform: translateY(-26px);
+  transform: translate(10px, -22px) rotate(10deg);
 }
+/* Reduced front-pocket tilt — the fan does the heavy lifting now,
+   the pocket only nudges out of the way. */
 .group\/folder:hover .ink-folder__front,
 .group\/folder:focus-within .ink-folder__front {
-  transform: rotateX(-22deg);
+  transform: rotateX(-14deg);
 }
 .group\/folder:hover .ink-folder__back,
 .group\/folder:focus-within .ink-folder__back {
@@ -421,9 +440,14 @@
   .ink-thumb-img {
     transition: none;
   }
+  /* Collapse hover state to the rest peek — no fan, no extra lift —
+     so reduced-motion users still see the always-on preview tease
+     without any animation between rest and hover. */
   .group\/folder:hover .ink-folder__inner--back,
   .group\/folder:hover .ink-folder__inner--mid,
-  .group\/folder:hover .ink-folder__inner--front,
+  .group\/folder:hover .ink-folder__inner--front {
+    transform: translate(0, -14px);
+  }
   .group\/folder:hover .ink-folder__front,
   .group\/folder:hover .ink-folder__back,
   .group\/file:hover .ink-file__back--l,

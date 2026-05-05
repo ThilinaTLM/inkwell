@@ -9,7 +9,9 @@
 //   - Inner papers     → `--color-card` with `--color-card-stroke` outline,
 //                        each can be overlaid with a file-thumbnail
 //                        `<image>` when the folder has previewable files.
-//                        Hidden behind the front pocket at rest. Only
+//                        Always peek above the pocket lip at rest (the
+//                        most recent peeks the most) so the previews
+//                        act as a persistent identifying strip. Only
 //                        rendered when the folder actually has the
 //                        corresponding preview — empty folders show no
 //                        inner papers at all.
@@ -22,9 +24,12 @@
 //                     `useExplorerHotkeys` based on focused card.
 //
 // Hover animation is **content-changing**, not chrome-changing:
-//   - the inner papers (with their previews) slide up and peek above
-//     the pocket lip
-//   - the front pocket tilts forward (rotateX) like a flap opening
+//   - the inner papers fan out from the pocket: the back swings left,
+//     the middle pushes further straight up, the front swings right,
+//     so all three previews are visible side-by-side instead of
+//     stacked
+//   - the front pocket tilts forward (rotateX) like a flap opening,
+//     just enough to make room for the fan
 //   - the tab nudges up a couple of pixels
 // All driven by CSS transforms in `index.css` (`.ink-folder__*` classes)
 // so they respect `prefers-reduced-motion`.
@@ -154,11 +159,12 @@ function SharePill({ count, onClick }: { count: number; onClick?: () => void }) 
  * Layer order (back → front):
  *   1. Back panel + tab        (solid primary)
  *   2. Inner papers (0–3)     (cream sheets + optional thumbnail
- *                               `<image>` overlays; peek up on hover
- *                               with staggered offsets so the most
- *                               recent comes out the most. One paper
- *                               per available preview — empty folders
- *                               render none)
+ *                               `<image>` overlays. Always peek above
+ *                               the pocket lip at rest — the most
+ *                               recent (front) peeks the most. On
+ *                               hover they fan out: back-left, mid-up,
+ *                               front-right. One paper per available
+ *                               preview — empty folders render none)
  *   3. Front pocket            (primary, slightly darker; tilts on hover)
  */
 function FolderGlyph({ previews }: { previews?: FilePreview[] }) {
@@ -220,13 +226,14 @@ function FolderGlyph({ previews }: { previews?: FilePreview[] }) {
         />
 
         {/* 2. Inner papers — three stacked sheets, each in its own <g>
-              so CSS can stagger their hover offsets (front extends the
-              most, back the least). They sit between the back panel
-              and the front pocket, so they're hidden at rest and
-              translate upward on hover. Each rect has an optional
-              `<image>` overlay carrying the file preview thumbnail.
-              `clipPath` on the `<image>` keeps it inside the rect's
-              rounded corners. */}
+              so CSS can drive a different motion per layer. They sit
+              between the back panel and the front pocket; at rest
+              they translate up just enough that each top edge peeks
+              above the pocket lip, and on hover they fan out (back
+              swings left, mid pushes further up, front swings right).
+              Each rect has an optional `<image>` overlay carrying the
+              file preview thumbnail. `clipPath` on the `<image>`
+              keeps it inside the rect's rounded corners. */}
         <defs>
           {/* Three named clipPaths matching each inner-paper rect.
               Using named defs (rather than inline) so the overlay
