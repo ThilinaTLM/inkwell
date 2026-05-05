@@ -1,13 +1,11 @@
 // Folder delete — wraps <ConfirmDialog>. The body explains where the
-// scenes and subfolders go (one level up) and that share links for the
-// folder are revoked.
-
-import { toast } from "sonner";
+// scenes and subfolders go (one level up) and that share links for
+// the folder are revoked.
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDeleteFolder } from "@/data/folders";
+import { useMutationWithToast } from "@/data/useMutationWithToast";
 import type { FolderMeta } from "@/lib/api/client";
-import { errorMessage } from "@/lib/errors";
 
 interface FolderDeleteDialogProps {
   folder: FolderMeta | null;
@@ -20,7 +18,10 @@ interface FolderDeleteDialogProps {
 }
 
 export function FolderDeleteDialog({ folder, onOpenChange, onDeleted }: FolderDeleteDialogProps) {
-  const remove = useDeleteFolder();
+  const run = useMutationWithToast(useDeleteFolder(), {
+    success: () => `Deleted "${folder?.name ?? ""}".`,
+    fallback: "could not delete",
+  });
   const destination = folder?.parentId ? "the parent folder" : "the top level";
   return (
     <ConfirmDialog
@@ -37,13 +38,9 @@ export function FolderDeleteDialog({ folder, onOpenChange, onDeleted }: FolderDe
       busyLabel="Deleting…"
       onConfirm={async () => {
         if (!folder) return;
-        try {
-          await remove.mutateAsync(folder.id);
-          toast.success(`Deleted "${folder.name}".`);
+        if (await run(folder.id)) {
           onDeleted?.(folder);
           onOpenChange(false);
-        } catch (e) {
-          toast.error(errorMessage(e, "could not delete"));
         }
       }}
     />

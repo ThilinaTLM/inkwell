@@ -1,10 +1,8 @@
 // Folder create — wraps <RenameDialog> in "create" mode.
 
-import { toast } from "sonner";
-
 import { RenameDialog } from "@/components/RenameDialog";
 import { useCreateFolder } from "@/data/folders";
-import { errorMessage } from "@/lib/errors";
+import { useMutationWithToast } from "@/data/useMutationWithToast";
 
 interface FolderCreateDialogProps {
   parentId: string | null;
@@ -13,7 +11,10 @@ interface FolderCreateDialogProps {
 }
 
 export function FolderCreateDialog({ parentId, open, onOpenChange }: FolderCreateDialogProps) {
-  const create = useCreateFolder();
+  const run = useMutationWithToast(useCreateFolder(), {
+    success: (m) => `Created "${m.name}".`,
+    fallback: "could not create folder",
+  });
   return (
     <RenameDialog
       open={open}
@@ -25,13 +26,7 @@ export function FolderCreateDialog({ parentId, open, onOpenChange }: FolderCreat
       busyLabel="Creating…"
       allowUnchanged
       onSubmit={async (name) => {
-        try {
-          const m = await create.mutateAsync({ name, parentId });
-          toast.success(`Created "${m.name}".`);
-          onOpenChange(false);
-        } catch (e) {
-          toast.error(errorMessage(e, "could not create folder"));
-        }
+        if (await run({ name, parentId })) onOpenChange(false);
       }}
     />
   );

@@ -18,18 +18,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
 
 import { PaperSurface } from "@/components/PaperSurface";
 import { useMe } from "@/data/auth";
 import { useCreateFile, useSetFileTags } from "@/data/files";
 import { useFolders, useUpdateFolder } from "@/data/folders";
 import { useTags } from "@/data/tags";
+import { useMutationWithToast } from "@/data/useMutationWithToast";
 import { BrowseView, ExplorerHeader, type ItemMenuActions } from "@/features/explorer";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
-import { errorMessage } from "@/lib/errors";
 
 import { FileDeleteDialog } from "./dialogs/FileDeleteDialog";
 import { FileMoveDialog } from "./dialogs/FileMoveDialog";
@@ -82,18 +81,18 @@ export default function DashboardPage() {
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
   const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
 
+  const runCreateFile = useMutationWithToast(createFile, {
+    success: (m) => `Created "${m.name}".`,
+    fallback: "failed to create file",
+  });
   async function newFile(parentFolderId: string | null, kind: FileKind = "excalidraw") {
     if (createFile.isPending) return;
-    try {
-      const m = await createFile.mutateAsync({
-        folderId: parentFolderId ?? undefined,
-        name: kind === "drawio" ? "Untitled diagram" : "Untitled drawing",
-        kind,
-      });
-      navigate(`/f/${m.id}`);
-    } catch (e) {
-      toast.error(errorMessage(e, "failed to create file"));
-    }
+    const m = await runCreateFile({
+      folderId: parentFolderId ?? undefined,
+      name: kind === "drawio" ? "Untitled diagram" : "Untitled drawing",
+      kind,
+    });
+    if (m) navigate(`/f/${m.id}`);
   }
 
   // ─── Menu actions handed to every view ────────────────────────────

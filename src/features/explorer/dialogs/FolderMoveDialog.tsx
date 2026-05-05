@@ -1,13 +1,12 @@
-// Folder move — uses <MoveToFolderDialog>, but precomputes the set of
-// forbidden destinations (the folder itself + its descendants) so a
-// folder can't be moved into its own subtree.
+// Folder move — uses <MoveToFolderDialog>, but precomputes the set
+// of forbidden destinations (the folder itself + its descendants) so
+// a folder can't be moved into its own subtree.
 
 import { useMemo } from "react";
-import { toast } from "sonner";
 import { useUpdateFolder } from "@/data/folders";
+import { useMutationWithToast } from "@/data/useMutationWithToast";
 import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
 import type { FolderMeta } from "@/lib/api/client";
-import { errorMessage } from "@/lib/errors";
 
 interface FolderMoveDialogProps {
   folder: FolderMeta | null;
@@ -16,7 +15,10 @@ interface FolderMoveDialogProps {
 }
 
 export function FolderMoveDialog({ folder, folders, onOpenChange }: FolderMoveDialogProps) {
-  const update = useUpdateFolder();
+  const run = useMutationWithToast(useUpdateFolder(), {
+    success: "Moved.",
+    fallback: "could not move",
+  });
 
   // BFS through the descendants of `folder.id` to find every id that
   // would create a cycle if chosen as the new parent.
@@ -57,16 +59,7 @@ export function FolderMoveDialog({ folder, folders, onOpenChange }: FolderMoveDi
       onSubmit={async (parentId) => {
         if (parentId === folder.parentId) return;
         if (parentId === folder.id) return;
-        try {
-          await update.mutateAsync({
-            id: folder.id,
-            patch: { parentId },
-          });
-          toast.success("Moved.");
-          onOpenChange(false);
-        } catch (e) {
-          toast.error(errorMessage(e, "could not move"));
-        }
+        if (await run({ id: folder.id, patch: { parentId } })) onOpenChange(false);
       }}
     />
   );

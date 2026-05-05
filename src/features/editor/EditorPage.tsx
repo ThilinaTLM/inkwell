@@ -19,6 +19,7 @@ import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useFile, useRenameFile, useSetFileTags } from "@/data/files";
 import { useTags } from "@/data/tags";
+import { useMutationWithToast } from "@/data/useMutationWithToast";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import { type FileBlob, type FileMeta, files, type LoadedFile } from "@/lib/api/client";
@@ -38,6 +39,10 @@ export default function EditorPage() {
   const tagsQuery = useTags();
   const renameMutation = useRenameFile();
   const setTagsMutation = useSetFileTags();
+  const runRename = useMutationWithToast(renameMutation, {
+    success: (m) => `Renamed to "${m.name}".`,
+    fallback: "rename failed",
+  });
 
   const navigate = useNavigate();
   const navType = useNavigationType();
@@ -179,14 +184,10 @@ export default function EditorPage() {
         onOpenChange={setRenameOpen}
         currentName={loaded.meta.name}
         onRename={async (next) => {
-          try {
-            const m = await renameMutation.mutateAsync({ id, name: next });
-            setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
-            toast.success(`Renamed to "${m.name}".`);
-            setRenameOpen(false);
-          } catch (e) {
-            toast.error(errorMessage(e, "rename failed"));
-          }
+          const m = await runRename({ id, name: next });
+          if (!m) return;
+          setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
+          setRenameOpen(false);
         }}
       />
 
