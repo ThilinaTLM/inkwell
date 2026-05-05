@@ -16,7 +16,7 @@ import { useMe } from "@/data/auth";
 import { InvitesPanel } from "./InvitesPanel";
 import { UsersPanel } from "./UsersPanel";
 
-export default function UsersPage() {
+export function UsersPage() {
   const me = useMe();
   const self = me.data;
   if (!self) return null;

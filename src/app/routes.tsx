@@ -6,15 +6,15 @@
 
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { useMe } from "@/data/auth";
-import UsersPage from "@/features/admin/UsersPage";
-import AccountPage from "@/features/auth/AccountPage";
-import InviteAcceptPage from "@/features/auth/InviteAcceptPage";
-import LoginPage from "@/features/auth/LoginPage";
-import EditorPage from "@/features/editor/EditorPage";
-import SharedEditorPage from "@/features/editor/SharedEditorPage";
-import SharedTokenLandingPage from "@/features/editor/SharedTokenLandingPage";
-import DashboardPage from "@/features/explorer/DashboardPage";
-import SharesPage from "@/features/sharing/SharesPage";
+import { UsersPage } from "@/features/admin/UsersPage";
+import { AccountPage } from "@/features/auth/AccountPage";
+import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
+import { LoginPage } from "@/features/auth/LoginPage";
+import { EditorPage } from "@/features/editor/EditorPage";
+import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
+import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
+import { DashboardPage } from "@/features/explorer/DashboardPage";
+import { SharesPage } from "@/features/sharing/SharesPage";
 
 export function AppRoutes() {
   return (

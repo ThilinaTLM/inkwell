@@ -17,29 +17,21 @@
 // Layout reflows on small screens (`<sm`): badges stack above the URL,
 // actions wrap onto their own row, the URL takes full width.
 
-import {
-  Copy01Icon,
-  Delete02Icon,
-  Download01Icon,
-  EyeIcon,
-  PencilEdit02Icon,
-  Refresh01Icon,
-  Settings02Icon,
-} from "@hugeicons/core-free-icons";
+import { Copy01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Share, SharePermission } from "@/lib/api/client";
+import type { Share } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
 import { expiresPhrase, fmtDateTime, relTime, truncateMiddle } from "@/lib/format";
 import { shareUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { ShareLinkEditForm, type ShareLinkEditPatch } from "./ShareLinkEditForm";
+import { IconAction } from "./ShareLinkRow/IconAction";
+import { PermissionBadge } from "./ShareLinkRow/PermissionBadge";
+import { ShareLinkActions } from "./ShareLinkRow/ShareLinkActions";
 
 export interface ShareLinkRowProps {
   share: Share;
@@ -56,8 +48,6 @@ export interface ShareLinkRowProps {
 
 export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: ShareLinkRowProps) {
   const [editing, setEditing] = useState(false);
-  const [confirmRotate, setConfirmRotate] = useState(false);
-  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const url = shareUrl(share.token);
   const expires = expiresPhrase(share.expiresAt);
@@ -78,6 +68,10 @@ export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: S
     }
   }
 
+  // Rotate has a wrinkle: the toast message depends on whether the
+  // post-rotate clipboard write succeeded (some browsers reject it
+  // when the page lost focus during the confirm dialog). Keep the
+  // wiring inline so that branch stays visible.
   async function handleRotate() {
     try {
       const { newToken } = await onRotate();
@@ -106,7 +100,7 @@ export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: S
         className,
       )}
     >
-      {/* ── Header: badges + label ─────────────────────────────────── */}
+      {/* Header: badges + label */}
       <div className="flex flex-wrap items-center gap-2">
         <PermissionBadge permission={share.permission} />
         {share.allowDownload && share.permission === "read" ? (
@@ -125,31 +119,16 @@ export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: S
         </span>
       </div>
 
-      {/* ── URL row ────────────────────────────────────────────────── */}
+      {/* URL row */}
       <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 ring-1 ring-border/40">
         <code className="min-w-0 flex-1 truncate font-sans text-xs text-foreground/80">
           <span className="hidden sm:inline">{url}</span>
           <span className="sm:hidden">{truncateMiddle(url, 36)}</span>
         </code>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleCopy}
-                aria-label="Copy link"
-              />
-            }
-          >
-            <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
-          </TooltipTrigger>
-          <TooltipContent>Copy link</TooltipContent>
-        </Tooltip>
+        <IconAction icon={Copy01Icon} label="Copy link" onClick={handleCopy} />
       </div>
 
-      {/* ── Edit form OR meta+actions ──────────────────────────────── */}
+      {/* Edit form OR meta+actions */}
       {editing ? (
         <ShareLinkEditForm share={share} onCancel={() => setEditing(false)} onSave={handleSave} />
       ) : (
@@ -185,92 +164,13 @@ export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: S
               </>
             )}
           </div>
-          <div className="flex items-center gap-0.5">
-            <IconAction icon={Settings02Icon} label="Edit" onClick={() => setEditing(true)} />
-            <IconAction
-              icon={Refresh01Icon}
-              label="Rotate (replace URL)"
-              onClick={() => setConfirmRotate(true)}
-            />
-            <IconAction
-              icon={Delete02Icon}
-              label="Revoke"
-              destructive
-              onClick={() => setConfirmRevoke(true)}
-            />
-          </div>
+          <ShareLinkActions
+            onEditClick={() => setEditing(true)}
+            onRotate={handleRotate}
+            onRevoke={handleRevoke}
+          />
         </div>
       )}
-
-      {/* ── Confirms ──────────────────────────────────────────────── */}
-      <ConfirmDialog
-        open={confirmRotate}
-        onOpenChange={setConfirmRotate}
-        title="Replace this link?"
-        description="The current URL stops working immediately. A new URL with the same settings will be created and copied to your clipboard."
-        confirmLabel="Replace link"
-        busyLabel="Replacing…"
-        variant="default"
-        onConfirm={handleRotate}
-      />
-      <ConfirmDialog
-        open={confirmRevoke}
-        onOpenChange={setConfirmRevoke}
-        title="Revoke this link?"
-        description="The URL stops working immediately and cannot be restored. Anyone with the link will lose access."
-        confirmLabel="Revoke"
-        busyLabel="Revoking…"
-        onConfirm={handleRevoke}
-      />
     </li>
-  );
-}
-
-function PermissionBadge({ permission }: { permission: SharePermission }) {
-  return permission === "write" ? (
-    <Badge variant="default" className="gap-1">
-      <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-      Can edit
-    </Badge>
-  ) : (
-    <Badge variant="secondary" className="gap-1">
-      <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
-      View only
-    </Badge>
-  );
-}
-
-function IconAction({
-  icon,
-  label,
-  onClick,
-  destructive,
-}: {
-  icon: typeof Copy01Icon;
-  label: string;
-  onClick: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={onClick}
-            aria-label={label}
-          />
-        }
-      >
-        <HugeiconsIcon
-          icon={icon}
-          strokeWidth={2}
-          className={destructive ? "text-destructive" : undefined}
-        />
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   );
 }

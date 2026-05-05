@@ -6,7 +6,7 @@
 // chips). Chrome must not tilt — controls and navigation read as
 // broken when they wobble.
 
-import { hashSeed } from "@/components/rough";
+import { hashSeed } from "@/components/rough/useRoughPath";
 
 /**
  * Returns a stable rotation angle in degrees for a given id, in

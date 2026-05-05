@@ -7,7 +7,7 @@
 // theme decoration namespace as --color-tag-1…--color-tag-5.
 
 import type * as React from "react";
-import { RoughBox } from "@/components/rough";
+import { RoughBox } from "@/components/rough/RoughBox";
 import { cn } from "@/lib/utils";
 import { pickFromPalette, tiltFromId } from "./tilt";
 

@@ -7,15 +7,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
-import { EmptyDeskNote } from "@/components/sketch";
+import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 
-import SharedEditorPage from "./SharedEditorPage";
+import { SharedEditorPage } from "./SharedEditorPage";
 import SharedFolderPage from "./SharedFolderPage";
 
-export default function SharedTokenLandingPage() {
+export function SharedTokenLandingPage() {
   const { token = "" } = useParams<{ token: string }>();
 
   const peek = useQuery({

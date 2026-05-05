@@ -38,7 +38,7 @@ interface SharedEditorProps {
   preloaded?: LoadedFile;
 }
 
-export default function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
+export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   const params = useParams<{ token: string; fileId?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();

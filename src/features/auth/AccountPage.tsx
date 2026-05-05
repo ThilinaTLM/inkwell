@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { AppPage, AppPageHeader } from "@/components/AppPage";
 import { ElevatedCard } from "@/components/ElevatedCard";
-import { TextFormField } from "@/components/form/TextFormField";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { useChangePassword, useMe } from "@/data/auth";
 import { errorMessage } from "@/lib/errors";
 import { userDisplayName } from "@/lib/user";
+import { TextFormField } from "./TextFormField";
 
 const passwordSchema = z
   .object({
@@ -27,7 +27,7 @@ const passwordSchema = z
     path: ["confirm"],
   });
 
-export default function AccountPage() {
+export function AccountPage() {
   const me = useMe();
   const changePassword = useChangePassword();
   const [submitError, setSubmitError] = useState<string | null>(null);

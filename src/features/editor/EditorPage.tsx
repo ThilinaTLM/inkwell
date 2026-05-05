@@ -31,7 +31,7 @@ import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import ExcalidrawEditor from "./ExcalidrawEditor";
 import { RenameFileDialog } from "./RenameFileDialog";
 
-export default function EditorPage() {
+export function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
   const qc = useQueryClient();
 

@@ -80,38 +80,14 @@ export function useRevokeShare(targetType: ShareTargetType, targetId: string) {
 
 // ─── Cross-target hooks (the /shares management page) ────────────────
 //
-// `SharesPage` lists every share owned by the caller across both
-// target types and runs bulk operations against tokens it doesn't
-// have a `(targetType, targetId)` for in scope. The `*ByToken`
-// variants below cover that surface; they invalidate the
-// `sharesAll` prefix plus both file/folder list prefixes (the cards
-// refresh regardless of which target the token pointed at).
-//
-// The decomposed-row UI in commit 6 will eventually be able to use
-// the per-target hooks directly (each row component knows its
-// target), but bulk-revoke will always need this token-only path.
+// Each `SharesGroup` row uses the per-target hooks above (the row
+// component knows its `(targetType, targetId)` context). What's left
+// for the page itself is bulk revoke, which spans multiple targets
+// and must fall back to the token-only invalidation path.
 export function useAllShares() {
   return useQuery<Share[], ApiError>({
     queryKey: keys.sharesAll,
     queryFn: () => shares.listAll(),
-  });
-}
-
-export function useUpdateShareByToken() {
-  const qc = useQueryClient();
-  return useMutation<Share, ApiError, { token: string; body: Parameters<typeof shares.update>[1] }>(
-    {
-      mutationFn: ({ token, body }) => shares.update(token, body),
-      onSuccess: () => invalidations.shareMutatedGeneric(qc),
-    },
-  );
-}
-
-export function useRotateShareByToken() {
-  const qc = useQueryClient();
-  return useMutation<{ old: { token: string }; new: Share }, ApiError, string>({
-    mutationFn: (token) => shares.rotate(token),
-    onSuccess: () => invalidations.shareMutatedGeneric(qc),
   });
 }
 

@@ -46,7 +46,7 @@ import { Link04Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type Ref, useMemo } from "react";
 
-import { useRoughPath } from "@/components/rough";
+import { useRoughPath } from "@/components/rough/useRoughPath";
 import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 

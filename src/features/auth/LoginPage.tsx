@@ -10,7 +10,7 @@ import { useLogin } from "@/data/auth";
 import { AuthShell } from "@/features/auth/AuthShell";
 import { errorMessage } from "@/lib/errors";
 
-export default function LoginPage() {
+export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);

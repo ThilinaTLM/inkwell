@@ -25,7 +25,9 @@ import { useCreateFile, useSetFileTags } from "@/data/files";
 import { useFolders, useUpdateFolder } from "@/data/folders";
 import { useTags } from "@/data/tags";
 import { useMutationWithToast } from "@/data/useMutationWithToast";
-import { BrowseView, ExplorerHeader, type ItemMenuActions } from "@/features/explorer";
+import { ExplorerHeader } from "@/features/explorer/ExplorerHeader";
+import type { ItemMenuActions } from "@/features/explorer/ItemContextMenu";
+import { BrowseView } from "@/features/explorer/views/BrowseView";
 import { ShareDialog } from "@/features/sharing/ShareDialog";
 import { TagEditDialog } from "@/features/tags/TagEditDialog";
 import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
@@ -40,7 +42,7 @@ import { FolderRenameDialog } from "./dialogs/FolderRenameDialog";
 
 type ShareTarget = { kind: "file"; file: FileMeta } | { kind: "folder"; folder: FolderMeta };
 
-export default function DashboardPage() {
+export function DashboardPage() {
   const me = useMe();
   const navigate = useNavigate();
   const params = useParams<{ folderId: string }>();

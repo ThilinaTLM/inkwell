@@ -3,7 +3,7 @@
 // Caveat font on a small RoughBox card with a slightly torn rotation.
 
 import type * as React from "react";
-import { RoughBox } from "@/components/rough";
+import { RoughBox } from "@/components/rough/RoughBox";
 import { cn } from "@/lib/utils";
 
 export interface EmptyDeskNoteProps {

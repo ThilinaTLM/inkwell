@@ -13,7 +13,7 @@ import { type ApiError, invites, type MeResponse, type User } from "@/lib/api/cl
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 
-export default function InviteAcceptPage() {
+export function InviteAcceptPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
