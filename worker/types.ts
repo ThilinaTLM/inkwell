@@ -123,6 +123,14 @@ export type FolderRow = InferSelectModel<typeof t.folders>;
 // what the card needs — not the full SceneMeta.
 export type SceneKind = "excalidraw" | "drawio";
 
+/** Coerce arbitrary user input to a valid SceneKind. Anything that
+ *  isn't an explicit known variant collapses to "excalidraw" — the
+ *  default file type. This is the single boundary where untrusted
+ *  `kind` values become typed. */
+export function normalizeSceneKind(input: unknown): SceneKind {
+  return input === "drawio" ? "drawio" : "excalidraw";
+}
+
 export interface ScenePreview {
   id: string;
   kind: SceneKind;

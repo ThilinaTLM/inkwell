@@ -26,8 +26,8 @@ import type {
   SceneMeta,
   SceneRow,
 } from "./types";
-import { rowToMeta } from "./types";
-import { errorResponse, jsonResponse, newId, now } from "./util";
+import { normalizeSceneKind, rowToMeta } from "./types";
+import { assertNever, errorResponse, jsonResponse, newId, now } from "./util";
 
 const MAX_SCENE_BYTES = 25 * 1024 * 1024; // 25 MB; embedded images live in `files`
 const MAX_THUMB_BYTES = 1 * 1024 * 1024; // 1 MB SVG ceiling
@@ -40,10 +40,14 @@ function r2ThumbKey(id: string) {
 }
 
 function seedBlobForKind(kind: SceneKind, name: string): SceneBlob {
-  if (kind === "drawio") {
-    return { kind: "drawio", xml: emptyDrawioXml(name) };
+  switch (kind) {
+    case "drawio":
+      return { kind: "drawio", xml: emptyDrawioXml(name) };
+    case "excalidraw":
+      return { elements: [], appState: { name }, files: {} };
+    default:
+      return assertNever(kind);
   }
-  return { elements: [], appState: { name }, files: {} };
 }
 
 function emptyDrawioXml(name: string): string {
@@ -67,14 +71,18 @@ function isDrawioBlob(blob: SceneBlob): blob is DrawioSceneBlob {
 }
 
 function validateBlobForKind(kind: SceneKind, parsed: SceneBlob): string | null {
-  if (kind === "drawio") {
-    if (!isDrawioBlob(parsed)) return "draw.io blob must include kind=drawio and xml";
-    if (!parsed.xml.trim()) return "draw.io xml required";
-    return null;
+  switch (kind) {
+    case "drawio":
+      if (!isDrawioBlob(parsed)) return "draw.io blob must include kind=drawio and xml";
+      if (!parsed.xml.trim()) return "draw.io xml required";
+      return null;
+    case "excalidraw":
+      if (!Array.isArray((parsed as ExcalidrawSceneBlob).elements))
+        return "elements must be an array";
+      return null;
+    default:
+      return assertNever(kind);
   }
-  if (!Array.isArray((parsed as { elements?: unknown }).elements))
-    return "elements must be an array";
-  return null;
 }
 
 async function parseStoredSceneBlob(obj: R2ObjectBody): Promise<SceneBlob | null> {
@@ -86,7 +94,14 @@ async function parseStoredSceneBlob(obj: R2ObjectBody): Promise<SceneBlob | null
 }
 
 function downloadExtensionForKind(kind: SceneKind): "excalidraw" | "drawio" {
-  return kind === "drawio" ? "drawio" : "excalidraw";
+  switch (kind) {
+    case "drawio":
+      return "drawio";
+    case "excalidraw":
+      return "excalidraw";
+    default:
+      return assertNever(kind);
+  }
 }
 
 // ─── List ─────────────────────────────────────────────────────────────
@@ -205,7 +220,7 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
   const id = newId();
   const ts = now();
   const name = (body.name || "Untitled").slice(0, 200);
-  const kind: SceneKind = body.kind === "drawio" ? "drawio" : "excalidraw";
+  const kind = normalizeSceneKind(body.kind);
 
   // Seed an empty scene so subsequent GETs return something predictable.
   const seed = seedBlobForKind(kind, name);
@@ -468,6 +483,11 @@ export async function patchScene(
   // `scenes.version` here — version is the autosave optimistic-
   // concurrency token, and bumping it would surface as spurious 409s in
   // an open editor mid-rename.
+  // Excalidraw-only by design: drawio blobs carry an `mxfile`/`<diagram
+  // name="…">` attribute that isn't surfaced in any Inkwell UI, so we
+  // keep D1 as the canonical name and leave the XML untouched. Do NOT
+  // add a drawio mirror here without first deciding whether the
+  // `<diagram>` attr or any host-app metadata should track renames.
   if (row.kind === "excalidraw" && body.name !== undefined && nextName !== row.name) {
     const obj = await env.R2.get(r2SceneKey(id));
     if (obj) {
@@ -641,8 +661,7 @@ export async function createSceneInFolder(
   const id = newId();
   const ts = now();
   const safe = (name || "Untitled").slice(0, 200);
-  const safeKind: SceneKind = kind === "drawio" ? "drawio" : "excalidraw";
-  const seed = seedBlobForKind(safeKind, safe);
+  const seed = seedBlobForKind(kind, safe);
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
   await env.R2.put(r2SceneKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
@@ -655,7 +674,7 @@ export async function createSceneInFolder(
       owner,
       folder_id: folderId,
       name: safe,
-      kind: safeKind,
+      kind,
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
@@ -668,7 +687,7 @@ export async function createSceneInFolder(
     id,
     folderId,
     name: safe,
-    kind: safeKind,
+    kind,
     tags: [],
     version: 1,
     sizeBytes: seedBytes.byteLength,

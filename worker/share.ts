@@ -55,7 +55,13 @@ import type {
   ShareRow,
   ShareTargetType,
 } from "./types";
-import { isShareActive, rowToFolderMeta, rowToMeta, rowToSharePublic } from "./types";
+import {
+  isShareActive,
+  normalizeSceneKind,
+  rowToFolderMeta,
+  rowToMeta,
+  rowToSharePublic,
+} from "./types";
 import { errorResponse, generateShareLabel, jsonResponse, newToken, now } from "./util";
 
 // ─── Owner-side helpers ────────────────────────────────────────────────
@@ -753,7 +759,7 @@ export async function createSceneViaFolderShare(
   if (!tk) return errorResponse(404, "invalid or expired token");
   if (tk.target_type !== "folder") return errorResponse(400, "not a folder share");
   if (tk.permission !== "write") return errorResponse(403, "read-only token");
-  let body: { name?: string; folderId?: string; kind?: "excalidraw" | "drawio" } = {};
+  let body: { name?: string; folderId?: string; kind?: unknown } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -768,7 +774,7 @@ export async function createSceneViaFolderShare(
     tk.owner,
     targetFolder,
     body.name || "Untitled",
-    body.kind === "drawio" ? "drawio" : "excalidraw",
+    normalizeSceneKind(body.kind),
   );
   return jsonResponse(meta);
 }
