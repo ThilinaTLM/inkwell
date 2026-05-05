@@ -42,7 +42,7 @@
 //   - front sheet stays in place (so the thumbnail doesn't jitter)
 //   - everything respects `prefers-reduced-motion`.
 
-import { Image01Icon, Link04Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { Link04Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type Ref, useMemo } from "react";
 
@@ -334,12 +334,12 @@ function FileGlyph({
             className="ink-thumb-img h-full w-full object-cover object-center"
           />
         ) : (
-          <div className="grid h-full w-full place-items-center text-muted-foreground/40">
-            {kind === "drawio" ? (
-              <FileKindGlyph kind="drawio" className="size-10" />
-            ) : (
-              <HugeiconsIcon icon={Image01Icon} strokeWidth={1.4} className="size-10" />
-            )}
+          <div className="grid h-full w-full place-items-center">
+            <FileKindGlyph
+              kind={kind}
+              variant="full"
+              className="size-12 rounded-md ring-1 ring-border/50"
+            />
           </div>
         )}
       </div>
