@@ -1,10 +1,18 @@
+// Lifecycle-internal debounce.
+//
+// Originally lived in `src/hooks/useDebounced.ts` as a "general
+// utility", but the editor save lifecycle is the only consumer. Moved
+// here so the hook stays close to its single use site and the
+// shared-lifecycle surface is self-contained.
+
 import { useEffect, useMemo, useRef } from "react";
 
 /**
- * Returns a stable function that invokes `fn` with the latest arguments after
- * `delay`ms of inactivity. The wrapped function exposes `flush()` to invoke
- * immediately and `cancel()` to drop the pending call. Latest closure of `fn`
- * is always used, so the consumer doesn't need to memoize it.
+ * Returns a stable function that invokes `fn` with the latest arguments
+ * after `delay`ms of inactivity. The wrapped function exposes
+ * `flush()` to invoke immediately and `cancel()` to drop the pending
+ * call. Latest closure of `fn` is always used, so the consumer doesn't
+ * need to memoize it.
  */
 export function useDebounced<A extends unknown[]>(
   fn: (...args: A) => void,
