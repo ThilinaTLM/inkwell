@@ -38,7 +38,7 @@ export function FileKindGlyph({
 }
 
 export function fileKindLabel(kind: FileKind): string {
-  return kind === "drawio" ? "draw.io file" : "Excalidraw file";
+  return kind === "drawio" ? "draw.io file" : "excalidraw file";
 }
 
 /**

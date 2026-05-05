@@ -3,14 +3,16 @@
 // Shape:
 //
 //   ┌──────────────────────────┬───┐
-//   │ + New Excalidraw file    │ ▾ │
+//   │ + New excalidraw file    │ ▾ │
 //   └──────────────────────────┴───┘
 //
 // The left button creates a file using the user's current default kind
 // (persisted via `useDefaultFileKind` → `localStorage`). The right
-// chevron opens a `<DropdownMenu>` listing both kinds; picking one both
-// creates the file *and* updates the default for next time, so the
-// header reflects the user's last preference.
+// chevron opens a `<DropdownMenu>` that is purely a *kind picker* — its
+// two radio items update the default (and thus the main button's label)
+// but do **not** create a file. Creation happens only when the user
+// clicks the main button. This deliberate two-step flow lets the user
+// see which kind is selected (via the radio tick) before committing.
 //
 // Why a single split-button (vs. two side-by-side buttons): the explorer
 // header just dropped from 3 buttons → 2 (`New folder` + this), and a
@@ -23,18 +25,19 @@
 //   - The chevron button has `aria-label="Choose a file type"` and
 //     `aria-haspopup="menu"`.
 //   - The primary button's accessible label updates with the default
-//     ("New Excalidraw file" / "New draw.io file") so screen readers
+//     ("New excalidraw file" / "New draw.io file") so screen readers
 //     always announce what will happen.
 
 import { ArrowDown01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { FileKindGlyph, fileKindLabel } from "@/components/sketch/file-kind-icons";
+import { fileKindLabel } from "@/components/sketch/file-kind-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDefaultFileKind } from "@/features/explorer/hooks";
@@ -56,11 +59,6 @@ export interface NewFileSplitButtonProps {
 export function NewFileSplitButton({ onCreate, size = "default" }: NewFileSplitButtonProps) {
   const [defaultKind, setDefaultKind] = useDefaultFileKind();
   const label = `New ${fileKindLabel(defaultKind)}`;
-
-  const onPick = (kind: FileKind) => {
-    setDefaultKind(kind);
-    onCreate(kind);
-  };
 
   return (
     // `inline-flex` + sibling rounding so the two buttons read as a
@@ -89,14 +87,21 @@ export function NewFileSplitButton({ onCreate, size = "default" }: NewFileSplitB
           }
         />
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onPick("excalidraw")}>
-            <FileKindGlyph kind="excalidraw" />
-            Excalidraw file
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onPick("drawio")}>
-            <FileKindGlyph kind="drawio" />
-            draw.io file
-          </DropdownMenuItem>
+          {/* Selection-only: picking a kind updates the default (and
+              the main button's label) but does not create a file. */}
+          <DropdownMenuRadioGroup
+            value={defaultKind}
+            onValueChange={(value) => setDefaultKind(value as FileKind)}
+          >
+            <DropdownMenuRadioItem value="excalidraw">
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+              excalidraw file
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="drawio">
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+              draw.io file
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </span>

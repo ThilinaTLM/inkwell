@@ -6,9 +6,9 @@
 //
 //   file   → Open · Open in new tab · Share · Download · Edit tags ·
 //            Move to · Rename · Delete
-//   folder → Open · Share · New file inside (Excalidraw / draw.io) ·
+//   folder → Open · Share · New file inside (excalidraw / draw.io) ·
 //            New subfolder · Edit tags · Move to · Rename · Delete
-//   empty  → New file (Excalidraw / draw.io) · New folder
+//   empty  → New file (excalidraw / draw.io) · New folder
 //
 // "empty" is used for the right-click background of the Browse grid so
 // users can create items without first selecting one.
@@ -30,7 +30,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -146,11 +145,11 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
         Share…
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFileIn(f.id, "excalidraw")}>
-        <FileKindGlyph kind="excalidraw" />
-        New Excalidraw file inside
+        <PlusGlyph />
+        New excalidraw file inside
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFileIn(f.id, "drawio")}>
-        <FileKindGlyph kind="drawio" />
+        <PlusGlyph />
         New draw.io file inside
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(f.id)}>
@@ -183,12 +182,10 @@ function EmptyItems({ folderId, actions }: { folderId: string | null; actions: I
     <>
       <ContextMenuItem onClick={() => actions.createFileIn(folderId, "excalidraw")}>
         <PlusGlyph />
-        <FileKindGlyph kind="excalidraw" />
-        New Excalidraw file
+        New excalidraw file
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFileIn(folderId, "drawio")}>
         <PlusGlyph />
-        <FileKindGlyph kind="drawio" />
         New draw.io file
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(folderId)}>
