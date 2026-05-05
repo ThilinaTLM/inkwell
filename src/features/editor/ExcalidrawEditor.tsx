@@ -7,7 +7,7 @@
 //     actions, theme. Provided by the page through the `chrome` prop.
 //   • `renderTopLeftUI` (patched-in slot, see
 //     `patches/@excalidraw__excalidraw@0.18.1.patch`) — a
-//     `<SceneTopLeftStrip>` showing back button + scene name +
+//     `<ExcalidrawTopLeftStrip>` showing back button + scene name +
 //     separate save/status control. Wired internally; pages just provide
 //     the `back` config (or `null` to hide).
 //
@@ -20,10 +20,14 @@
 // Lifecycle:
 //   1. Page calls `load()` once on mount and passes `loaded` here.
 //   2. Excalidraw mounts with `initialData = loaded.blob`.
-//   3. onChange stores the latest meaningful snapshot, schedules a
-//      debounced scene save (30s), and schedules a debounced thumb (8s).
+//   3. onChange stores the latest meaningful snapshot and schedules a
+//      debounced scene save (30s).
 //   4. Manual save and Save & Leave both bypass the 30s debounce and
 //      persist the latest queued snapshot immediately.
+//   4a. Every successful save (auto or manual) fires a fresh thumb
+//       export + upload so the dashboard preview always reflects the
+//       just-saved blob. The thumb pipeline self-dedups via a content
+//       fingerprint so a no-op save doesn't re-PUT an identical SVG.
 //   5. We track `version` locally and bump it after each successful save
 //      so subsequent saves keep using a fresh If-Match.
 //
@@ -60,15 +64,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useDebounced } from "@/hooks/useDebounced";
-import type { LoadedScene, SceneBlob } from "@/lib/api/client";
+import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import { SceneTopLeftStrip } from "./SceneTopLeftStrip";
+import { ExcalidrawTopLeftStrip } from "./ExcalidrawTopLeftStrip";
 
-type SaveFn = (version: number, blob: SceneBlob) => Promise<{ version: number }>;
+// 30s autosave debounce. Same value as `DrawioEditor`'s
+// `SAVE_DEBOUNCE_MS` — kept in sync deliberately so both editors
+// have identical autosave cadence.
+const SAVE_DEBOUNCE_MS = 30_000;
+
+type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
-interface SceneSnapshot {
+interface ExcalidrawSnapshot {
   elements: readonly ExcalidrawElement[];
   appState: AppState;
   files: BinaryFiles;
@@ -79,10 +88,10 @@ interface SceneSnapshot {
 // initial value (a freshly loaded scene matches the server) and the
 // state after a successful autosave. "dirty" / "saving" / "error"
 // are the transient in-edit states.
-export type SaveStatus = "dirty" | "saving" | "saved" | "error";
+export type EditorSaveStatus = "dirty" | "saving" | "saved" | "error";
 
-export interface SceneEditorProps {
-  loaded: LoadedScene;
+export interface ExcalidrawEditorProps {
+  loaded: LoadedFile;
   /** Persists the scene blob. Must throw `ApiError(409)` on version conflict. */
   save: SaveFn;
   /** Persists an SVG thumbnail. Pass `null` to disable thumbnails (e.g. for shared editors). */
@@ -92,9 +101,9 @@ export interface SceneEditorProps {
    *  with the new `thumbUpdatedAt` cache-bust token. */
   onThumbSaved?: () => void;
   /** Called after each successful reload following a 409. */
-  onReload?: (loaded: LoadedScene) => void;
+  onReload?: (loaded: LoadedFile) => void;
   /** Function to re-fetch the scene from the server (used after a 409). */
-  reload?: () => Promise<LoadedScene>;
+  reload?: () => Promise<LoadedFile>;
   /**
    * Slot rendered as children of `<Excalidraw>` so consumers can mount
    * native Excalidraw UI: `<MainMenu>` for the hamburger, optionally
@@ -124,8 +133,8 @@ export interface SceneEditorProps {
 // ─── Internal context for status / readOnly so chrome consumers can subscribe
 // without having to lift state up every time. ────────────────────────────────
 
-interface SceneEditorContextValue {
-  status: SaveStatus;
+interface ExcalidrawEditorContextValue {
+  status: EditorSaveStatus;
   errorMessage: string | null;
   readOnly: boolean;
   /** Owner-only: opens the rename dialog. `null` on read-only / shared sessions. */
@@ -134,18 +143,18 @@ interface SceneEditorContextValue {
   onSaveNow: (() => void) | null;
 }
 
-const SceneEditorContext = createContext<SceneEditorContextValue | null>(null);
+const ExcalidrawEditorContext = createContext<ExcalidrawEditorContextValue | null>(null);
 
 /**
- * Read save status / read-only state from inside a `<SceneEditor>`.
+ * Read save status / read-only state from inside a `<ExcalidrawEditor>`.
  * Returns the inert default outside the provider so consumers can be
  * mounted defensively (e.g. by Excalidraw's `renderTopLeftUI` which
  * runs inside a portal-ish render path).
  *
- * Currently only consumed by `SceneTopLeftStrip`.
+ * Currently only consumed by `ExcalidrawTopLeftStrip`.
  */
-export function useSceneEditorContext(): SceneEditorContextValue {
-  const ctx = useContext(SceneEditorContext);
+export function useExcalidrawEditorContext(): ExcalidrawEditorContextValue {
+  const ctx = useContext(ExcalidrawEditorContext);
   return (
     ctx ?? {
       status: "saved",
@@ -157,7 +166,7 @@ export function useSceneEditorContext(): SceneEditorContextValue {
   );
 }
 
-export default function SceneEditor({
+export default function ExcalidrawEditor({
   loaded,
   save,
   saveThumb,
@@ -167,14 +176,14 @@ export default function SceneEditor({
   chrome,
   back = null,
   onRequestRename,
-}: SceneEditorProps) {
+}: ExcalidrawEditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   // A freshly loaded scene matches the server by construction, so the
   // initial state is "saved", not "idle". "idle" would surface the
   // pencil "Ready" indicator on first paint and only flip to a
   // checkmark after the user makes (and we persist) an edit —
   // misleading, since the scene already is saved on disk.
-  const [status, setStatus] = useState<SaveStatus>("saved");
+  const [status, setStatus] = useState<EditorSaveStatus>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // App theme is the single source of truth; Excalidraw renders as a
@@ -185,15 +194,16 @@ export default function SceneEditor({
   // without re-creating themselves.
   const versionRef = useRef(loaded.meta.version);
   const inflightRef = useRef(false);
-  const inflightSnapshotRef = useRef<SceneSnapshot | null>(null);
+  const inflightSnapshotRef = useRef<ExcalidrawSnapshot | null>(null);
   const saveQueuedRef = useRef(false);
   const savePromiseRef = useRef<Promise<boolean> | null>(null);
-  const initialSnapshot = makeSceneSnapshot(
-    (loaded.blob.elements as ExcalidrawElement[]) || [],
-    ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
-    (loaded.blob.files as BinaryFiles) || {},
+  const initialBlob = loaded.blob as ExcalidrawFileBlob;
+  const initialSnapshot = makeExcalidrawSnapshot(
+    (initialBlob.elements as ExcalidrawElement[]) || [],
+    ((initialBlob.appState as Partial<AppState>) || {}) as AppState,
+    (initialBlob.files as BinaryFiles) || {},
   );
-  const latestSnapshotRef = useRef<SceneSnapshot | null>(initialSnapshot);
+  const latestSnapshotRef = useRef<ExcalidrawSnapshot | null>(initialSnapshot);
   const readOnly = loaded.permission !== "write";
 
   // Autosave dedup: cheap fingerprint of the meaningful scene state.
@@ -215,17 +225,18 @@ export default function SceneEditor({
   // bump would defeat dedup — every onChange would compare against a stale
   // baseline and force a redundant save, which would bump the version again,
   // and so on. The blob reference is stable across save-version bumps and
-  // only changes when a fresh `LoadedScene` is set (initial mount, scene
+  // only changes when a fresh `LoadedFile` is set (initial mount, scene
   // navigation, post-409 reload).
   useEffect(() => {
     versionRef.current = loaded.meta.version;
   }, [loaded.meta.version]);
 
   useEffect(() => {
-    const nextSnapshot = makeSceneSnapshot(
-      (loaded.blob.elements as ExcalidrawElement[]) || [],
-      ((loaded.blob.appState as Partial<AppState>) || {}) as AppState,
-      (loaded.blob.files as BinaryFiles) || {},
+    const blob = loaded.blob as ExcalidrawFileBlob;
+    const nextSnapshot = makeExcalidrawSnapshot(
+      (blob.elements as ExcalidrawElement[]) || [],
+      ((blob.appState as Partial<AppState>) || {}) as AppState,
+      (blob.files as BinaryFiles) || {},
     );
     latestSnapshotRef.current = nextSnapshot;
     inflightSnapshotRef.current = null;
@@ -255,6 +266,50 @@ export default function SceneEditor({
     });
   }, [api, loaded.meta.name]);
 
+  // ─── Thumbnail (fired from `saveLatest`) ────────────────────────────
+  // Defined before `saveLatest` because `saveLatest` references it in
+  // its success branch. The function exports an SVG of the supplied
+  // scene and PUTs it to /api/files/:id/thumb; `thumbFpRef` dedups so
+  // the same content isn't re-uploaded.
+  const doThumb = useCallback(
+    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+      if (!saveThumb || readOnly) return;
+      if (elements.length === 0) return;
+
+      // Skip the SVG export + upload if the scene hasn't meaningfully
+      // changed since the last successful thumb.
+      const fp = fingerprintScene(elements, appState, files);
+      if (fp === thumbFpRef.current) return;
+
+      try {
+        const svg = await exportToSvg({
+          elements: normalizeImagesForExport(elements, files),
+          appState: {
+            ...appState,
+            // Transparent export: the dashboard's card body provides the
+            // paper, and dark mode applies a CSS invert filter on top of
+            // this SVG so dark strokes read as light strokes on the dark
+            // card. Baking a white background here would defeat both.
+            exportBackground: false,
+          } as AppState,
+          files,
+          exportPadding: 12,
+        });
+        svg.setAttribute("width", "640");
+        svg.removeAttribute("height");
+        await saveThumb(svg.outerHTML);
+        thumbFpRef.current = fp;
+        // Tell the page so it can invalidate scene/folder list queries.
+        // Done after `thumbFpRef` so a duplicate fingerprint check
+        // short-circuits the next call.
+        onThumbSaved?.();
+      } catch {
+        // Best-effort.
+      }
+    },
+    [saveThumb, readOnly, onThumbSaved],
+  );
+
   // ─── Persist scene ──────────────────────────────────────────────────
   const saveLatest = useCallback(async (): Promise<boolean> => {
     if (readOnly) return true;
@@ -280,7 +335,7 @@ export default function SceneEditor({
           setStatus("saving");
           setErrorMsg(null);
 
-          const blob: SceneBlob = {
+          const blob: FileBlob = {
             elements: snapshot.elements as unknown as unknown[],
             appState: pickPersistableAppState(snapshot.appState, loaded.meta.name),
             files: snapshot.files as unknown as Record<string, unknown>,
@@ -290,6 +345,13 @@ export default function SceneEditor({
             const res = await save(versionRef.current, blob);
             versionRef.current = res.version;
             savedFpRef.current = snapshot.fp;
+            // Thumb generation is coupled to save: every successful
+            // save schedules a fresh thumb upload so the dashboard
+            // preview matches the just-saved scene. Fire-and-forget;
+            // `doThumb`'s internal `thumbFpRef` dedup short-circuits
+            // the upload when the saved content already matches the
+            // last-uploaded thumb.
+            void doThumb(snapshot.elements, snapshot.appState, snapshot.files);
           } catch (e) {
             if (e instanceof ApiError && e.status === 409 && reload) {
               try {
@@ -332,81 +394,35 @@ export default function SceneEditor({
 
     savePromiseRef.current = task;
     return task;
-  }, [save, reload, onReload, loaded.meta.name, readOnly]);
+  }, [save, reload, onReload, loaded.meta.name, readOnly, doThumb]);
 
   const debouncedSave = useDebounced(() => {
     void saveLatest();
-  }, 30_000);
-
-  // ─── Thumbnail (debounced 8s) ───────────────────────────────────────
-  const doThumb = useCallback(
-    async (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      if (!saveThumb || readOnly) return;
-      if (elements.length === 0) return;
-
-      // Skip the SVG export + upload if the scene hasn't meaningfully
-      // changed since the last successful thumb.
-      const fp = fingerprintScene(elements, appState, files);
-      if (fp === thumbFpRef.current) return;
-
-      try {
-        const svg = await exportToSvg({
-          elements: normalizeImagesForExport(elements, files),
-          appState: {
-            ...appState,
-            // Transparent export: the dashboard's card body provides the
-            // paper, and dark mode applies a CSS invert filter on top of
-            // this SVG so dark strokes read as light strokes on the dark
-            // card. Baking a white background here would defeat both.
-            exportBackground: false,
-          } as AppState,
-          files,
-          exportPadding: 12,
-        });
-        svg.setAttribute("width", "640");
-        svg.removeAttribute("height");
-        await saveThumb(svg.outerHTML);
-        thumbFpRef.current = fp;
-        // Tell the page so it can invalidate scene/folder list queries.
-        // Done after `thumbFpRef` so a duplicate fingerprint check
-        // short-circuits the next call.
-        onThumbSaved?.();
-      } catch {
-        // Best-effort.
-      }
-    },
-    [saveThumb, readOnly, onThumbSaved],
-  );
-
-  // 8s debounce: long enough to coalesce an editing burst, short enough
-  // that returning to the dashboard within ~10s shows the fresh thumb.
-  const debouncedThumb = useDebounced(doThumb, 8_000);
+  }, SAVE_DEBOUNCE_MS);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
     if (readOnly) return true;
     debouncedSave.cancel();
-    const ok = await saveLatest();
-    if (ok) debouncedThumb.flush();
-    return ok;
-  }, [debouncedSave, debouncedThumb, saveLatest, readOnly]);
+    // Thumb is fired transitively from `saveLatest`'s success branch.
+    return saveLatest();
+  }, [debouncedSave, saveLatest, readOnly]);
 
   const discardPendingLocalWork = useCallback(() => {
     debouncedSave.cancel();
-    debouncedThumb.cancel();
     saveQueuedRef.current = false;
     latestSnapshotRef.current = inflightRef.current ? inflightSnapshotRef.current : null;
     if (!inflightRef.current) {
       setStatus("saved");
       setErrorMsg(null);
     }
-  }, [debouncedSave, debouncedThumb]);
+  }, [debouncedSave]);
 
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (readOnly) return;
 
-      const snapshot = makeSceneSnapshot(elements, appState, files);
+      const snapshot = makeExcalidrawSnapshot(elements, appState, files);
       latestSnapshotRef.current = snapshot;
 
       // Primary dedup: drop noisy onChange events (cursor / selection /
@@ -416,11 +432,9 @@ export default function SceneEditor({
       if (snapshot.fp === savedFpRef.current) {
         if (inflightRef.current) {
           saveQueuedRef.current = true;
-          debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
         } else {
           saveQueuedRef.current = false;
           debouncedSave.cancel();
-          debouncedThumb.cancel();
           setStatus("saved");
           setErrorMsg(null);
         }
@@ -431,23 +445,23 @@ export default function SceneEditor({
       setStatus((s) => (s === "saving" ? s : "dirty"));
       setErrorMsg(null);
       debouncedSave();
-      debouncedThumb(snapshot.elements, snapshot.appState, snapshot.files);
+      // Thumb is no longer scheduled on edit — it fires from
+      // `saveLatest` after each successful save (auto + manual).
     },
-    [debouncedSave, debouncedThumb, readOnly],
+    [debouncedSave, readOnly],
   );
 
-  // Flush pending save AND thumb on unmount / page hide. Without this,
-  // a user who edits and navigates back to the dashboard within the 8s
-  // thumb-debounce window would see no preview — `useDebounced` cancels
-  // the pending call on unmount, dropping the upload entirely.
+  // Flush pending save on unmount / page hide. The flushed save will
+  // itself trigger a thumb upload via `saveLatest`'s success branch,
+  // so we don't need a separate thumb flush here.
   //
   // `flush()` synchronously invokes the wrapped function, which kicks
-  // off `exportToSvg` + `saveThumb` (a fetch). The fetch completes in
-  // the background after this component unmounts — React Query's
-  // `qc.invalidateQueries` from `onThumbSaved` still works because the
-  // QueryClient is mounted at the app root, not here. On true
-  // `beforeunload` (tab close) the fetch may be killed mid-flight; that's
-  // the same risk as `debouncedSave` and we accept it.
+  // off the save fetch (and, on success, the thumb fetch). Both
+  // complete in the background after this component unmounts — React
+  // Query's `qc.invalidateQueries` from `onThumbSaved` still works
+  // because the QueryClient is mounted at the app root, not here. On
+  // true `beforeunload` (tab close) the fetches may be killed
+  // mid-flight; that's an accepted risk.
   //
   // While unsaved (`isDirty`), `beforeunload` also fires the native
   // browser prompt so the user can cancel a tab close / hard reload
@@ -461,7 +475,6 @@ export default function SceneEditor({
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       debouncedSave.flush();
-      debouncedThumb.flush();
       if (isDirtyRef.current) {
         e.preventDefault();
         // Modern browsers ignore the string but require `returnValue` to
@@ -471,7 +484,6 @@ export default function SceneEditor({
     };
     const onVisibility = () => {
       debouncedSave.flush();
-      debouncedThumb.flush();
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onVisibility);
@@ -479,9 +491,8 @@ export default function SceneEditor({
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onVisibility);
       debouncedSave.flush();
-      debouncedThumb.flush();
     };
-  }, [debouncedSave, debouncedThumb]);
+  }, [debouncedSave]);
 
   // In-app navigation guard. The app uses `<BrowserRouter>` rather
   // than a data router, so `useBlocker` isn't available; instead we
@@ -537,16 +548,17 @@ export default function SceneEditor({
     [back, requestBack],
   );
 
+  const currentBlob = loaded.blob as ExcalidrawFileBlob;
   const initial = {
-    elements: (loaded.blob.elements as ExcalidrawElement[]) || [],
-    appState: (loaded.blob.appState as Partial<AppState>) || {},
-    files: (loaded.blob.files as BinaryFiles) || {},
+    elements: (currentBlob.elements as ExcalidrawElement[]) || [],
+    appState: (currentBlob.appState as Partial<AppState>) || {},
+    files: (currentBlob.files as BinaryFiles) || {},
   };
 
   // `renderTopLeftUI` is invoked by Excalidraw on every render. We
   // declare it inline so it closes over the latest `loaded.meta.name`
   // / `back`; the strip itself reads save state from
-  // `SceneEditorContext` so the closure dependencies stay shallow.
+  // `ExcalidrawEditorContext` so the closure dependencies stay shallow.
   //
   // Slot is added by our pnpm patch on `@excalidraw/excalidraw`; see
   // the file header. On desktop the slot is invoked once and `position`
@@ -557,7 +569,7 @@ export default function SceneEditor({
   // itself accordingly.
   const renderTopLeftUI = useCallback(
     (isMobile: boolean, _appState: unknown, position?: "before" | "after") => (
-      <SceneTopLeftStrip
+      <ExcalidrawTopLeftStrip
         name={loaded.meta.name}
         back={guardedBack}
         isMobile={isMobile}
@@ -568,7 +580,7 @@ export default function SceneEditor({
   );
 
   return (
-    <SceneEditorContext.Provider
+    <ExcalidrawEditorContext.Provider
       value={{
         status,
         errorMessage: errorMsg,
@@ -633,17 +645,17 @@ export default function SceneEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SceneEditorContext.Provider>
+    </ExcalidrawEditorContext.Provider>
   );
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function makeSceneSnapshot(
+function makeExcalidrawSnapshot(
   elements: readonly ExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
-): SceneSnapshot {
+): ExcalidrawSnapshot {
   return {
     elements,
     appState,

@@ -1,8 +1,8 @@
 // Deterministic per-id tilt. Same id → same angle, every render.
-// Used to give folders/scenes a tiny resting rotation without making the
+// Used to give folders/files a tiny resting rotation without making the
 // dashboard flicker on re-mount.
 //
-// Reserve for content artifacts only (scene cards, folder cards, tape
+// Reserve for content artifacts only (file cards, folder cards, tape
 // chips). Chrome must not tilt — controls and navigation read as
 // broken when they wobble.
 

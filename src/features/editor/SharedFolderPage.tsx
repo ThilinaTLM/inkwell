@@ -1,11 +1,11 @@
 // SharedFolder — public folder-share landing. Same drill-down model as the
-// owner Dashboard, but without the user menu, without scene/folder
+// owner Dashboard, but without the user menu, without file/folder
 // mutations, and with a single banner row that says "Shared · view only"
 // or "Shared · can edit".
 //
 // The user can still navigate the folder subtree (rooted at the shared
 // folder; ancestors are not visible) via the breadcrumb + per-folder
-// tab strip. Clicking a scene navigates to /share/:token/scenes/:sceneId
+// tab strip. Clicking a file navigates to /share/:token/files/:fileId
 // which mounts SharedEditor in folder-share mode.
 
 import {
@@ -19,10 +19,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
-import { EmptyDeskNote, FolderCard, SceneCard } from "@/components/sketch";
+import { EmptyDeskNote, FileCard, FolderCard } from "@/components/sketch";
 import { folderPath } from "@/features/folders/FolderTree";
 import { useSharedFolder } from "@/features/sharing/hooks";
-import type { FolderMeta, FolderSharePayload, SceneMeta } from "@/lib/api/client";
+import type { FileMeta, FolderMeta, FolderSharePayload } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { relTime } from "@/lib/format";
@@ -50,9 +50,9 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
   const writable = payload?.share.permission === "write";
   const allowDownload = payload?.share.allowDownload ?? false;
 
-  const visibleScenes = useMemo(() => {
+  const visibleFiles = useMemo(() => {
     if (!payload || !selectedId) return [];
-    return payload.scenes.filter((s) => s.folderId === selectedId);
+    return payload.files.filter((s) => s.folderId === selectedId);
   }, [payload, selectedId]);
 
   const subfolders = useMemo(() => {
@@ -122,13 +122,13 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
       <main className="px-6 pb-16 pt-3">
         {breadcrumb.length > 0 && <Breadcrumb breadcrumb={breadcrumb} onJump={setSelectedId} />}
 
-        {subfolders.length === 0 && visibleScenes.length === 0 ? (
+        {subfolders.length === 0 && visibleFiles.length === 0 ? (
           <EmptyDeskNote
             seed={`shared-empty-${selectedId}`}
             title={`"${
               payload.folders.find((f) => f.id === selectedId)?.name ?? payload.root.name
             }" is empty`}
-            body="No scenes in this folder. Try another folder above."
+            body="No files in this folder. Try another folder above."
           />
         ) : (
           <section
@@ -140,18 +140,18 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
                 key={`f:${f.id}`}
                 id={f.id}
                 name={f.name}
-                itemCount={f.sceneCount + f.subfolderCount}
+                itemCount={f.fileCount + f.subfolderCount}
                 previews={f.previews}
                 onOpen={() => setSelectedId(f.id)}
               />
             ))}
-            {visibleScenes.map((s) => (
-              <SharedSceneCard
+            {visibleFiles.map((s) => (
+              <SharedFileCard
                 key={`s:${s.id}`}
-                scene={s}
+                file={s}
                 token={token}
                 allowDownload={allowDownload}
-                onOpen={() => navigate(`/share/${token}/scenes/${s.id}`)}
+                onOpen={() => navigate(`/share/${token}/files/${s.id}`)}
               />
             ))}
           </section>
@@ -198,23 +198,24 @@ function Breadcrumb({
   );
 }
 
-function SharedSceneCard({
-  scene: s,
+function SharedFileCard({
+  file: s,
   token,
   allowDownload,
   onOpen,
 }: {
-  scene: SceneMeta;
+  file: FileMeta;
   token: string;
   allowDownload: boolean;
   onOpen: () => void;
 }) {
   return (
-    <SceneCard
+    <FileCard
       id={s.id}
       name={s.name}
+      kind={s.kind}
       hasThumb={s.hasThumb}
-      thumbUrl={`${shares.folderSceneThumbUrl(token, s.id)}?v=${s.thumbUpdatedAt}`}
+      thumbUrl={`${shares.folderFileThumbUrl(token, s.id)}?v=${s.thumbUpdatedAt}`}
       folderName={null}
       updatedAtLabel={relTime(s.updatedAt)}
       tags={s.tags}
@@ -222,7 +223,7 @@ function SharedSceneCard({
       actions={
         allowDownload ? (
           <a
-            href={shares.folderSceneDownloadUrl(token, s.id)}
+            href={shares.folderFileDownloadUrl(token, s.id)}
             download
             aria-label={`Download ${s.name}`}
             onClick={(e) => e.stopPropagation()}

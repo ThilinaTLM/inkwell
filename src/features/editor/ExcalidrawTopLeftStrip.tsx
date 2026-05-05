@@ -1,4 +1,4 @@
-// SceneTopLeftStrip — at-a-glance back affordance + scene-name capsule,
+// ExcalidrawTopLeftStrip — at-a-glance back affordance + scene-name capsule,
 // returned from Excalidraw's patched `renderTopLeftUI` slot.
 //
 // Renders inside `.App-menu_top__left` (column 1 of `.App-menu_top`),
@@ -23,9 +23,9 @@
 // `src/index.css` already binds inkwell's shadcn palette onto these
 // variables, so the strip is automatically theme-aware.
 //
-// Subscribes to `SceneEditorContext` for status / errorMessage /
+// Subscribes to `ExcalidrawEditorContext` for status / errorMessage /
 // readOnly / onRequestRename / onSaveNow. The provider lives just
-// outside `<Excalidraw>` in `SceneEditor.tsx`; the indirection keeps
+// outside `<Excalidraw>` in `ExcalidrawEditor.tsx`; the indirection keeps
 // `renderTopLeftUI`'s closure dependencies shallow.
 
 import {
@@ -40,9 +40,9 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useSceneEditorContext } from "./SceneEditor";
+import { useExcalidrawEditorContext } from "./ExcalidrawEditor";
 
-export interface SceneTopLeftStripProps {
+export interface ExcalidrawTopLeftStripProps {
   name: string;
   /**
    * Optional back affordance. Pass `null` to omit (e.g. top-level share
@@ -75,8 +75,14 @@ const buttonSurfaceStyle: CSSProperties = {
   fontFamily: "var(--ui-font)",
 };
 
-export function SceneTopLeftStrip({ name, back, isMobile, position }: SceneTopLeftStripProps) {
-  const { status, errorMessage, readOnly, onRequestRename, onSaveNow } = useSceneEditorContext();
+export function ExcalidrawTopLeftStrip({
+  name,
+  back,
+  isMobile,
+  position,
+}: ExcalidrawTopLeftStripProps) {
+  const { status, errorMessage, readOnly, onRequestRename, onSaveNow } =
+    useExcalidrawEditorContext();
   if (!name) return null;
   // Provider already nulls this out on read-only sessions, but guard
   // here too so a future change to that contract can't accidentally

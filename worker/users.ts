@@ -6,8 +6,8 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { getUserByEmail } from "./auth";
 import { getDb, t } from "./db/client";
+import { fileKey, thumbKey } from "./files";
 import { hashPassword } from "./passwords";
-import { sceneKey, thumbKey } from "./scenes";
 import type { AdminUserRow, Env, UserRow } from "./types";
 import { rowToAdminUserPublic } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
@@ -73,18 +73,18 @@ export async function createUser(env: Env, input: CreateUserInput): Promise<User
 }
 
 // ─── Cascade delete ───────────────────────────────────────────────────
-// Removes the user and everything they own: scenes (D1 rows + R2 blobs +
+// Removes the user and everything they own: files (D1 rows + R2 blobs +
 // thumbnails), folders, tags + taggings, shares (across both target types),
 // and invites they created. Best-effort on R2 — a partial failure leaves
 // orphan objects but D1 stays consistent.
 export async function deleteUserCascade(env: Env, userId: string): Promise<void> {
   const db = getDb(env);
-  const sceneIdRows = await db
-    .select({ id: t.scenes.id })
-    .from(t.scenes)
-    .where(eq(t.scenes.owner, userId))
+  const fileIdRows = await db
+    .select({ id: t.files.id })
+    .from(t.files)
+    .where(eq(t.files.owner, userId))
     .all();
-  const sceneIds = sceneIdRows.map((r) => r.id);
+  const fileIds = fileIdRows.map((r) => r.id);
 
   // Wipe owner-scoped rows from the organization tables. Order matters
   // only for FK-honoring engines; with `PRAGMA foreign_keys = ON` D1 will
@@ -94,21 +94,21 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
     db.delete(t.shares).where(eq(t.shares.owner, userId)),
     db.delete(t.taggings).where(eq(t.taggings.owner, userId)),
     db.delete(t.tags).where(eq(t.tags.owner, userId)),
-    db.delete(t.scenes).where(eq(t.scenes.owner, userId)),
+    db.delete(t.files).where(eq(t.files.owner, userId)),
   ]);
 
-  if (sceneIds.length > 0) {
+  if (fileIds.length > 0) {
     // Wipe R2 objects in parallel.
     const deletes: Promise<unknown>[] = [];
-    for (const id of sceneIds) {
-      deletes.push(env.R2.delete(sceneKey(id)));
+    for (const id of fileIds) {
+      deletes.push(env.R2.delete(fileKey(id)));
       deletes.push(env.R2.delete(thumbKey(id)));
     }
     await Promise.allSettled(deletes);
   }
 
-  // Folders go after scenes (folders may be referenced by scenes via
-  // ON DELETE SET NULL; with all the user's scenes gone it's a clean drop).
+  // Folders go after files (folders may be referenced by files via
+  // ON DELETE SET NULL; with all the user's files gone it's a clean drop).
   // Then invites created by the user, then the user row itself. Invites
   // would cascade via FK on a connection with PRAGMA foreign_keys = ON,
   // but we delete them explicitly so behavior is independent of the pragma.
@@ -134,7 +134,7 @@ export async function listUsersAdmin(env: Env): Promise<Response> {
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      scene_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.scenes} WHERE ${t.scenes.owner} = ${t.users.id}), 0)`,
+      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
     })
     .from(t.users)
     .orderBy(asc(t.users.created_at))
@@ -180,7 +180,7 @@ export async function patchUserAdmin(
 
   await db.update(t.users).set(patch).where(eq(t.users.id, targetId)).run();
 
-  // Re-read with scene count for the response, mirroring listUsersAdmin.
+  // Re-read with file count for the response, mirroring listUsersAdmin.
   const updated = await db
     .select({
       id: t.users.id,
@@ -193,7 +193,7 @@ export async function patchUserAdmin(
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      scene_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.scenes} WHERE ${t.scenes.owner} = ${t.users.id}), 0)`,
+      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
     })
     .from(t.users)
     .where(eq(t.users.id, targetId))

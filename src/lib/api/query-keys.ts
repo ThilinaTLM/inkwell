@@ -2,13 +2,13 @@
 //
 // Two reasons this exists:
 //   1) Typo safety — invalidating by string literal is fragile.
-//   2) Prefix invalidation — `keys.scenes.all` is a tuple prefix that
-//      matches every scene-related query (lists, details, shares).
+//   2) Prefix invalidation — `keys.files.all` is a tuple prefix that
+//      matches every file-related query (lists, details, shares).
 //
 // Convention: each domain exposes `.all` (the broadest tuple), plus
 // narrower factories like `.list(query)` or `.detail(id)`.
 
-import type { ScenesQuery, ShareTargetType } from "./client";
+import type { FilesQuery, ShareTargetType } from "./client";
 
 export const keys = {
   me: ["me"] as const,
@@ -24,12 +24,12 @@ export const keys = {
     list: () => ["tags", "list"] as const,
   },
 
-  scenes: {
-    all: ["scenes"] as const,
-    listPrefix: () => ["scenes", "list"] as const,
-    list: (q: ScenesQuery) => ["scenes", "list", q] as const,
-    detail: (id: string) => ["scenes", "detail", id] as const,
-    shares: (sceneId: string) => ["scenes", sceneId, "shares"] as const,
+  files: {
+    all: ["files"] as const,
+    listPrefix: () => ["files", "list"] as const,
+    list: (q: FilesQuery) => ["files", "list", q] as const,
+    detail: (id: string) => ["files", "detail", id] as const,
+    shares: (fileId: string) => ["files", fileId, "shares"] as const,
   },
 
   sharesAll: ["shares"] as const,
@@ -40,9 +40,9 @@ export const keys = {
   },
 
   publicShare: {
-    token: (token: string, sceneId?: string) =>
-      sceneId
-        ? (["public-share", token, "scenes", sceneId] as const)
+    token: (token: string, fileId?: string) =>
+      fileId
+        ? (["public-share", token, "files", fileId] as const)
         : (["public-share", token] as const),
   },
 
@@ -54,5 +54,5 @@ export const keys = {
  * sharing hooks so callers don't have to branch on `targetType`.
  */
 export function shareListKey(targetType: ShareTargetType, targetId: string): readonly unknown[] {
-  return targetType === "folder" ? keys.folders.shares(targetId) : keys.scenes.shares(targetId);
+  return targetType === "folder" ? keys.folders.shares(targetId) : keys.files.shares(targetId);
 }

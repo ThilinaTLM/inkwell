@@ -2,7 +2,7 @@
 //
 // Surfaces the existing `GET /api/shares` endpoint that, until now, no
 // page consumed. Lists every active share owned by the caller, grouped
-// by target (one section per scene/folder), with the same row UI used
+// by target (one section per file/folder), with the same row UI used
 // in the per-target ShareDialog so edit / rotate / revoke / copy
 // behaviour is identical.
 //
@@ -34,7 +34,7 @@ import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { ShareLinkRow } from "./ShareLinkRow";
 
-type TargetTypeFilter = "all" | "scene" | "folder";
+type TargetTypeFilter = "all" | "file" | "folder";
 type PermissionFilter = "all" | "read" | "write";
 
 export default function SharesPage() {
@@ -172,7 +172,7 @@ export default function SharesPage() {
           onChange={setTypeFilter}
           options={[
             { value: "all", label: "All" },
-            { value: "scene", label: "Scenes" },
+            { value: "file", label: "Files" },
             { value: "folder", label: "Folders" },
           ]}
         />
@@ -208,14 +208,14 @@ export default function SharesPage() {
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {totalCount === 0
-              ? "Open a scene or folder and click Share to create your first link."
+              ? "Open a file or folder and click Share to create your first link."
               : `Adjust the filters above${
                   filteredCount !== totalCount ? "" : ""
                 } or clear the search.`}
           </p>
           {totalCount === 0 ? (
             <Button size="sm" variant="outline" className="mt-4" render={<Link to="/" />}>
-              Browse scenes
+              Browse files
             </Button>
           ) : null}
         </ElevatedCard>
@@ -247,7 +247,7 @@ export default function SharesPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => navigate(g.type === "scene" ? `/s/${g.id}` : `/folders/${g.id}`)}
+                    onClick={() => navigate(g.type === "file" ? `/f/` : `/folders/${g.id}`)}
                     className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:underline underline-offset-4"
                     title={`Open ${g.type}`}
                   >

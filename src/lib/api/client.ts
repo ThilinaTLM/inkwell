@@ -21,7 +21,7 @@ export interface AdminUser extends User {
   createdAt: number;
   updatedAt: number;
   lastLoginAt: number | null;
-  sceneCount: number;
+  fileCount: number;
 }
 
 export type InviteStatus = "pending" | "used" | "revoked" | "expired";
@@ -39,20 +39,23 @@ export interface Invite {
   revokedAt: number | null;
 }
 
-export interface SceneMeta {
+export type FileKind = "excalidraw" | "drawio";
+
+export interface FileMeta {
   id: string;
-  /** `null` when the scene lives at the root level (no parent folder). */
+  /** `null` when the file lives at the root level (no parent folder). */
   folderId: string | null;
   name: string;
+  kind: FileKind;
   tags: string[];
   version: number;
   sizeBytes: number;
   hasThumb: boolean;
-  /** Cache-bust token for `/api/scenes/:id/thumb`. Bumped to `now()` on
+  /** Cache-bust token for `/api/files/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
   thumbUpdatedAt: number;
-  /** Number of currently-active share tokens whose target is this scene.
-   *  Drives the "shared" pill on `SceneCard`. Always 0 in visitor
+  /** Number of currently-active share tokens whose target is this file.
+   *  Drives the "shared" pill on `FileCard`. Always 0 in visitor
    *  responses (folder-share listing) so recipients can't infer how
    *  many other shares the owner has. */
   activeShareCount: number;
@@ -60,11 +63,12 @@ export interface SceneMeta {
   updatedAt: number;
 }
 
-/** Compact preview info for a single scene inside a folder. Returned
+/** Compact preview info for a single file inside a folder. Returned
  *  inside `FolderMeta.previews` so `FolderCard` can render thumbnails
  *  between the folds without an extra round trip. */
-export interface ScenePreview {
+export interface FilePreview {
   id: string;
+  kind: FileKind;
   hasThumb: boolean;
   thumbUpdatedAt: number;
 }
@@ -74,11 +78,11 @@ export interface FolderMeta {
   parentId: string | null;
   name: string;
   tags: string[];
-  sceneCount: number;
+  fileCount: number;
   subfolderCount: number;
-  /** Up to 3 most-recently-updated scenes inside this folder, newest first.
+  /** Up to 3 most-recently-updated files inside this folder, newest first.
    *  `previews[0]` is the front-most paper in the FolderCard stack. */
-  previews: ScenePreview[];
+  previews: FilePreview[];
   /** Number of currently-active share tokens whose target is this folder.
    *  Drives the "shared" pill on `FolderCard`. Always 0 in visitor
    *  responses so recipients can't infer how many other shares the
@@ -91,35 +95,49 @@ export interface FolderMeta {
 export interface Tag {
   id: string;
   name: string;
-  sceneCount: number;
+  fileCount: number;
   folderCount: number;
 }
 
-export interface SceneBlob {
+export interface ExcalidrawFileBlob {
+  /** Optional for backward compatibility with existing stored blobs. */
+  kind?: "excalidraw";
   elements: unknown[];
   appState?: Record<string, unknown>;
   files?: Record<string, unknown>;
 }
 
-export interface LoadedScene {
+export interface DrawioFileBlob {
+  kind: "drawio";
+  xml: string;
+}
+
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob;
+
+export interface LoadedFile {
   meta: {
     id: string;
     name: string;
+    kind: FileKind;
     version: number;
     updatedAt: number;
-    /** Parent folder, or `null` when the scene lives at the root.
-     *  Only populated for owner-loaded scenes; share-token loads omit it. */
+    /** Parent folder, or `null` when the file lives at the root.
+     *  Only populated for owner-loaded files; share-token loads omit it. */
     folderId: string | null;
+    /** Whether the server already has a thumbnail for this file. The
+     *  drawio editor uses this to backfill a one-shot thumb on open
+     *  for files that don't have one yet. */
+    hasThumb: boolean;
   };
-  blob: SceneBlob;
-  /** Permission when loaded via a share token. Owner-loaded scenes are 'write'. */
+  blob: FileBlob;
+  /** Permission when loaded via a share token. Owner-loaded files are 'write'. */
   permission: "read" | "write";
-  /** True if the share token allows downloading the .excalidraw file. */
+  /** True if the share token allows downloading the file. */
   allowDownload: boolean;
 }
 
 export type SharePermission = "read" | "write";
-export type ShareTargetType = "scene" | "folder";
+export type ShareTargetType = "file" | "folder";
 
 export interface Share {
   token: string;
@@ -143,7 +161,7 @@ export interface FolderSharePayload {
   };
   root: FolderMeta;
   folders: FolderMeta[];
-  scenes: SceneMeta[];
+  files: FileMeta[];
 }
 
 export class ApiError extends Error {
@@ -271,13 +289,13 @@ export const tags = {
   delete: (id: string) => request<{ ok: true }>(`/api/tags/${id}`, { method: "DELETE" }),
 };
 
-// ─── Scene listing query ──────────────────────────────────────────────
-export interface ScenesQuery {
+// ─── File listing query ──────────────────────────────────────────────
+export interface FilesQuery {
   /**
    * Folder filter. A real folder id scopes the listing to that folder's
    * direct children (combine with `recursive` for the whole subtree).
-   * The literal string `"root"` lists scenes that live at the top level
-   * (no parent folder). Omitting the field returns every scene the
+   * The literal string `"root"` lists files that live at the top level
+   * (no parent folder). Omitting the field returns every file the
    * caller owns — used by the Recent and Search views.
    */
   folderId?: string | "root";
@@ -286,8 +304,8 @@ export interface ScenesQuery {
   q?: string;
 }
 
-function buildScenesUrl(q: ScenesQuery): string {
-  const url = new URL("/api/scenes", location.origin);
+function buildFilesUrl(q: FilesQuery): string {
+  const url = new URL("/api/files", location.origin);
   if (q.folderId) url.searchParams.set("folderId", q.folderId);
   if (q.recursive) url.searchParams.set("recursive", "1");
   for (const t of q.tags || []) url.searchParams.append("tag", t);
@@ -295,32 +313,33 @@ function buildScenesUrl(q: ScenesQuery): string {
   return url.pathname + (url.search || "");
 }
 
-// ─── Scenes ───────────────────────────────────────────────────────────
-export const scenes = {
-  list: (query: ScenesQuery = {}) =>
-    request<{ scenes: SceneMeta[] }>(buildScenesUrl(query)).then((r) => r.scenes),
-  create: (body: { name?: string; folderId?: string | null; tags?: string[] } = {}) =>
-    postJson<SceneMeta>("/api/scenes", body),
-  rename: (id: string, name: string) => patchJson<SceneMeta>(`/api/scenes/${id}`, { name }),
-  /** Move a scene. `folderId === null` moves to the root level. */
+// ─── Files ────────────────────────────────────────────────────────────
+export const files = {
+  list: (query: FilesQuery = {}) =>
+    request<{ files: FileMeta[] }>(buildFilesUrl(query)).then((r) => r.files),
+  create: (
+    body: { name?: string; folderId?: string | null; tags?: string[]; kind?: FileKind } = {},
+  ) => postJson<FileMeta>("/api/files", body),
+  rename: (id: string, name: string) => patchJson<FileMeta>(`/api/files/${id}`, { name }),
+  /** Move a file. `folderId === null` moves to the root level. */
   move: (id: string, folderId: string | null) =>
-    patchJson<SceneMeta>(`/api/scenes/${id}`, { folderId }),
+    patchJson<FileMeta>(`/api/files/${id}`, { folderId }),
   setTags: (id: string, tagList: string[]) =>
-    putJson<{ id: string; tags: string[]; updatedAt: number }>(`/api/scenes/${id}/tags`, {
+    putJson<{ id: string; tags: string[]; updatedAt: number }>(`/api/files/${id}/tags`, {
       tags: tagList,
     }),
-  delete: (id: string) => request<{ ok: true }>(`/api/scenes/${id}`, { method: "DELETE" }),
+  delete: (id: string) => request<{ ok: true }>(`/api/files/${id}`, { method: "DELETE" }),
 
-  /** Loads a scene the current user owns. */
-  async load(id: string): Promise<LoadedScene> {
-    const resp = await fetch(`/api/scenes/${id}`, { credentials: "include" });
+  /** Loads a file the current user owns. */
+  async load(id: string): Promise<LoadedFile> {
+    const resp = await fetch(`/api/files/${id}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
-    return readSceneResponse(resp, "write", true);
+    return readFileResponse(resp, "write", true);
   },
 
-  /** Saves a scene. Throws ApiError(409) on version conflict. */
-  async save(id: string, version: number, blob: SceneBlob): Promise<SceneMeta> {
-    const resp = await fetch(`/api/scenes/${id}`, {
+  /** Saves a file. Throws ApiError(409) on version conflict. */
+  async save(id: string, version: number, blob: FileBlob): Promise<FileMeta> {
+    const resp = await fetch(`/api/files/${id}`, {
       method: "PUT",
       credentials: "include",
       headers: {
@@ -338,11 +357,11 @@ export const scenes = {
       }
       throw new ApiError(resp.status, payload?.error || `HTTP ${resp.status}`, payload);
     }
-    return (await resp.json()) as SceneMeta;
+    return (await resp.json()) as FileMeta;
   },
 
   putThumb: (id: string, svg: string) =>
-    fetch(`/api/scenes/${id}/thumb`, {
+    fetch(`/api/files/${id}/thumb`, {
       method: "PUT",
       credentials: "include",
       headers: { "content-type": "image/svg+xml" },
@@ -352,17 +371,17 @@ export const scenes = {
     }),
 
   /** Build a thumb URL with a content-addressed cache-bust token.
-   *  Pass `thumbUpdatedAt` from `SceneMeta` (or `ScenePreview`); a
+   *  Pass `thumbUpdatedAt` from `FileMeta` (or `FilePreview`); a
    *  zero/missing token still produces a valid URL but won't change
    *  when content changes — callers should always pass the real value. */
-  thumbUrl: (id: string, bust?: number) => `/api/scenes/${id}/thumb${bust ? `?v=${bust}` : ""}`,
+  thumbUrl: (id: string, bust?: number) => `/api/files/${id}/thumb${bust ? `?v=${bust}` : ""}`,
 
   /** Same-origin download URL that triggers a `Content-Disposition: attachment`. */
-  downloadUrl: (id: string) => `/api/scenes/${id}/download`,
+  downloadUrl: (id: string) => `/api/files/${id}/download`,
 
-  /** Owner-side scene shares. */
+  /** Owner-side file shares. */
   listShares: (id: string) =>
-    request<{ tokens: Share[] }>(`/api/scenes/${id}/shares`).then((r) => r.tokens),
+    request<{ tokens: Share[] }>(`/api/files/${id}/shares`).then((r) => r.tokens),
   createShare: (
     id: string,
     body: {
@@ -371,14 +390,14 @@ export const scenes = {
       expiresAt?: number | null;
       label?: string | null;
     },
-  ) => postJson<Share>(`/api/scenes/${id}/shares`, body),
+  ) => postJson<Share>(`/api/files/${id}/shares`, body),
   revokeShare: (id: string, token: string) =>
-    request<{ ok: true }>(`/api/scenes/${id}/shares/${token}`, { method: "DELETE" }),
+    request<{ ok: true }>(`/api/files/${id}/shares/${token}`, { method: "DELETE" }),
 };
 
 // ─── Shares (cross-target) ────────────────────────────────────────────
 export const shares = {
-  /** All of caller's active shares (scenes + folders), with target name. */
+  /** All of caller's active shares (files + folders), with target name. */
   listAll: () => request<{ shares: Share[] }>("/api/shares").then((r) => r.shares),
   revoke: (token: string) => request<{ ok: true }>(`/api/shares/${token}`, { method: "DELETE" }),
 
@@ -399,16 +418,16 @@ export const shares = {
   rotate: (token: string) =>
     postJson<{ old: { token: string }; new: Share }>(`/api/shares/${token}/rotate`, {}),
 
-  // ── Public token operations (scene shares) ────────────────────────
-  async load(token: string): Promise<LoadedScene> {
+  // ── Public token operations (file shares) ─────────────────────────
+  async load(token: string): Promise<LoadedFile> {
     const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
     const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
     const allowDownload = resp.headers.get("x-share-allow-download") === "1";
-    return readSceneResponse(resp, perm, allowDownload);
+    return readFileResponse(resp, perm, allowDownload);
   },
 
-  async save(token: string, version: number, blob: SceneBlob): Promise<SceneMeta> {
+  async save(token: string, version: number, blob: FileBlob): Promise<FileMeta> {
     const resp = await fetch(`/api/share/${token}`, {
       method: "PUT",
       credentials: "include",
@@ -424,53 +443,51 @@ export const shares = {
       }
       throw new ApiError(resp.status, payload?.error || `HTTP ${resp.status}`, payload);
     }
-    return (await resp.json()) as SceneMeta;
+    return (await resp.json()) as FileMeta;
   },
 
   downloadUrl: (token: string) => `/api/share/${token}/download`,
 
   /**
-   * Resolves a token without committing to scene/folder semantics. The
+   * Resolves a token without committing to file/folder semantics. The
    * `targetType` header from the worker tells us which page to render.
    */
   async peek(
     token: string,
-  ): Promise<
-    { type: "scene"; scene: LoadedScene } | { type: "folder"; payload: FolderSharePayload }
-  > {
+  ): Promise<{ type: "file"; file: LoadedFile } | { type: "folder"; payload: FolderSharePayload }> {
     const resp = await fetch(`/api/share/${token}`, { credentials: "include" });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
-    const targetType = resp.headers.get("x-share-target-type") || "scene";
+    const targetType = resp.headers.get("x-share-target-type") || "file";
     if (targetType === "folder") {
       const payload = (await resp.json()) as FolderSharePayload;
       return { type: "folder", payload };
     }
     const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
     const allowDownload = resp.headers.get("x-share-allow-download") === "1";
-    const scene = await readSceneResponse(resp, perm, allowDownload);
-    return { type: "scene", scene };
+    const file = await readFileResponse(resp, perm, allowDownload);
+    return { type: "file", file };
   },
 
   // ── Public token operations (folder shares) ───────────────────────
   loadFolder: (token: string) => request<FolderSharePayload>(`/api/share/${token}`),
 
-  async loadFolderScene(token: string, sceneId: string): Promise<LoadedScene> {
-    const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
+  async loadFolderFile(token: string, fileId: string): Promise<LoadedFile> {
+    const resp = await fetch(`/api/share/${token}/files/${fileId}`, {
       credentials: "include",
     });
     if (!resp.ok) throw new ApiError(resp.status, `HTTP ${resp.status}`);
     const perm = (resp.headers.get("x-share-permission") as "read" | "write") || "read";
     const allowDownload = resp.headers.get("x-share-allow-download") === "1";
-    return readSceneResponse(resp, perm, allowDownload);
+    return readFileResponse(resp, perm, allowDownload);
   },
 
-  async saveFolderScene(
+  async saveFolderFile(
     token: string,
-    sceneId: string,
+    fileId: string,
     version: number,
-    blob: SceneBlob,
-  ): Promise<SceneMeta> {
-    const resp = await fetch(`/api/share/${token}/scenes/${sceneId}`, {
+    blob: FileBlob,
+  ): Promise<FileMeta> {
+    const resp = await fetch(`/api/share/${token}/files/${fileId}`, {
       method: "PUT",
       credentials: "include",
       headers: { "content-type": "application/json", "if-match": `"${version}"` },
@@ -485,31 +502,33 @@ export const shares = {
       }
       throw new ApiError(resp.status, payload?.error || `HTTP ${resp.status}`, payload);
     }
-    return (await resp.json()) as SceneMeta;
+    return (await resp.json()) as FileMeta;
   },
 
-  folderSceneThumbUrl: (token: string, sceneId: string) =>
-    `/api/share/${token}/scenes/${sceneId}/thumb`,
-  folderSceneDownloadUrl: (token: string, sceneId: string) =>
-    `/api/share/${token}/scenes/${sceneId}/download`,
-  sceneThumbUrl: (token: string) => `/api/share/${token}/thumb`,
+  folderFileThumbUrl: (token: string, fileId: string) =>
+    `/api/share/${token}/files/${fileId}/thumb`,
+  folderFileDownloadUrl: (token: string, fileId: string) =>
+    `/api/share/${token}/files/${fileId}/download`,
+  fileThumbUrl: (token: string) => `/api/share/${token}/thumb`,
 };
 
 // ─── Internal helpers ─────────────────────────────────────────────────
-async function readSceneResponse(
+async function readFileResponse(
   resp: Response,
   permission: "read" | "write",
   allowDownload: boolean,
-): Promise<LoadedScene> {
-  const id = resp.headers.get("x-scene-id") || "";
-  const name = decodeURIComponent(resp.headers.get("x-scene-name") || "Untitled");
-  const version = Number(resp.headers.get("x-scene-version") || "1");
-  const updatedAt = Number(resp.headers.get("x-scene-updated-at") || "0");
-  const folderHeader = resp.headers.get("x-scene-folder-id");
+): Promise<LoadedFile> {
+  const id = resp.headers.get("x-file-id") || "";
+  const name = decodeURIComponent(resp.headers.get("x-file-name") || "Untitled");
+  const kind = ((resp.headers.get("x-file-kind") || "excalidraw") as FileKind) || "excalidraw";
+  const version = Number(resp.headers.get("x-file-version") || "1");
+  const updatedAt = Number(resp.headers.get("x-file-updated-at") || "0");
+  const folderHeader = resp.headers.get("x-file-folder-id");
   const folderId = folderHeader ? folderHeader : null;
-  const blob = (await resp.json()) as SceneBlob;
+  const hasThumb = resp.headers.get("x-file-has-thumb") === "1";
+  const blob = (await resp.json()) as FileBlob;
   return {
-    meta: { id, name, version, updatedAt, folderId },
+    meta: { id, name, kind, version, updatedAt, folderId, hasThumb },
     blob,
     permission,
     allowDownload,

@@ -1,6 +1,6 @@
 // Folder CRUD + tree helpers.
 //
-// Folders and scenes are first-class peers. Either may live at the
+// Folders and files are first-class peers. Either may live at the
 // literal root level (`parent_id IS NULL` / `folder_id IS NULL`).
 //
 // Constraints enforced at the application layer:
@@ -9,7 +9,7 @@
 //   * Cycle prevention on move: target's ancestors must not include self.
 //   * Cross-owner isolation: every query is `WHERE owner = ?`.
 //
-// Cleanup: when a folder is deleted, its direct children (scenes and
+// Cleanup: when a folder is deleted, its direct children (files and
 // subfolders) are moved up one level. Deleting a folder at
 // `parent_id IS NULL` moves children to the root level.
 
@@ -17,7 +17,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, t } from "./db/client";
 import { countActiveSharesForTargets } from "./share";
 import { listTagsFor, replaceTagsFor } from "./tags";
-import type { Env, FolderMeta, FolderRow, ScenePreview, SceneRow } from "./types";
+import type { Env, FilePreview, FileRow, FolderMeta, FolderRow } from "./types";
 import { rowToFolderMeta } from "./types";
 import { errorResponse, jsonResponse, newId, now } from "./util";
 
@@ -54,7 +54,7 @@ async function ancestorChain(env: Env, owner: string, startId: string): Promise<
 }
 
 // "All folders inside this folder, including itself" — used for share
-// authorization and scene listing recursion.
+// authorization and file listing recursion.
 export async function descendantFolderIds(
   env: Env,
   owner: string,
@@ -108,11 +108,11 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     .where(eq(t.folders.owner, owner))
     .orderBy(sql`${t.folders.name} COLLATE NOCASE ASC`)
     .all();
-  const sceneCountsP = db
-    .select({ id: t.scenes.folder_id, n: count() })
-    .from(t.scenes)
-    .where(and(eq(t.scenes.owner, owner), sql`${t.scenes.folder_id} IS NOT NULL`))
-    .groupBy(t.scenes.folder_id)
+  const fileCountsP = db
+    .select({ id: t.files.folder_id, n: count() })
+    .from(t.files)
+    .where(and(eq(t.files.owner, owner), sql`${t.files.folder_id} IS NOT NULL`))
+    .groupBy(t.files.folder_id)
     .all();
   const subCountsP = db
     .select({ id: t.folders.parent_id, n: count() })
@@ -127,12 +127,13 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     .where(and(eq(t.taggings.owner, owner), eq(t.taggings.target_type, "folder")))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
-  // Top-3 most recently updated scenes per folder — powers the
+  // Top-3 most recently updated files per folder — powers the
   // FolderCard inner-paper previews (front / mid / back). Single
   // window-function query; returned newest-first within each folder.
   const previewRowsP = db.all<{
     folder_id: string;
     id: string;
+    kind: "excalidraw" | "drawio";
     has_thumb: number;
     thumb_updated_at: number;
     rn: number;
@@ -141,18 +142,19 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
       SELECT
         folder_id,
         id,
+        kind,
         has_thumb,
         thumb_updated_at,
         ROW_NUMBER() OVER (PARTITION BY folder_id ORDER BY updated_at DESC, id DESC) AS rn
-      FROM scenes
+      FROM files
       WHERE owner = ${owner} AND folder_id IS NOT NULL
     )
-    SELECT folder_id, id, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
+    SELECT folder_id, id, kind, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
   `);
 
-  const [folderRows, sceneCounts, subCounts, tagRows, previewRows] = await Promise.all([
+  const [folderRows, fileCounts, subCounts, tagRows, previewRows] = await Promise.all([
     foldersP,
-    sceneCountsP,
+    fileCountsP,
     subCountsP,
     tagRowsP,
     previewRowsP,
@@ -166,7 +168,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     folderRows.map((f) => f.id),
   );
 
-  const sceneMap = new Map(sceneCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
+  const fileMap = new Map(fileCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
   const subMap = new Map(subCounts.flatMap((r) => (r.id ? [[r.id, r.n] as const] : [])));
   const tagMap = new Map<string, string[]>();
   for (const tg of tagRows) {
@@ -174,11 +176,12 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
     if (arr) arr.push(tg.name);
     else tagMap.set(tg.id, [tg.name]);
   }
-  const previewMap = new Map<string, ScenePreview[]>();
+  const previewMap = new Map<string, FilePreview[]>();
   for (const p of previewRows) {
     const arr = previewMap.get(p.folder_id) ?? [];
     arr.push({
       id: p.id,
+      kind: p.kind,
       hasThumb: p.has_thumb === 1,
       thumbUpdatedAt: p.thumb_updated_at,
     });
@@ -188,7 +191,7 @@ export async function listFolders(env: Env, owner: string): Promise<Response> {
   const out: FolderMeta[] = folderRows.map((f) =>
     rowToFolderMeta(f, {
       tags: tagMap.get(f.id) ?? [],
-      sceneCount: sceneMap.get(f.id) ?? 0,
+      fileCount: fileMap.get(f.id) ?? 0,
       subfolderCount: subMap.get(f.id) ?? 0,
       previews: previewMap.get(f.id) ?? [],
       activeShareCount: shareMap.get(f.id) ?? 0,
@@ -242,7 +245,7 @@ export async function createFolder(req: Request, env: Env, owner: string): Promi
     created_at: ts,
     updated_at: ts,
   };
-  return jsonResponse(rowToFolderMeta(row, { tags, sceneCount: 0, subfolderCount: 0 }));
+  return jsonResponse(rowToFolderMeta(row, { tags, fileCount: 0, subfolderCount: 0 }));
 }
 
 // ─── Update (rename / move / retag) ───────────────────────────────────
@@ -305,10 +308,10 @@ export async function patchFolder(
     tags = await replaceTagsFor(env, owner, "folder", id, body.tags);
   }
 
-  const sceneCountRow = await db
+  const fileCountRow = await db
     .select({ n: count() })
-    .from(t.scenes)
-    .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, id)))
+    .from(t.files)
+    .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, id)))
     .get();
   const subCountRow = await db
     .select({ n: count() })
@@ -325,14 +328,14 @@ export async function patchFolder(
   return jsonResponse(
     rowToFolderMeta(updated, {
       tags,
-      sceneCount: sceneCountRow?.n ?? 0,
+      fileCount: fileCountRow?.n ?? 0,
       subfolderCount: subCountRow?.n ?? 0,
     }),
   );
 }
 
 // ─── Delete ────────────────────────────────────────────────────────────
-// Children (scenes + subfolders) move up one level. Deleting a folder at
+// Children (files + subfolders) move up one level. Deleting a folder at
 // the root level (`parent_id IS NULL`) leaves its children at the root.
 export async function deleteFolder(env: Env, owner: string, id: string): Promise<Response> {
   const folder = await loadFolder(env, owner, id);
@@ -346,11 +349,11 @@ export async function deleteFolder(env: Env, owner: string, id: string): Promise
       .update(t.folders)
       .set({ parent_id: folder.parent_id, updated_at: ts })
       .where(and(eq(t.folders.owner, owner), eq(t.folders.parent_id, id))),
-    // Move direct scenes up.
+    // Move direct files up.
     db
-      .update(t.scenes)
+      .update(t.files)
       .set({ folder_id: folder.parent_id, updated_at: ts })
-      .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, id))),
+      .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, id))),
     // Remove taggings for this folder.
     db
       .delete(t.taggings)
@@ -377,23 +380,23 @@ export async function deleteFolder(env: Env, owner: string, id: string): Promise
 }
 
 // ─── Helpers used by share authorization ───────────────────────────────
-// Returns true if the scene is inside the given folder's subtree.
-export async function sceneInFolderSubtree(
+// Returns true if the file is inside the given folder's subtree.
+export async function fileInFolderSubtree(
   env: Env,
   owner: string,
-  sceneId: string,
+  fileId: string,
   folderId: string,
 ): Promise<boolean> {
   const db = getDb(env);
-  const scene = await db
-    .select({ folder_id: t.scenes.folder_id })
-    .from(t.scenes)
-    .where(and(eq(t.scenes.id, sceneId), eq(t.scenes.owner, owner)))
+  const file = await db
+    .select({ folder_id: t.files.folder_id })
+    .from(t.files)
+    .where(and(eq(t.files.id, fileId), eq(t.files.owner, owner)))
     .get();
-  if (!scene?.folder_id) return false;
-  if (scene.folder_id === folderId) return true;
-  // Walk up from scene.folder_id looking for folderId.
-  const chain = await ancestorChain(env, owner, scene.folder_id);
+  if (!file?.folder_id) return false;
+  if (file.folder_id === folderId) return true;
+  // Walk up from file.folder_id looking for folderId.
+  const chain = await ancestorChain(env, owner, file.folder_id);
   return chain.includes(folderId);
 }
 
@@ -409,7 +412,7 @@ export async function folderInSubtree(
   return chain.includes(rootFolderId);
 }
 
-// Returns the list of (id, name, parent_id) for every scene-bearing
+// Returns the list of (id, name, parent_id) for every file-bearing
 // folder in a subtree, used by the public folder-share listing.
 export async function listSubtreeFolders(
   env: Env,
@@ -439,20 +442,20 @@ export async function listSubtreeFolders(
   return rows;
 }
 
-// Loads scenes filtered by an explicit list of folder ids. Used both for
+// Loads files filtered by an explicit list of folder ids. Used both for
 // recursive owner listings and folder-share public listings.
-export async function loadScenesInFolders(
+export async function loadFilesInFolders(
   env: Env,
   owner: string,
   folderIds: string[],
-): Promise<SceneRow[]> {
+): Promise<FileRow[]> {
   if (folderIds.length === 0) return [];
   const db = getDb(env);
   const rows = await db
     .select()
-    .from(t.scenes)
-    .where(and(eq(t.scenes.owner, owner), inArray(t.scenes.folder_id, folderIds)))
-    .orderBy(desc(t.scenes.updated_at))
+    .from(t.files)
+    .where(and(eq(t.files.owner, owner), inArray(t.files.folder_id, folderIds)))
+    .orderBy(desc(t.files.updated_at))
     .limit(1000)
     .all();
   return rows;

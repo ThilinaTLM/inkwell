@@ -1,32 +1,32 @@
-// Scene move — wraps <MoveToFolderDialog> with the explorer's
-// move-scene mutation.
+// File move — wraps <MoveToFolderDialog> with the explorer's
+// move-file mutation.
 
 import { toast } from "sonner";
-import { useMoveScene } from "@/features/explorer/hooks";
+import { useMoveFile } from "@/features/explorer/hooks";
 import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
-import type { FolderMeta, SceneMeta } from "@/lib/api/client";
+import type { FileMeta, FolderMeta } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 
-interface SceneMoveDialogProps {
-  scene: SceneMeta | null;
+interface FileMoveDialogProps {
+  file: FileMeta | null;
   folders: FolderMeta[];
   onOpenChange: (open: boolean) => void;
 }
 
-export function SceneMoveDialog({ scene, folders, onOpenChange }: SceneMoveDialogProps) {
-  const move = useMoveScene();
-  if (!scene) return null;
+export function FileMoveDialog({ file, folders, onOpenChange }: FileMoveDialogProps) {
+  const move = useMoveFile();
+  if (!file) return null;
   return (
     <MoveToFolderDialog
       open
       onOpenChange={onOpenChange}
       folders={folders}
-      initialId={scene.folderId}
-      title={`Move "${scene.name}"`}
+      initialId={file.folderId}
+      title={`Move "${file.name}"`}
       description="Pick a destination folder, or choose Top level for the root."
       onSubmit={async (destFolderId) => {
         try {
-          await move.mutateAsync({ id: scene.id, folderId: destFolderId });
+          await move.mutateAsync({ id: file.id, folderId: destFolderId });
           toast.success("Moved.");
           onOpenChange(false);
         } catch (e) {

@@ -1,6 +1,6 @@
 // Tag CRUD hooks.
 //
-// Renaming or deleting a tag affects every scene, folder, and tag list
+// Renaming or deleting a tag affects every file, folder, and tag list
 // that references it, so both mutations invalidate the world (the three
 // affected domain prefixes).
 
@@ -14,7 +14,7 @@ export function useRenameTag() {
     mutationFn: ({ id, name }) => tags.rename(id, name),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.tags.all });
-      qc.invalidateQueries({ queryKey: keys.scenes.all });
+      qc.invalidateQueries({ queryKey: keys.files.all });
       qc.invalidateQueries({ queryKey: keys.folders.all });
     },
   });
@@ -26,7 +26,7 @@ export function useDeleteTag() {
     mutationFn: (id) => tags.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.tags.all });
-      qc.invalidateQueries({ queryKey: keys.scenes.all });
+      qc.invalidateQueries({ queryKey: keys.files.all });
       qc.invalidateQueries({ queryKey: keys.folders.all });
     },
   });

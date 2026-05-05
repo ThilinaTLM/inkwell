@@ -1,12 +1,12 @@
 // Editor chrome — full-page loading and error states.
 //
-// These are page-level placeholders shown while the scene query is in
+// These are page-level placeholders shown while the file query is in
 // flight or has failed; they sit at the route level (not inside
-// `<SceneEditor>`), which is why they're standalone here rather than
-// part of SceneEditor itself. Lifted out of EditorPage so SharedEditor
+// `<ExcalidrawEditor>`), which is why they're standalone here rather than
+// part of ExcalidrawEditor itself. Lifted out of EditorPage so SharedEditor
 // can reuse them.
 //
-// The previous "back to scenes" floating pill lived here too; it has
+// The previous "back to files" floating pill lived here too; it has
 // been replaced by a native `MainMenu.Item` ("Back to dashboard") in
 // each consumer page, so there's no longer a chrome pill component
 // for this file to host.
@@ -38,7 +38,7 @@ export function EditorErrorState({ message }: { message: string }) {
       >
         <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-6 text-destructive" />
         <div className="space-y-1">
-          <div className="font-heading text-lg">Couldn't load this scene</div>
+          <div className="font-heading text-lg">Couldn't load this file</div>
           <p className="text-sm text-muted-foreground">{message}</p>
         </div>
         <Button variant="outline" size="sm" render={<Link to="/" />}>

@@ -1,7 +1,7 @@
 // Sharing hooks.
 //
 // `useShareList` / `useCreateShare` / `useUpdateShare` / `useRotateShare` /
-// `useRevokeShare` abstract over the scene-vs-folder dichotomy so the
+// `useRevokeShare` abstract over the file-vs-folder dichotomy so the
 // ShareDialog (which works for both) doesn't need its own internal
 // adapter pair. The right endpoint is chosen from `targetType`.
 //
@@ -11,7 +11,7 @@
 // Mutations invalidate three caches each:
 //   - the per-target share list (so the calling dialog refreshes),
 //   - `keys.sharesAll` (so the `/shares` page refreshes),
-//   - `keys.scenes.all` and `keys.folders.all` (so card-level
+//   - `keys.files.all` and `keys.folders.all` (so card-level
 //     `activeShareCount` pills refresh).
 // Edit/rotate also invalidate the per-target list under the *new*
 // token — but rotate replaces the token; the list is keyed by target
@@ -21,10 +21,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ApiError,
   type FolderSharePayload,
+  files,
   folders,
   type Share,
   type ShareTargetType,
-  scenes,
   shares,
 } from "@/lib/api/client";
 import { keys, shareListKey } from "@/lib/api/query-keys";
@@ -37,8 +37,8 @@ function invalidateShareCaches(
 ) {
   qc.invalidateQueries({ queryKey: shareListKey(targetType, targetId) });
   qc.invalidateQueries({ queryKey: keys.sharesAll });
-  // Card-level `activeShareCount` lives on scene/folder list rows.
-  qc.invalidateQueries({ queryKey: keys.scenes.all });
+  // Card-level `activeShareCount` lives on file/folder list rows.
+  qc.invalidateQueries({ queryKey: keys.files.all });
   qc.invalidateQueries({ queryKey: keys.folders.all });
 }
 
@@ -46,18 +46,18 @@ export function useShareList(targetType: ShareTargetType, targetId: string, enab
   return useQuery<Share[], ApiError>({
     queryKey: shareListKey(targetType, targetId),
     queryFn: () =>
-      targetType === "folder" ? folders.listShares(targetId) : scenes.listShares(targetId),
+      targetType === "folder" ? folders.listShares(targetId) : files.listShares(targetId),
     enabled: enabled && !!targetId,
   });
 }
 
 export function useCreateShare(targetType: ShareTargetType, targetId: string) {
   const qc = useQueryClient();
-  return useMutation<Share, ApiError, Parameters<typeof scenes.createShare>[1]>({
+  return useMutation<Share, ApiError, Parameters<typeof files.createShare>[1]>({
     mutationFn: (body) =>
       targetType === "folder"
         ? folders.createShare(targetId, body)
-        : scenes.createShare(targetId, body),
+        : files.createShare(targetId, body),
     onSuccess: () => invalidateShareCaches(qc, targetType, targetId),
   });
 }
@@ -86,7 +86,7 @@ export function useRevokeShare(targetType: ShareTargetType, targetId: string) {
     mutationFn: (token) =>
       targetType === "folder"
         ? folders.revokeShare(targetId, token)
-        : scenes.revokeShare(targetId, token),
+        : files.revokeShare(targetId, token),
     onSuccess: () => invalidateShareCaches(qc, targetType, targetId),
   });
 }
@@ -102,7 +102,7 @@ export function useAllShares() {
 
 /** Generic revoke that works regardless of `targetType`; used by the
  *  /shares page where rows have mixed targets. Invalidates both
- *  scene-list and folder-list caches because we don't know which one
+ *  file-list and folder-list caches because we don't know which one
  *  any given token came from. */
 export function useRevokeShareGeneric() {
   const qc = useQueryClient();
@@ -110,7 +110,7 @@ export function useRevokeShareGeneric() {
     mutationFn: (token) => shares.revoke(token),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.sharesAll });
-      qc.invalidateQueries({ queryKey: keys.scenes.all });
+      qc.invalidateQueries({ queryKey: keys.files.all });
       qc.invalidateQueries({ queryKey: keys.folders.all });
     },
   });
@@ -125,7 +125,7 @@ export function useUpdateShareGeneric() {
       mutationFn: ({ token, body }) => shares.update(token, body),
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: keys.sharesAll });
-        qc.invalidateQueries({ queryKey: keys.scenes.all });
+        qc.invalidateQueries({ queryKey: keys.files.all });
         qc.invalidateQueries({ queryKey: keys.folders.all });
       },
     },
@@ -139,7 +139,7 @@ export function useRotateShareGeneric() {
     mutationFn: (token) => shares.rotate(token),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.sharesAll });
-      qc.invalidateQueries({ queryKey: keys.scenes.all });
+      qc.invalidateQueries({ queryKey: keys.files.all });
       qc.invalidateQueries({ queryKey: keys.folders.all });
     },
   });

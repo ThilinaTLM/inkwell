@@ -2,7 +2,7 @@
 //
 // A tag has per-user identity: `tags(id, owner, name)` with a unique
 // `(owner, name)` index. `name` is normalized as `trim().toLowerCase()`
-// and capped at 50 characters. Tags attach to scenes or folders via the
+// and capped at 50 characters. Tags attach to files or folders via the
 // polymorphic `taggings` table.
 //
 // API surface intentionally small:
@@ -55,7 +55,7 @@ export async function listTags(env: Env, owner: string): Promise<Response> {
     .select({
       id: t.tags.id,
       name: t.tags.name,
-      scene_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'scene'  THEN 1 ELSE 0 END)`,
+      file_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'file'   THEN 1 ELSE 0 END)`,
       folder_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'folder' THEN 1 ELSE 0 END)`,
     })
     .from(t.tags)
@@ -67,7 +67,7 @@ export async function listTags(env: Env, owner: string): Promise<Response> {
   const tags: TagPublic[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
-    sceneCount: r.scene_count ?? 0,
+    fileCount: r.file_count ?? 0,
     folderCount: r.folder_count ?? 0,
   }));
   return jsonResponse({ tags });

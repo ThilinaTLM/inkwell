@@ -61,7 +61,7 @@ export interface TornCornerOpts {
    * zigzag doesn't read as evenly-rhythmic teeth.
    */
   jitterAlong?: number;
-  /** Stable seed (e.g. scene id). Same seed → same tear. */
+  /** Stable seed (e.g. file id). Same seed → same tear. */
   seed: string;
 }
 

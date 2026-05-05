@@ -15,7 +15,7 @@ export function errorResponse(status: number, message: string): Response {
 }
 
 // 16-char crockford-base32-ish id (96 bits of randomness). Short, URL-safe,
-// no ambiguous chars. Used for scene ids.
+// no ambiguous chars. Used for file ids.
 const ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 export function newId(len = 16): string {
   const bytes = new Uint8Array(len);
@@ -147,4 +147,11 @@ export function timingSafeEqual(a: string, b: string): boolean {
     diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return diff === 0;
+}
+
+// Exhaustiveness guard for discriminated unions. A `default` branch that
+// returns `assertNever(value)` will fail TS compilation if a new variant
+// is added to the union without a matching case.
+export function assertNever(value: never): never {
+  throw new Error(`unhandled variant: ${String(value)}`);
 }

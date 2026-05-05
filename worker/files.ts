@@ -1,11 +1,14 @@
-// Scene CRUD handlers. The full scene blob (elements + appState + files)
+// File CRUD handlers. The full file blob (Excalidraw elements / drawio XML)
 // lives in R2; D1 holds only the metadata index.
 //
 // R2 layout:
-//   scenes/{id}.json   -- the scene blob
+//   scenes/{id}.json   -- the file blob (key prefix kept for historical
+//                          reasons; renaming would require copying every
+//                          blob with no user-visible payoff — see the
+//                          0002_files_rename migration)
 //   thumbs/{id}.svg    -- optional SVG thumbnail
 //
-// Ownership is tracked in D1 (`scenes.owner` → `users.id`); R2 paths are
+// Ownership is tracked in D1 (`files.owner` → `users.id`); R2 paths are
 // flat by id so future ownership changes are metadata-only.
 //
 // Versioning: every successful PUT bumps `version` in D1. Clients should
@@ -14,35 +17,111 @@
 
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb, t } from "./db/client";
-import { descendantFolderIds, loadScenesInFolders } from "./folders";
+import { descendantFolderIds, loadFilesInFolders } from "./folders";
 import { countActiveSharesForTargets } from "./share";
 import { collectTagsForMany, listTagsFor, replaceTagsFor } from "./tags";
-import type { Env, SceneBlob, SceneMeta, SceneRow } from "./types";
-import { rowToMeta } from "./types";
-import { errorResponse, jsonResponse, newId, now } from "./util";
+import type {
+  DrawioFileBlob,
+  Env,
+  ExcalidrawFileBlob,
+  FileBlob,
+  FileKind,
+  FileMeta,
+  FileRow,
+} from "./types";
+import { normalizeFileKind, rowToMeta } from "./types";
+import { assertNever, errorResponse, jsonResponse, newId, now } from "./util";
 
-const MAX_SCENE_BYTES = 25 * 1024 * 1024; // 25 MB; embedded images live in `files`
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB; embedded images live in `files`
 const MAX_THUMB_BYTES = 1 * 1024 * 1024; // 1 MB SVG ceiling
 
-function r2SceneKey(id: string) {
+// `scenes/` here is a historical R2 key prefix kept to avoid a blob copy
+// during the scenes → files rename. The function name reflects the
+// product vocabulary; the storage layout is unchanged.
+function r2FileKey(id: string) {
   return `scenes/${id}.json`;
 }
 function r2ThumbKey(id: string) {
   return `thumbs/${id}.svg`;
 }
 
+function seedBlobForKind(kind: FileKind, name: string): FileBlob {
+  switch (kind) {
+    case "drawio":
+      return { kind: "drawio", xml: emptyDrawioXml(name) };
+    case "excalidraw":
+      return { elements: [], appState: { name }, files: {} };
+    default:
+      return assertNever(kind);
+  }
+}
+
+function emptyDrawioXml(name: string): string {
+  const safeName = escapeXml(name || "Page-1");
+  return `<mxfile host="Inkwell" version="1.0"><diagram id="${newId()}" name="${safeName}"><mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function isDrawioBlob(blob: FileBlob): blob is DrawioFileBlob {
+  return (
+    (blob as { kind?: unknown }).kind === "drawio" &&
+    typeof (blob as { xml?: unknown }).xml === "string"
+  );
+}
+
+function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | null {
+  switch (kind) {
+    case "drawio":
+      if (!isDrawioBlob(parsed)) return "draw.io blob must include kind=drawio and xml";
+      if (!parsed.xml.trim()) return "draw.io xml required";
+      return null;
+    case "excalidraw":
+      if (!Array.isArray((parsed as ExcalidrawFileBlob).elements))
+        return "elements must be an array";
+      return null;
+    default:
+      return assertNever(kind);
+  }
+}
+
+async function parseStoredFileBlob(obj: R2ObjectBody): Promise<FileBlob | null> {
+  try {
+    return JSON.parse(await obj.text()) as FileBlob;
+  } catch {
+    return null;
+  }
+}
+
+function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" {
+  switch (kind) {
+    case "drawio":
+      return "drawio";
+    case "excalidraw":
+      return "excalidraw";
+    default:
+      return assertNever(kind);
+  }
+}
+
 // ─── List ─────────────────────────────────────────────────────────────
 // Supports query params:
 //   folderId=<id>               — filter to direct children of one folder
-//   folderId=root                — filter to scenes at the root level
+//   folderId=root                — filter to files at the root level
 //                                  (`folder_id IS NULL`)
 //   recursive=1                  — combine with folderId=<id> for the whole
 //                                  subtree (ignored with folderId=root)
 //   tag=<name> (repeatable)      — AND-intersection by tag names
 //   q=<text>                     — case-insensitive name LIKE match
-// No `folderId` param at all returns every scene the caller owns; that
+// No `folderId` param at all returns every file the caller owns; that
 // mode is used by the Recent and Search views.
-export async function listScenes(req: Request, env: Env, owner: string): Promise<Response> {
+export async function listFiles(req: Request, env: Env, owner: string): Promise<Response> {
   const url = new URL(req.url);
   const params = url.searchParams;
 
@@ -55,35 +134,35 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
   const q = (params.get("q") || "").trim();
 
   const db = getDb(env);
-  let rows: SceneRow[];
+  let rows: FileRow[];
 
   if (folderParam === "root") {
     rows = await db
       .select()
-      .from(t.scenes)
-      .where(and(eq(t.scenes.owner, owner), isNull(t.scenes.folder_id)))
-      .orderBy(desc(t.scenes.updated_at))
+      .from(t.files)
+      .where(and(eq(t.files.owner, owner), isNull(t.files.folder_id)))
+      .orderBy(desc(t.files.updated_at))
       .limit(1000)
       .all();
   } else if (folderParam) {
     if (recursive) {
       const ids = await descendantFolderIds(env, owner, folderParam);
-      rows = await loadScenesInFolders(env, owner, ids);
+      rows = await loadFilesInFolders(env, owner, ids);
     } else {
       rows = await db
         .select()
-        .from(t.scenes)
-        .where(and(eq(t.scenes.owner, owner), eq(t.scenes.folder_id, folderParam)))
-        .orderBy(desc(t.scenes.updated_at))
+        .from(t.files)
+        .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, folderParam)))
+        .orderBy(desc(t.files.updated_at))
         .limit(1000)
         .all();
     }
   } else {
     rows = await db
       .select()
-      .from(t.scenes)
-      .where(eq(t.scenes.owner, owner))
-      .orderBy(desc(t.scenes.updated_at))
+      .from(t.files)
+      .where(eq(t.files.owner, owner))
+      .orderBy(desc(t.files.updated_at))
       .limit(1000)
       .all();
   }
@@ -97,7 +176,7 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
   // Hydrate tags in one batch.
   const tagMap = await collectTagsForMany(
     env,
-    "scene",
+    "file",
     rows.map((r) => r.id),
   );
 
@@ -109,31 +188,31 @@ export async function listScenes(req: Request, env: Env, owner: string): Promise
     });
   }
 
-  // Active share count per scene — powers the "shared" pill on cards.
+  // Active share count per file — powers the "shared" pill on cards.
   // One grouped query, indexed on (target_type, target_id).
   const shareMap = await countActiveSharesForTargets(
     env,
     owner,
-    "scene",
+    "file",
     rows.map((r) => r.id),
   );
 
-  const out: SceneMeta[] = rows.map((r) =>
+  const out: FileMeta[] = rows.map((r) =>
     rowToMeta(r, tagMap.get(r.id) ?? [], { activeShareCount: shareMap.get(r.id) ?? 0 }),
   );
-  return jsonResponse({ scenes: out });
+  return jsonResponse({ files: out });
 }
 
 // ─── Create ───────────────────────────────────────────────────────────
-export async function createScene(req: Request, env: Env, owner: string): Promise<Response> {
-  let body: { name?: string; folderId?: string | null; tags?: string[] } = {};
+export async function createFile(req: Request, env: Env, owner: string): Promise<Response> {
+  let body: { name?: string; folderId?: string | null; tags?: string[]; kind?: FileKind } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
     /* ignore — empty body is fine */
   }
   const db = getDb(env);
-  // `folderId` is `null` (or absent) when creating a scene at the root.
+  // `folderId` is `null` (or absent) when creating a file at the root.
   const folderId: string | null = body.folderId ?? null;
   if (folderId !== null) {
     const folder = await db
@@ -147,21 +226,23 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
   const id = newId();
   const ts = now();
   const name = (body.name || "Untitled").slice(0, 200);
+  const kind = normalizeFileKind(body.kind);
 
-  // Seed an empty scene so subsequent GETs return something predictable.
-  const seed: SceneBlob = { elements: [], appState: { name }, files: {} };
+  // Seed an empty file so subsequent GETs return something predictable.
+  const seed = seedBlobForKind(kind, name);
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
-  await env.R2.put(r2SceneKey(id), seedBytes, {
+  await env.R2.put(r2FileKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
   });
 
   await db
-    .insert(t.scenes)
+    .insert(t.files)
     .values({
       id,
       owner,
       folder_id: folderId,
       name,
+      kind,
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
@@ -172,13 +253,14 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
     .run();
 
   const tags = Array.isArray(body.tags)
-    ? await replaceTagsFor(env, owner, "scene", id, body.tags)
+    ? await replaceTagsFor(env, owner, "file", id, body.tags)
     : [];
 
-  const meta: SceneMeta = {
+  const meta: FileMeta = {
     id,
     folderId,
     name,
+    kind,
     tags,
     version: 1,
     sizeBytes: seedBytes.byteLength,
@@ -192,53 +274,62 @@ export async function createScene(req: Request, env: Env, owner: string): Promis
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────
-async function loadRow(env: Env, owner: string, id: string): Promise<SceneRow | null> {
+async function loadRow(env: Env, owner: string, id: string): Promise<FileRow | null> {
   const db = getDb(env);
   const row = await db
     .select()
-    .from(t.scenes)
-    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .from(t.files)
+    .where(and(eq(t.files.id, id), eq(t.files.owner, owner)))
     .get();
   return row ?? null;
 }
 
 // Used by /api/share/:token too; doesn't filter by owner.
-export async function loadRowAnyOwner(env: Env, id: string): Promise<SceneRow | null> {
+export async function loadRowAnyOwner(env: Env, id: string): Promise<FileRow | null> {
   const db = getDb(env);
-  const row = await db.select().from(t.scenes).where(eq(t.scenes.id, id)).get();
+  const row = await db.select().from(t.files).where(eq(t.files.id, id)).get();
   return row ?? null;
 }
 
-export async function getScene(env: Env, owner: string, id: string): Promise<Response> {
+export async function getFile(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, row, { includeFolderId: true });
+  if (!row) return errorResponse(404, "file not found");
+  return await streamFileBody(env, row, { includeFolderId: true });
 }
 
-export async function streamSceneBody(
+export async function streamFileBody(
   env: Env,
-  row: SceneRow,
+  row: FileRow,
   opts: { download?: boolean; includeFolderId?: boolean } = {},
 ): Promise<Response> {
-  const obj = await env.R2.get(r2SceneKey(row.id));
-  if (!obj) return errorResponse(404, "scene blob missing in R2");
+  const obj = await env.R2.get(r2FileKey(row.id));
+  if (!obj) return errorResponse(404, "file blob missing in R2");
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
     etag: `"${row.version}"`,
-    "x-scene-id": row.id,
-    "x-scene-name": encodeURIComponent(row.name),
-    "x-scene-version": String(row.version),
-    "x-scene-updated-at": String(row.updated_at),
+    "x-file-id": row.id,
+    "x-file-name": encodeURIComponent(row.name),
+    "x-file-kind": row.kind,
+    "x-file-version": String(row.version),
+    "x-file-updated-at": String(row.updated_at),
+    "x-file-has-thumb": row.has_thumb ? "1" : "0",
     "cache-control": "no-store",
   };
-  // Owner-only: scene's parent folder, used by the editor's "Back" button
+  // Owner-only: file's parent folder, used by the editor's "Back" button
   // to fall back to the right folder on cold deep-links. Omitted on share-
   // token loads so we don't surface owner-side folder IDs to recipients.
   if (opts.includeFolderId) {
-    headers["x-scene-folder-id"] = row.folder_id ?? "";
+    headers["x-file-folder-id"] = row.folder_id ?? "";
   }
   if (opts.download) {
-    headers["content-disposition"] = `attachment; filename="${safeFilename(row.name)}.excalidraw"`;
+    headers["content-disposition"] =
+      `attachment; filename="${safeFilename(row.name)}.${downloadExtensionForKind(row.kind)}"`;
+    if (row.kind === "drawio") {
+      const parsed = await parseStoredFileBlob(obj);
+      if (!parsed || !isDrawioBlob(parsed)) return errorResponse(500, "invalid draw.io blob");
+      headers["content-type"] = "application/xml; charset=utf-8";
+      return new Response(parsed.xml, { headers });
+    }
   }
   return new Response(obj.body, { headers });
 }
@@ -247,25 +338,25 @@ function safeFilename(name: string): string {
   // Strip path-unsafe characters; keep it ASCII-friendly. Stripping the ASCII
   // control range \x00-\x1F is the explicit intent of this filter.
   // biome-ignore lint/suspicious/noControlCharactersInRegex: see comment above
-  const base = name.replace(/[\\/:*?"<>|\x00-\x1F]/g, "_").trim() || "scene";
+  const base = name.replace(/[\\/:*?"<>|\x00-\x1F]/g, "_").trim() || "file";
   return base.slice(0, 80);
 }
 
-export async function downloadScene(env: Env, owner: string, id: string): Promise<Response> {
+export async function downloadFile(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
-  return await streamSceneBody(env, row, { download: true, includeFolderId: true });
+  if (!row) return errorResponse(404, "file not found");
+  return await streamFileBody(env, row, { download: true, includeFolderId: true });
 }
 
 // ─── Update (full body) ───────────────────────────────────────────────
-export async function putScene(
+export async function putFile(
   req: Request,
   env: Env,
   owner: string,
   id: string,
 ): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
+  if (!row) return errorResponse(404, "file not found");
 
   // Optimistic concurrency: if the client supplies If-Match and it doesn't
   // match the current version, refuse and return the current metadata so
@@ -274,7 +365,7 @@ export async function putScene(
   if (ifMatch !== null) {
     const wanted = ifMatch.replace(/^"|"$/g, "");
     if (wanted !== String(row.version)) {
-      const tags = await listTagsFor(env, "scene", id);
+      const tags = await listTagsFor(env, "file", id);
       return jsonResponse(
         { error: "version mismatch", current: rowToMeta(row, tags) },
         { status: 409 },
@@ -284,20 +375,21 @@ export async function putScene(
 
   const buf = await req.arrayBuffer();
   if (buf.byteLength === 0) return errorResponse(400, "empty body");
-  if (buf.byteLength > MAX_SCENE_BYTES) return errorResponse(413, "scene too large");
+  if (buf.byteLength > MAX_FILE_BYTES) return errorResponse(413, "file too large");
 
   // Light JSON validation — we store as bytes either way, but bad JSON
   // would corrupt subsequent GETs.
-  let parsed: SceneBlob;
+  let parsed: FileBlob;
   try {
     parsed = JSON.parse(new TextDecoder().decode(buf));
   } catch {
     return errorResponse(400, "invalid JSON");
   }
-  if (!Array.isArray(parsed.elements)) return errorResponse(400, "elements must be an array");
+  const validationError = validateBlobForKind(row.kind, parsed);
+  if (validationError) return errorResponse(400, validationError);
 
   // The DB row's `name` is the single canonical source of truth for the
-  // scene's display name; PUT only writes the blob bytes + version /
+  // file's display name; PUT only writes the blob bytes + version /
   // size / updated_at. Renames go through PATCH. Historically PUT used
   // `parsed.appState.name` as the canonical name, but that turned every
   // autosave into a way to silently revert a rename whenever Excalidraw's
@@ -305,7 +397,7 @@ export async function putScene(
   // before its async initializeScene finished syncing the new name into
   // the canvas state). See plans/scene-rename-persistence.md.
 
-  await env.R2.put(r2SceneKey(id), buf, {
+  await env.R2.put(r2FileKey(id), buf, {
     httpMetadata: { contentType: "application/json" },
   });
 
@@ -313,23 +405,24 @@ export async function putScene(
   const nextVersion = row.version + 1;
   const db = getDb(env);
   await db
-    .update(t.scenes)
+    .update(t.files)
     .set({
       version: nextVersion,
       size_bytes: buf.byteLength,
       updated_at: ts,
     })
-    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .where(and(eq(t.files.id, id), eq(t.files.owner, owner)))
     .run();
 
-  const tags = await listTagsFor(env, "scene", id);
+  const tags = await listTagsFor(env, "file", id);
   // `activeShareCount` on the response is best-effort fresh: this is a
   // single-row save path; one grouped query is fine.
-  const shareMap = await countActiveSharesForTargets(env, owner, "scene", [id]);
+  const shareMap = await countActiveSharesForTargets(env, owner, "file", [id]);
   return jsonResponse({
     id,
     folderId: row.folder_id ?? null,
     name: row.name,
+    kind: row.kind,
     tags,
     version: nextVersion,
     sizeBytes: buf.byteLength,
@@ -338,18 +431,18 @@ export async function putScene(
     activeShareCount: shareMap.get(id) ?? 0,
     createdAt: row.created_at,
     updatedAt: ts,
-  } satisfies SceneMeta);
+  } satisfies FileMeta);
 }
 
 // ─── Patch (rename / move / retag) ────────────────────────────────────
-export async function patchScene(
+export async function patchFile(
   req: Request,
   env: Env,
   owner: string,
   id: string,
 ): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
+  if (!row) return errorResponse(404, "file not found");
 
   let body: { name?: string; folderId?: string | null; tags?: string[] };
   try {
@@ -383,9 +476,9 @@ export async function patchScene(
 
   const ts = now();
   await db
-    .update(t.scenes)
+    .update(t.files)
     .set({ name: nextName, folder_id: nextFolder, updated_at: ts })
-    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .where(and(eq(t.files.id, id), eq(t.files.owner, owner)))
     .run();
 
   // On rename, mirror the new name into the blob's `appState.name` so the
@@ -394,24 +487,30 @@ export async function patchScene(
   // with the dashboard label until the next autosave reconciles them
   // anyway. Best-effort: a missing or unparseable blob is left alone
   // (the D1 row remains canonical). We deliberately do NOT bump
-  // `scenes.version` here — version is the autosave optimistic-
+  // `files.version` here — version is the autosave optimistic-
   // concurrency token, and bumping it would surface as spurious 409s in
   // an open editor mid-rename.
-  if (body.name !== undefined && nextName !== row.name) {
-    const obj = await env.R2.get(r2SceneKey(id));
+  // Excalidraw-only by design: drawio blobs carry an `mxfile`/`<diagram
+  // name="…">` attribute that isn't surfaced in any Inkwell UI, so we
+  // keep D1 as the canonical name and leave the XML untouched. Do NOT
+  // add a drawio mirror here without first deciding whether the
+  // `<diagram>` attr or any host-app metadata should track renames.
+  if (row.kind === "excalidraw" && body.name !== undefined && nextName !== row.name) {
+    const obj = await env.R2.get(r2FileKey(id));
     if (obj) {
-      let parsed: SceneBlob | null = null;
+      let parsed: FileBlob | null = null;
       try {
-        parsed = JSON.parse(await obj.text()) as SceneBlob;
+        parsed = JSON.parse(await obj.text()) as FileBlob;
       } catch {
         parsed = null;
       }
       if (parsed) {
-        const nextBlob: SceneBlob = {
-          ...parsed,
-          appState: { ...(parsed.appState ?? {}), name: nextName },
+        const excalidraw = parsed as ExcalidrawFileBlob;
+        const nextBlob: FileBlob = {
+          ...excalidraw,
+          appState: { ...(excalidraw.appState ?? {}), name: nextName },
         };
-        await env.R2.put(r2SceneKey(id), JSON.stringify(nextBlob), {
+        await env.R2.put(r2FileKey(id), JSON.stringify(nextBlob), {
           httpMetadata: { contentType: "application/json" },
         });
       }
@@ -419,56 +518,56 @@ export async function patchScene(
   }
 
   const tags = Array.isArray(body.tags)
-    ? await replaceTagsFor(env, owner, "scene", id, body.tags)
-    : await listTagsFor(env, "scene", id);
+    ? await replaceTagsFor(env, owner, "file", id, body.tags)
+    : await listTagsFor(env, "file", id);
 
   return jsonResponse(
     rowToMeta({ ...row, name: nextName, folder_id: nextFolder, updated_at: ts }, tags),
   );
 }
 
-// PUT /api/scenes/:id/tags  — replace the tag set.
-export async function putSceneTags(
+// PUT /api/files/:id/tags  — replace the tag set.
+export async function putFileTags(
   req: Request,
   env: Env,
   owner: string,
   id: string,
 ): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
+  if (!row) return errorResponse(404, "file not found");
   let body: { tags?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return errorResponse(400, "invalid JSON");
   }
-  const tags = await replaceTagsFor(env, owner, "scene", id, body.tags);
+  const tags = await replaceTagsFor(env, owner, "file", id, body.tags);
   // Bump updated_at so the dashboard re-renders the card.
   const ts = now();
   const db = getDb(env);
   await db
-    .update(t.scenes)
+    .update(t.files)
     .set({ updated_at: ts })
-    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .where(and(eq(t.files.id, id), eq(t.files.owner, owner)))
     .run();
   return jsonResponse({ id, tags, updatedAt: ts });
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────
-export async function deleteScene(env: Env, owner: string, id: string): Promise<Response> {
+export async function deleteFile(env: Env, owner: string, id: string): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
+  if (!row) return errorResponse(404, "file not found");
   // Cascade explicitly: shares + taggings (D1 doesn't enforce FKs by default).
   const db = getDb(env);
   await db.batch([
-    db.delete(t.shares).where(and(eq(t.shares.target_type, "scene"), eq(t.shares.target_id, id))),
+    db.delete(t.shares).where(and(eq(t.shares.target_type, "file"), eq(t.shares.target_id, id))),
     db
       .delete(t.taggings)
-      .where(and(eq(t.taggings.target_type, "scene"), eq(t.taggings.target_id, id))),
-    db.delete(t.scenes).where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner))),
+      .where(and(eq(t.taggings.target_type, "file"), eq(t.taggings.target_id, id))),
+    db.delete(t.files).where(and(eq(t.files.id, id), eq(t.files.owner, owner))),
   ]);
   // Best-effort R2 cleanup; swallow errors so a partial state still resolves.
-  await Promise.allSettled([env.R2.delete(r2SceneKey(id)), env.R2.delete(r2ThumbKey(id))]);
+  await Promise.allSettled([env.R2.delete(r2FileKey(id)), env.R2.delete(r2ThumbKey(id))]);
   return jsonResponse({ ok: true });
 }
 
@@ -484,7 +583,7 @@ export async function putThumb(
   id: string,
 ): Promise<Response> {
   const row = await loadRow(env, owner, id);
-  if (!row) return errorResponse(404, "scene not found");
+  if (!row) return errorResponse(404, "file not found");
 
   const buf = await req.arrayBuffer();
   if (buf.byteLength === 0) return errorResponse(400, "empty body");
@@ -498,9 +597,9 @@ export async function putThumb(
   // versioning are unaffected by thumb activity.
   const db = getDb(env);
   await db
-    .update(t.scenes)
+    .update(t.files)
     .set(row.has_thumb ? { thumb_updated_at: now() } : { has_thumb: true, thumb_updated_at: now() })
-    .where(and(eq(t.scenes.id, id), eq(t.scenes.owner, owner)))
+    .where(and(eq(t.files.id, id), eq(t.files.owner, owner)))
     .run();
   return jsonResponse({ ok: true });
 }
@@ -514,7 +613,7 @@ export async function putThumb(
 // is safe because:
 //   1. The auth gate runs upstream of this handler — only authenticated
 //      callers ever reach `cache.match`.
-//   2. Scene IDs are unguessable UUIDs.
+//   2. File IDs are unguessable UUIDs.
 // Pre-existing soft leak (no owner check here) is documented for
 // follow-up; this caching layer doesn't make it worse.
 export async function getThumb(
@@ -550,37 +649,40 @@ export function thumbKey(id: string) {
   return r2ThumbKey(id);
 }
 
-// Exposed for the admin user-delete cascade.
-export function sceneKey(id: string) {
-  return r2SceneKey(id);
+// Exposed for the admin user-delete cascade. Returns the R2 key for the
+// file blob (still under `scenes/` for historical reasons — see r2FileKey).
+export function fileKey(id: string) {
+  return r2FileKey(id);
 }
 
 // Exposed for share.ts so it can hydrate tags consistently.
 export { listTagsFor };
 
-// Helper used by share.ts when creating a scene inside a folder share.
-export async function createSceneInFolder(
+// Helper used by share.ts when creating a file inside a folder share.
+export async function createFileInFolder(
   env: Env,
   owner: string,
   folderId: string,
   name: string,
-): Promise<SceneMeta> {
+  kind: FileKind = "excalidraw",
+): Promise<FileMeta> {
   const id = newId();
   const ts = now();
   const safe = (name || "Untitled").slice(0, 200);
-  const seed: SceneBlob = { elements: [], appState: { name: safe }, files: {} };
+  const seed = seedBlobForKind(kind, safe);
   const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
-  await env.R2.put(r2SceneKey(id), seedBytes, {
+  await env.R2.put(r2FileKey(id), seedBytes, {
     httpMetadata: { contentType: "application/json" },
   });
   const db = getDb(env);
   await db
-    .insert(t.scenes)
+    .insert(t.files)
     .values({
       id,
       owner,
       folder_id: folderId,
       name: safe,
+      kind,
       version: 1,
       size_bytes: seedBytes.byteLength,
       has_thumb: false,
@@ -593,6 +695,7 @@ export async function createSceneInFolder(
     id,
     folderId,
     name: safe,
+    kind,
     tags: [],
     version: 1,
     sizeBytes: seedBytes.byteLength,

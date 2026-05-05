@@ -102,12 +102,15 @@ export const folders = sqliteTable(
   ],
 );
 
-// ─── scenes ───────────────────────────────────────────────────────────
-// Metadata index for scene blobs in R2 (`scenes/{id}.json`). `folder_id` is
-// nullable: `NULL` means "lives at the root level" (a top-level scene with
-// no parent folder). Otherwise it points at a `folders.id`.
-export const scenes = sqliteTable(
-  "scenes",
+// ─── files ────────────────────────────────────────────────────────────
+// Metadata index for file blobs in R2. The R2 key prefix is still
+// `scenes/{id}.json` for historical reasons (renaming would require a full
+// blob copy with no user-visible payoff); the worker's `r2FileKey` helper
+// documents that divergence. `folder_id` is nullable: `NULL` means "lives
+// at the root level" (a top-level file with no parent folder); otherwise
+// it points at a `folders.id`.
+export const files = sqliteTable(
+  "files",
   {
     id: text("id").primaryKey(),
     owner: text("owner")
@@ -117,26 +120,29 @@ export const scenes = sqliteTable(
       onDelete: "set null",
     }),
     name: text("name").notNull().default("Untitled"),
+    kind: text("kind", { enum: ["excalidraw", "drawio"] })
+      .notNull()
+      .default("excalidraw"),
     version: integer("version").notNull().default(1),
     size_bytes: integer("size_bytes").notNull().default(0),
     has_thumb: integer("has_thumb", { mode: "boolean" }).notNull().default(false),
     // Cache-bust token for the thumbnail. Bumped to `now()` on every
     // successful `putThumb`. Decoupled from `version` (which represents
-    // scene blob content) and `updated_at` (which drives list ordering)
-    // so a thumb re-upload doesn't pretend the scene was edited.
+    // file blob content) and `updated_at` (which drives list ordering)
+    // so a thumb re-upload doesn't pretend the file was edited.
     thumb_updated_at: integer("thumb_updated_at").notNull().default(0),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
   },
   (t) => [
     // Hot path: dashboard list within a folder.
-    index("scenes_owner_folder_updated").on(t.owner, t.folder_id, sql`${t.updated_at} DESC`),
-    // "All my scenes by recency" (the 'All scenes' view).
-    index("scenes_owner_updated").on(t.owner, sql`${t.updated_at} DESC`),
+    index("files_owner_folder_updated").on(t.owner, t.folder_id, sql`${t.updated_at} DESC`),
+    // "All my files by recency" (the 'All files' view).
+    index("files_owner_updated").on(t.owner, sql`${t.updated_at} DESC`),
     // LIKE-friendly name search.
-    index("scenes_owner_name").on(t.owner, t.name),
-    check("scenes_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
-    check("scenes_has_thumb_bool", sql`${t.has_thumb} IN (0, 1)`),
+    index("files_owner_name").on(t.owner, t.name),
+    check("files_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
+    check("files_has_thumb_bool", sql`${t.has_thumb} IN (0, 1)`),
   ],
 );
 
@@ -159,7 +165,7 @@ export const tags = sqliteTable(
 );
 
 // ─── taggings ─────────────────────────────────────────────────────────
-// Polymorphic join: a tag attached to either a scene or a folder. There is
+// Polymorphic join: a tag attached to either a file or a folder. There is
 // no FK on `target_id` because the target lives in one of two tables.
 export const taggings = sqliteTable(
   "taggings",
@@ -167,14 +173,14 @@ export const taggings = sqliteTable(
     tag_id: text("tag_id")
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
-    target_type: text("target_type", { enum: ["scene", "folder"] }).notNull(),
+    target_type: text("target_type", { enum: ["file", "folder"] }).notNull(),
     target_id: text("target_id").notNull(),
     owner: text("owner").notNull(),
     created_at: integer("created_at").notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.tag_id, t.target_type, t.target_id] }),
-    // "Tags for this scene/folder".
+    // "Tags for this file/folder".
     index("taggings_target").on(t.target_type, t.target_id),
     // "All tags for this owner" — sidebar list with counts.
     index("taggings_owner_tag").on(t.owner, t.tag_id),
@@ -182,7 +188,7 @@ export const taggings = sqliteTable(
 );
 
 // ─── shares ───────────────────────────────────────────────────────────
-// Public, anonymous tokens against a scene OR a folder subtree.
+// Public, anonymous tokens against a file OR a folder subtree.
 export const shares = sqliteTable(
   "shares",
   {
@@ -190,7 +196,7 @@ export const shares = sqliteTable(
     owner: text("owner")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    target_type: text("target_type", { enum: ["scene", "folder"] }).notNull(),
+    target_type: text("target_type", { enum: ["file", "folder"] }).notNull(),
     target_id: text("target_id").notNull(),
     permission: text("permission", { enum: ["read", "write"] }).notNull(),
     allow_download: integer("allow_download", { mode: "boolean" }).notNull().default(true),

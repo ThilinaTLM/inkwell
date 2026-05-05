@@ -1,6 +1,6 @@
 // Admin → Users tab.
 //
-// Lists all members with their role, status, scene count, and last
+// Lists all members with their role, status, file count, and last
 // login. Promotes/demotes to admin, toggles disabled, deletes (via the
 // confirm-phrase dialog).
 
@@ -82,7 +82,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Scenes</TableHead>
+                <TableHead className="text-right">Files</TableHead>
                 <TableHead>Last login</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
@@ -133,7 +133,7 @@ export function UsersPanel({ selfId }: { selfId: string }) {
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {u.sceneCount}
+                      {u.fileCount}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : "—"}
