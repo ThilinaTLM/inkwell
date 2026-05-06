@@ -204,31 +204,53 @@ interface DrawioMenubarSlots {
 // `geDarkMode` body class.
 const MENUBAR_STYLE_ID = "inkwell-drawio-menubar-style";
 const MENUBAR_CSS = `
-/* Restore the natural Kennedy 2-row chrome (60px) but flow brand +
-   filename horizontally so the title can shrink to fit narrow
-   viewports. The previous absolute-positioning version reserved a
-   fixed 260px right gutter for host actions and clipped the title
-   to a single character at ≤375px. Actions now live in the File
-   menu (see installFileMenuExtras), so the gutter is gone. */
+/* Restore the natural Kennedy 2-row chrome but tightened from the
+   stock 60px down to 52px. The math is anchored on drawio's own
+   .geMenubar (File/Edit/View) which is a fixed 30px-tall row — we
+   can't shrink that without breaking drawio's button hit areas, so
+   the savings come entirely from the title row (24px → 20px) and
+   the bottom gap (2px, matching drawio's natural 2px gap to the
+   toolbar). Layout in container coords:
+     - title row:   y= 2 … 22 (margin-top:2 + height:20)
+     - menu row:    y=20 … 50 (absolute top:20 + height:30)
+     - bottom gap:  y=50 … 52 (2px breathing room to toolbar)
+   The 2px overlap between title (ends 22) and menu (starts 20) is
+   only on the box edges — the title text is centred at y≈12 and the
+   menu text at y≈35, with ~10px clear space between glyphs. Brand +
+   filename still flow horizontally so the title can shrink to fit
+   narrow viewports. Actions live in the File menu (see
+   installFileMenuExtras), so no right gutter is reserved. */
 .geEditor.geCompactMode > .geMenubarContainer {
-  height: 60px !important;
-  margin-top: 4px !important;
+  height: 52px !important;
+  margin-top: 0 !important;
   display: flex !important;
   align-items: flex-start;
-  gap: 8px;
+  /* 14px gap between brand and filename is sized to align the
+     title's first glyph with the File menu item's first glyph.
+     The math (verified at runtime):
+       title text x = pad_left(16) + logo_w(28) + gap(14) + title_pad_left(6) = 64
+       File  text x = pad_left(16) + menu_extra(40) + item_pad_left(8)       = 64
+     Adjusting either side requires keeping that equation balanced;
+     see the .geMenubar block below. */
+  gap: 14px;
   padding-left: max(16px, env(safe-area-inset-left)) !important;
   padding-right: max(12px, env(safe-area-inset-right)) !important;
 }
-/* Drawio's native menubar (File/Edit/View/…) lives in row 2 of the
-   chrome, absolutely positioned at top: 28px. We pin it to the
-   container's padding-box origin (left: 0) and pad it so File
-   aligns horizontally with the filename on row 1 — not with the
-   logo. The filename starts at container_padding_left (16px) +
-   logo_width (32px) + flex_gap (8px) = 56px, so the menubar takes
-   the same 56px left padding. This visually anchors the row-1
-   title and the row-2 menu to the same vertical guide, which is
-   the natural drawio Kennedy chrome look (drawio's own value is
-   58px for a non-embed layout where the logo sits in row 2).
+/* Drawio's native menubar lives in row 2 of the chrome, absolutely
+   positioned. We pull it up to top: 20px (down from drawio's stock
+   28px) so its 30px height ends at y=50 — leaving the same 2px gap
+   to the toolbar that drawio's native 60px chrome provides. We pin
+   it to the container's padding-box origin (left: 0) and size the
+   left padding so the FIRST GLYPH of the leftmost menu item (File)
+   aligns horizontally with the FIRST GLYPH of the row-1 title — not
+   with the title button's rect, and not with the logo. Drawio's own
+   .geMenubar a has padding-left: 8px on each item; the title button
+   has padding-left: 6px on its inner text. So:
+     menubar_pad_left + 8 = logo_offset(16+28+14) + title_pad_left(6) = 64
+     ⇒ menubar_pad_left = 56
+   which factors into max(16, safe-area) + 40 here. If you change the
+   logo width, brand-to-title gap, or title button padding, update
+   the +40px constant below to keep the two glyphs aligned.
 
    left: 0 !important is required because the menubar is an
    absolutely positioned child of a flex container; without it,
@@ -237,7 +259,7 @@ const MENUBAR_CSS = `
    16px), stacking on top of our padding-left and double-counting
    the gutter. */
 .geEditor.geCompactMode > .geMenubarContainer > .geMenubar {
-  top: 28px !important;
+  top: 20px !important;
   left: 0 !important;
   padding-left: calc(max(16px, env(safe-area-inset-left)) + 40px) !important;
   padding-right: max(12px, env(safe-area-inset-right)) !important;
@@ -294,19 +316,20 @@ const MENUBAR_CSS = `
 }
 
 /* Brand mark — leading slot in the flex row, mirrors drawio's own
-   .geAppIcon rectangle. Vertically centred across the full 60px
-   chrome (align-self: center) so it anchors the left corner and
-   visually bridges the title row (top) and the File/Edit/View menu
-   row (bottom) — the same role drawio's native orange .geAppIcon
-   plays via top:10/height:36 (centre at y=28). Without this the
-   logo floats at the top of row 1 with margin-top alone and reads
-   as disconnected from the menu below. */
+   .geAppIcon rectangle. Vertically centred across the chrome
+   (align-self: center) so it anchors the left corner and visually
+   bridges the title row (top) and the File/Edit/View menu row
+   (bottom) — the same role drawio's native orange .geAppIcon plays.
+   Without this the logo floats at the top of row 1 with margin-top
+   alone and reads as disconnected from the menu below. Sized down
+   from 32×36/28px svg to 28×32/22px svg to match the tightened
+   46px chrome. */
 .inkwell-app-icon {
   position: relative;
   flex: 0 0 auto;
   align-self: center;
-  width: 32px;
-  height: 36px;
+  width: 28px;
+  height: 32px;
   color: light-dark(#1f2937, #e5e7eb);
   user-select: none;
 }
@@ -327,27 +350,30 @@ const MENUBAR_CSS = `
   background-color: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
 }
 .inkwell-app-icon svg {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
 }
 
 /* Filename + save-status row — fluid (flex:1) so it absorbs the
    remaining width and truncates with an ellipsis. min-width:0 is
    the key idiom that lets the flex item shrink past its content
-   size, restoring sane behaviour at 320px. */
+   size, restoring sane behaviour at 320px. Tightened from drawio's
+   natural 26px / 18px text down to 20px / 14px text so the chrome
+   reads as a single compact band; see the .geMenubarContainer
+   block above for how this row stacks against the menubar. */
 .inkwell-filename-container {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
-  margin-top: 4px;
-  height: 26px;
+  margin-top: 2px;
+  height: 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .inkwell-drawio-title-text {
   all: unset;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   line-height: 1.2;
@@ -355,7 +381,10 @@ const MENUBAR_CSS = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 2px 6px;
+  /* 6px horizontal padding lands the title's first glyph at the
+     same x as the File menu item's first glyph below — see the
+     .geMenubarContainer gap comment for the full equation. */
+  padding: 1px 6px;
   border-radius: 4px;
   min-width: 0;
   max-width: 100%;
@@ -380,11 +409,11 @@ const MENUBAR_CSS = `
 /* Combined save-status icon button. Tone is driven by data-tone;
    spinning state by data-spinning. Tailwind classes from the parent
    document don't apply inside the iframe — colours/animation are
-   declared here. */
+   declared here. Sized 20×20 to fit the tightened title row. */
 .inkwell-status-btn {
   all: unset;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -433,8 +462,8 @@ const MENUBAR_CSS = `
 .inkwell-trailing-container {
   position: relative;
   flex: 0 0 auto;
-  margin-top: 4px;
-  height: 32px;
+  margin-top: 2px;
+  height: 28px;
   display: none;
   align-items: center;
   gap: 4px;
