@@ -256,11 +256,18 @@ const MENUBAR_CSS = `
    padding (8px on .inkwell-drawio-title-text, 8px on .geMenubar a)
    so the first glyph lands at the same x in both rows. */
 .geEditor.geCompactMode > .geMenubarContainer {
-  height: 52px !important;
+  height: 56px !important;
   margin-top: 0 !important;
   display: grid !important;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: 22px 30px;
+  /* Title row grew from 22px → 26px to absorb the 4px margin-top
+     on .inkwell-filename-container (added so the title isn't
+     flush against the chrome's top edge). The 4px sits above the
+     20px container, leaving 2px below before row 2 starts — the
+     menubar's row stays 30px and its glyphs still hug the title
+     row's bottom edge thanks to align-items:flex-start + the
+     asymmetric padding on .geItem (see below). */
+  grid-template-rows: 26px 30px;
   align-items: center;
   column-gap: 12px;
   row-gap: 0;
@@ -292,17 +299,32 @@ const MENUBAR_CSS = `
   gap: 2px;
   padding-left: 0 !important;
   padding-right: 0 !important;
+  /* Anchor items to the top of row 2 (default is align-items:center
+   from drawio's stock .geMenubar). Without this, removing an item's
+   padding-top has no visual effect — flex centering re-centers the
+   shorter box in the 30px row, so the text glyph stays put. With
+   flex-start the item top hugs the row top, and the asymmetric
+   padding below shifts the glyph upward by the removed amount.
+   Result: gap between title glyph bottom and File glyph top drops
+   from ~9px to ~2px, matching the 2px gap above the title. */
+  align-items: flex-start;
 }
 /* Tighten the menu items themselves. Drawio's stock padding is
-   4px 8px; we drop to 2px 4px so the chrome reads as a single
-   compact band. Hit area stays ≥ 22px tall (drawio's a.geItem has
-   height: 18px + 2+2 padding) which is fine for mouse — touch
-   users get larger hit zones from drawio's own pointer:coarse
-   rules. The 4px horizontal padding stays paired with the
-   .inkwell-drawio-title-text padding (also 4px) so the title's
-   first glyph stays column-aligned with File's first glyph. */
+   4px 8px; we drop to 0 4px 4px (top:0, sides:4, bottom:4) so the
+   chrome reads as a single compact band AND the text glyph sits at
+   the very top of row 2 (immediately under the title row). The
+   asymmetry is deliberate: dropping padding-top to 0 (paired with
+   .geMenubar align-items:flex-start above) shifts the glyph up
+   ~2px so the gap between title and menu matches the gap above
+   the title. The 4px bottom padding preserves the 22px hit-area
+   floor (drawio's a.geItem has height:18px + 0+4 padding) for
+   mouse users; touch users get larger hit zones from drawio's own
+   pointer:coarse rules. The 4px horizontal padding stays paired
+   with the .inkwell-drawio-title-text padding (also 4px) so the
+   title's first glyph stays column-aligned with File's first
+   glyph. */
 .geEditor.geCompactMode > .geMenubarContainer > .geMenubar > a.geItem {
-  padding: 2px 4px !important;
+  padding: 0 4px 4px !important;
 }
 /* Drawio renders the filename in two places we don't want:
    - <div class="geStatusDiv"> as a direct child of the menubar
@@ -413,6 +435,13 @@ const MENUBAR_CSS = `
   grid-column: 2;
   grid-row: 1;
   justify-self: start;
+  /* Anchor to the top of the (now 26px) title row, then push down
+     4px so the title glyph isn't flush against the chrome's top
+     edge. align-self:start is required because the grid container
+     sets align-items:center, which would otherwise re-center the
+     20px box in the 26px row and swallow the margin. */
+  align-self: start;
+  margin-top: 4px;
   max-width: 100%;
   min-width: 0;
   height: 20px;
