@@ -1,10 +1,13 @@
 // AppPage / AppPageHeader — shared shell for authenticated settings-style
-// pages (Account, Shared Links, Users).
+// pages (Settings, Shared Links, Users).
 //
 // These pages share the same outer geometry: paper background, sticky
-// Topbar with the theme toggle, a centered `<main>` column, and a page
-// header with optional back link, icon, title, description, and
-// right-aligned actions.
+// Topbar, a centered `<main>` column, and a page header with optional
+// back link, icon, title, description, and right-aligned actions.
+//
+// Theme switching deliberately lives only on the Settings page; pages
+// that want extra topbar actions (e.g. ExplorerHeader) opt in via
+// `actions`.
 //
 // Specialised surfaces (Dashboard, Editor) intentionally do NOT use
 // this component — they own their own dense layouts.
@@ -14,7 +17,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/api/client";
@@ -23,7 +25,7 @@ import { cn } from "@/lib/utils";
 interface AppPageProps {
   user: User;
   children: ReactNode;
-  /** Right-side topbar actions. Defaults to the theme toggle. */
+  /** Right-side topbar actions. Empty by default. */
   actions?: ReactNode;
   /** Class names applied to the outer `<PaperSurface>`. */
   className?: string;
@@ -49,7 +51,7 @@ export function AppPage({
 }: AppPageProps) {
   return (
     <PaperSurface variant="page" className={cn("flex flex-col", className)}>
-      <Topbar user={user} actions={actions ?? <ThemeToggle />} />
+      <Topbar user={user} actions={actions} />
       <main
         className={cn("mx-auto w-full flex-1 px-4 py-8 sm:px-6 sm:py-10", maxWidth, mainClassName)}
       >

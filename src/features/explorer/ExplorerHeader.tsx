@@ -17,7 +17,6 @@
 import { Link04Icon, UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "react-router-dom";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Topbar } from "@/components/Topbar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { User } from "@/lib/api/client";
@@ -37,7 +36,6 @@ export function ExplorerHeader({ user }: ExplorerHeaderProps) {
 
   const actions = (
     <>
-      <ThemeToggle />
       <Tooltip>
         <TooltipTrigger
           render={

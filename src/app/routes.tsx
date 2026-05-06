@@ -7,13 +7,13 @@
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { useMe } from "@/data/auth";
 import { UsersPage } from "@/features/admin/UsersPage";
-import { AccountPage } from "@/features/auth/AccountPage";
 import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { EditorPage } from "@/features/editor/EditorPage";
 import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
 import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
 import { DashboardPage } from "@/features/explorer/DashboardPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
 
 export function AppRoutes() {
@@ -27,7 +27,10 @@ export function AppRoutes() {
       {/* Legacy: pre-rebrand `/s/:id` URLs (bookmarks, browser history,
           tabs) redirect to the canonical /f/:id form. */}
       <Route path="/s/:id" element={<LegacyFileRedirect />} />
-      <Route path="/account" element={<AccountPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      {/* Legacy: pre-rebrand `/account` URLs redirect to the renamed
+          `/settings` route so bookmarks and the back stack stay clean. */}
+      <Route path="/account" element={<LegacyAccountRedirect />} />
       <Route path="/shares" element={<SharesPage />} />
       <Route
         path="/users"
@@ -61,6 +64,13 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 function LegacyFileRedirect() {
   const { id } = useParams<{ id: string }>();
   return <Navigate to={id ? `/f/${id}` : "/"} replace />;
+}
+
+// Pre-rebrand `/account` URL — preferences and security used to live
+// there. Replaced by `/settings`; we redirect with `replace` so the
+// legacy entry doesn't litter browser history.
+function LegacyAccountRedirect() {
+  return <Navigate to="/settings" replace />;
 }
 
 // Same idea for the folder-share child URL.

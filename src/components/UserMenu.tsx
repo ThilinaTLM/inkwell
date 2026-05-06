@@ -8,7 +8,7 @@ import {
   DashboardSquare02Icon,
   Link04Icon,
   Logout03Icon,
-  UserCircleIcon,
+  Settings02Icon,
   UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -87,9 +87,9 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
           <HugeiconsIcon icon={DashboardSquare02Icon} strokeWidth={2} />
           Dashboard
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/account")}>
-          <HugeiconsIcon icon={UserCircleIcon} strokeWidth={2} />
-          Account
+        <DropdownMenuItem onClick={() => navigate("/settings")}>
+          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
+          Settings
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate("/shares")}>
           <HugeiconsIcon icon={Link04Icon} strokeWidth={2} />

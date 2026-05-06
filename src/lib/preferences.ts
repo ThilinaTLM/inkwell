@@ -4,7 +4,7 @@
 // `useDrawioStylePref` / `useDrawioStyle` — Editor style preference
 // for the drawio editor (auto / classic / sketch). Lives in
 // `src/lib/` rather than under any single feature because the
-// explorer header, editor page, and account page all branch on it.
+// explorer header, editor page, and settings page all branch on it.
 //
 // localStorage may be unavailable (private browsing, embedded
 // webviews, SSR-style first render) — every read/write is wrapped in
@@ -103,7 +103,7 @@ function writeStoredDrawioStyle(v: DrawioStylePref): void {
 export function useDrawioStylePref(): [DrawioStylePref, (next: DrawioStylePref) => void] {
   const [pref, setPrefState] = useState<DrawioStylePref>(readStoredDrawioStyle);
 
-  // Cross-tab sync — picks up changes the user makes on the Account
+  // Cross-tab sync — picks up changes the user makes on the Settings
   // page in another tab.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
