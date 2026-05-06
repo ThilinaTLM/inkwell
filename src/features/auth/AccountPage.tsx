@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useChangePassword, useMe } from "@/data/auth";
 import { errorMessage } from "@/lib/errors";
+import { type DrawioStylePref, useDrawioStylePref } from "@/lib/preferences";
 import { userDisplayName } from "@/lib/user";
+import { cn } from "@/lib/utils";
 import { TextFormField } from "./TextFormField";
 
 const passwordSchema = z
@@ -31,6 +33,7 @@ export function AccountPage() {
   const me = useMe();
   const changePassword = useChangePassword();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [drawioStyle, setDrawioStyle] = useDrawioStylePref();
 
   const form = useForm({
     defaultValues: {
@@ -71,6 +74,60 @@ export function AccountPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
+        <ElevatedCard className="lg:col-span-2">
+          <SectionHeading label="Editor style" />
+          <div className="px-6 pb-6">
+            <p className="mb-4 text-sm text-muted-foreground">
+              How draw.io renders. Takes effect when you next open a diagram.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  {
+                    value: "auto",
+                    label: "Auto",
+                    description: "Sketch on touch devices, classic everywhere else.",
+                  },
+                  {
+                    value: "classic",
+                    label: "Classic",
+                    description: "Familiar drawio with menus and side panels.",
+                  },
+                  {
+                    value: "sketch",
+                    label: "Sketch",
+                    description: "Touch-optimised floating toolbar.",
+                  },
+                ] satisfies Array<{
+                  value: DrawioStylePref;
+                  label: string;
+                  description: string;
+                }>
+              ).map((opt) => {
+                const selected = drawioStyle === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setDrawioStyle(opt.value)}
+                    aria-pressed={selected}
+                    className={cn(
+                      "flex flex-col gap-1 rounded-md border px-4 py-3 text-left text-sm transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      selected
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/40"
+                        : "border-border hover:bg-muted/50",
+                    )}
+                  >
+                    <span className="font-medium text-foreground">{opt.label}</span>
+                    <span className="text-xs text-muted-foreground">{opt.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </ElevatedCard>
+
         <ElevatedCard>
           <SectionHeading label="Profile" />
           <div className="px-6 pb-6">

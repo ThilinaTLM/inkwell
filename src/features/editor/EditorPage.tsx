@@ -236,37 +236,18 @@ export function EditorPage() {
           onReload={(ls) => setLoaded(ls)}
           back={{ onClick: handleBack, label: "Back" }}
           onRequestRename={() => setRenameOpen(true)}
-          actions={
-            // Rendered via portal into the draw.io iframe's `.geMenubarContainer`,
-            // so Tailwind/shadcn classes from the parent document don't apply.
-            // We use plain buttons with the `inkwell-native-btn` class injected
-            // into the iframe document by `DrawioEditor.tsx`.
-            <>
-              <button
-                type="button"
-                className="inkwell-native-btn"
-                onClick={() => setTagsOpen(true)}
-              >
-                Tags
-              </button>
-              <button
-                type="button"
-                className="inkwell-native-btn"
-                onClick={() => setShareOpen(true)}
-              >
-                Share
-              </button>
-              <button
-                type="button"
-                className="inkwell-native-btn inkwell-native-btn--primary"
-                onClick={() => {
-                  window.location.href = files.downloadUrl(id);
-                }}
-              >
-                Download .drawio
-              </button>
-            </>
-          }
+          // Tags / Share / Download .drawio are appended to drawio's
+          // native File menu (Tier 1.4 of the responsive plan). The
+          // header strip then contains only brand + filename + save
+          // status, which keeps the menubar legible from 320px up.
+          fileMenuExtras={{
+            loaded,
+            onTags: () => setTagsOpen(true),
+            onShare: () => setShareOpen(true),
+            onDownload: () => {
+              window.location.href = files.downloadUrl(id);
+            },
+          }}
         />
         {fileDialogs}
       </div>

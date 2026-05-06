@@ -124,23 +124,18 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
           reload={reload}
           onReload={(ls) => setLoaded(ls)}
           back={fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
-          actions={
-            // Rendered into draw.io's native menubar via portal — see
-            // DrawioEditor.tsx. Tailwind/shadcn classes don't apply inside
-            // the iframe document, so we use the `inkwell-native-btn` class
-            // injected by DrawioEditor.
-            loaded.allowDownload ? (
-              <button
-                type="button"
-                className="inkwell-native-btn inkwell-native-btn--primary"
-                onClick={() => {
+          // Shared sessions surface only Download (Tags / Share belong
+          // to the file owner). The File-menu helper omits entries
+          // whose handler is undefined, and gates Download on
+          // `loaded.allowDownload`.
+          fileMenuExtras={{
+            loaded,
+            onDownload: loaded.allowDownload
+              ? () => {
                   window.location.href = downloadHref;
-                }}
-              >
-                Download .drawio
-              </button>
-            ) : null
-          }
+                }
+              : undefined,
+          }}
         />
       </div>
     );

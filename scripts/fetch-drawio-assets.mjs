@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,6 +39,33 @@ writeFileSync(
 
 if (!existsSync(join(dest, "index.html"))) {
   throw new Error("draw.io asset copy failed: index.html missing");
+}
+
+// Post-process: inject our bootstrap script tag after drawio's
+// `js/main.js` so we can monkey-patch `App.prototype.init` and expose
+// the live `EditorUi` instance to the parent (Inkwell) frame. The
+// bootstrap itself lives at `public/drawio-bootstrap.js` (a sibling
+// of `public/drawio/`) so this `rmSync(dest)` doesn't wipe it.
+//
+// Idempotent: skips if the tag is already present (e.g. drawio is
+// re-fetched into a working tree after the previous run was
+// committed).
+const INDEX_PATH = join(dest, "index.html");
+const MAIN_TAG = '<script src="js/main.js"></script>';
+const BOOTSTRAP_TAG = '<script src="/drawio-bootstrap.js"></script>';
+let indexHtml = readFileSync(INDEX_PATH, "utf8");
+if (!indexHtml.includes(BOOTSTRAP_TAG)) {
+  if (!indexHtml.includes(MAIN_TAG)) {
+    throw new Error(
+      `draw.io index.html does not contain expected '${MAIN_TAG}'; bootstrap injection point missing`,
+    );
+  }
+  indexHtml = indexHtml.replace(
+    MAIN_TAG,
+    `${MAIN_TAG}\n<script src="/drawio-bootstrap.js"></script>`,
+  );
+  writeFileSync(INDEX_PATH, indexHtml);
+  process.stdout.write("injected /drawio-bootstrap.js into drawio/index.html\n");
 }
 
 process.stdout.write(`draw.io assets copied to ${dest}\n`);
