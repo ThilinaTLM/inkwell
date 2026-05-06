@@ -45,7 +45,7 @@ export function EmptyDeskNote({
         {/* Wrap content in a `relative` block so it paints above the
             absolute-positioned RoughBox card silhouette. */}
         <div className="relative">
-          <h3 className="font-heading text-2xl text-foreground">{title}</h3>
+          <h3 className="font-brand text-2xl font-normal text-foreground">{title}</h3>
           {body && (
             <div className="mt-2 font-hand text-lg/relaxed text-muted-foreground">{body}</div>
           )}

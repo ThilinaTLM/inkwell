@@ -106,7 +106,7 @@ export function FolderCard({
         <FolderGlyph previews={previews} />
 
         <div className="w-full min-w-0 text-center">
-          <div className="truncate font-heading text-sm text-foreground" title={name}>
+          <div className="truncate font-heading text-sm font-medium text-foreground" title={name}>
             {name}
           </div>
           {countLabel ? (

@@ -38,7 +38,7 @@ export function EditorErrorState({ message }: { message: string }) {
       >
         <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-6 text-destructive" />
         <div className="space-y-1">
-          <div className="font-heading text-lg">Couldn't load this file</div>
+          <div className="font-heading text-lg font-semibold">Couldn't load this file</div>
           <p className="text-sm text-muted-foreground">{message}</p>
         </div>
         <Button variant="outline" size="sm" render={<Link to="/" />}>

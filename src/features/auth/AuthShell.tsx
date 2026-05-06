@@ -21,8 +21,10 @@ export function AuthShell({ title, description, footer, children, className }: A
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <InkwellMark className="size-10 text-foreground" />
-          <div className="font-heading text-3xl text-foreground">inkwell</div>
-          <p className="text-sm text-muted-foreground">A small place for your Excalidraw scenes.</p>
+          <div className="font-brand text-3xl text-foreground">inkwell</div>
+          <p className="text-sm text-muted-foreground">
+            A small place for your diagrams and drawings.
+          </p>
         </div>
 
         <div

@@ -14,7 +14,7 @@
 // Variants:
 //   - "default": standalone strip with its own `px-6 py-2` and `text-sm`.
 //   - "compact": flush + `text-xs`. For embedding inside another header.
-//   - "heading": page-title sized (`font-heading text-2xl`). Used as the
+//   - "heading": page-title sized (`font-heading text-xl`). Used as the
 //     page heading itself, replacing a separate `<h1>`. The current
 //     segment reads as the page title; ancestors are clickable links.
 
@@ -71,7 +71,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
       aria-label="Folder path"
       className={cn(
         "flex items-center text-muted-foreground",
-        isHeading && "min-w-0 gap-1.5 font-heading text-2xl",
+        isHeading && "min-w-0 gap-1.5 font-heading text-lg font-medium sm:text-xl",
         isCompact && "gap-1 text-xs",
         !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm",
       )}

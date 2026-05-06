@@ -36,7 +36,9 @@ export function ExplorerPageHeader({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           {typeof title === "string" ? (
-            <h1 className="truncate font-heading text-2xl text-foreground">{title}</h1>
+            <h1 className="truncate font-heading text-2xl font-semibold text-foreground">
+              {title}
+            </h1>
           ) : (
             <h1 className="min-w-0">{title}</h1>
           )}

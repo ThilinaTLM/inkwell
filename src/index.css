@@ -54,7 +54,8 @@
    ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
   /* ─── Fonts ─── */
-  --font-heading: "Excalifont", "Caveat Variable", system-ui, sans-serif;
+  --font-brand: "Excalifont", "Caveat Variable", system-ui, sans-serif;
+  --font-heading: "IBM Plex Sans", system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-hand: "Caveat Variable", "Excalifont", cursive;
 
@@ -244,8 +245,8 @@
   h3,
   h4 {
     font-family: var(--font-heading);
-    font-weight: 400; /* Excalifont only ships regular */
-    letter-spacing: 0.005em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
