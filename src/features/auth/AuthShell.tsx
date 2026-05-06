@@ -21,7 +21,9 @@ export function AuthShell({ title, description, footer, children, className }: A
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <InkwellMark className="size-10 text-foreground" />
-          <div className="font-brand text-3xl text-foreground">inkwell</div>
+          <div className="font-heading text-3xl font-semibold tracking-tight text-foreground">
+            inkwell
+          </div>
           <p className="text-sm text-muted-foreground">
             A small place for your diagrams and drawings.
           </p>
@@ -37,7 +39,11 @@ export function AuthShell({ title, description, footer, children, className }: A
           <div>
             {(title || description) && (
               <div className="mb-4 flex flex-col gap-1">
-                {title && <h2 className="font-heading text-2xl text-foreground">{title}</h2>}
+                {title && (
+                  <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">
+                    {title}
+                  </h2>
+                )}
                 {description && <p className="text-sm text-muted-foreground">{description}</p>}
               </div>
             )}

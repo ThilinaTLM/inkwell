@@ -19,10 +19,10 @@ importers:
       '@excalidraw/excalidraw':
         specifier: ^0.18.1
         version: 0.18.1(patch_hash=2af7a455d5bd4dc874d25980dd367713a94e29fb60f6578614ef36f41c6df52c)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@fontsource-variable/caveat':
+      '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
-      '@fontsource/ibm-plex-sans':
+      '@fontsource-variable/jetbrains-mono':
         specifier: ^5.2.8
         version: 5.2.8
       '@hugeicons/core-free-icons':
@@ -936,11 +936,11 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@fontsource-variable/caveat@5.2.8':
-    resolution: {integrity: sha512-Iv+G8xn0pKG7RtanBmYGMjIfkO819N13LXZBwmRVcgfJvJwKVom/v3KT9pwANXTSoUbPeRp228twRDK7hcabLw==}
+  '@fontsource-variable/inter@5.2.8':
+    resolution: {integrity: sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ==}
 
-  '@fontsource/ibm-plex-sans@5.2.8':
-    resolution: {integrity: sha512-eztSXjDhPhcpxNIiGTgMebdLP9qS4rWkysuE1V7c+DjOR0qiezaiDaTwQE7bTnG5HxAY/8M43XKDvs3cYq6ZYQ==}
+  '@fontsource-variable/jetbrains-mono@5.2.8':
+    resolution: {integrity: sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -4647,9 +4647,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@fontsource-variable/caveat@5.2.8': {}
+  '@fontsource-variable/inter@5.2.8': {}
 
-  '@fontsource/ibm-plex-sans@5.2.8': {}
+  '@fontsource-variable/jetbrains-mono@5.2.8': {}
 
   '@hono/node-server@1.19.14(hono@4.12.16)':
     dependencies:

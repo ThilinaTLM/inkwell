@@ -96,7 +96,7 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
     <PaperSurface variant="page">
       {/* Banner */}
       <header className="flex flex-wrap items-center gap-3 px-6 pt-6 pb-2">
-        <div className="font-heading text-2xl font-semibold text-foreground">
+        <div className="font-heading text-2xl font-semibold tracking-tight text-foreground">
           {payload.root.name}
         </div>
         <div

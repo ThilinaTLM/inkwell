@@ -104,7 +104,7 @@ export function AppPageHeader({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2.5 font-heading text-3xl font-semibold text-foreground">
+          <h1 className="flex items-center gap-2.5 font-heading text-3xl font-semibold tracking-tight text-foreground">
             {icon ? (
               <HugeiconsIcon
                 // biome-ignore lint/suspicious/noExplicitAny: icon shape comes from @hugeicons/core-free-icons

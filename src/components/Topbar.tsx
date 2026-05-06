@@ -30,7 +30,7 @@ export function Topbar({ user, leading, center, actions }: TopbarProps) {
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-5 backdrop-blur supports-backdrop-filter:bg-background/70">
       <Link
         to="/"
-        className="flex items-center gap-2 font-brand text-xl text-foreground transition-opacity hover:opacity-70"
+        className="flex items-center gap-2 font-heading text-xl font-semibold tracking-tight text-foreground transition-opacity hover:opacity-70"
         aria-label="Inkwell home"
       >
         <InkwellMark className="size-5" />

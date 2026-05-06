@@ -49,7 +49,9 @@ function BootSplash() {
     <div className="grid min-h-dvh place-items-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <InkwellMark animate className="size-14 text-foreground" />
-        <div className="font-brand text-2xl text-muted-foreground">inkwell</div>
+        <div className="font-heading text-2xl font-semibold tracking-tight text-muted-foreground">
+          inkwell
+        </div>
       </div>
     </div>
   );
