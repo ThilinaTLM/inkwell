@@ -178,13 +178,22 @@ function buildDrawioSrc(dark: boolean, style: "classic" | "sketch"): string {
 interface DrawioMenubarSlots {
   appIcon: HTMLDivElement;
   /**
-   * Filename + save-status host. Kennedy renders both inside this
-   * single flex row. Sketch leaves filename rendering to drawio's
-   * own `.geStatus` element, so this slot is `null` and the save
-   * status goes into `trailing` instead.
+   * Filename + save-status host. Both Kennedy and sketch render
+   * the filename + save-status inline here; sketch slots it into
+   * `sketchMainMenuElt` between the brand and the hamburger so the
+   * scene title is colocated with the rest of the chrome (drawio's
+   * own `.geStatus` filename in `sketchMenubarElt` is hidden via
+   * the menubar stylesheet).
    */
-  filename: HTMLDivElement | null;
-  trailing: HTMLDivElement;
+  filename: HTMLDivElement;
+  /**
+   * Right-edge slot used by Kennedy's sidebar/format toggles
+   * (visible only on `(max-width: 1024px)`). Sketch has no use for
+   * it since drawio's own floating shape picker / format-panel
+   * button cover the same role, so it's `null` in sketch and the
+   * portal is skipped.
+   */
+  trailing: HTMLDivElement | null;
 }
 
 // Stylesheet injected into the iframe document. The natural Kennedy
@@ -202,74 +211,96 @@ interface DrawioMenubarSlots {
 // `:7683`), so we inject equivalents with the same rectangles. All
 // colours use `light-dark()` so they automatically follow drawio's
 // `geDarkMode` body class.
+//
+// Layout: the chrome is a 2×3 CSS Grid. Brand icon spans both rows
+// in column 1; filename + status sit in (col 2, row 1); trailing
+// sidebar toggles sit in (col 3, row 1); drawio's own .geMenubar
+// (File / Edit / View / …) is forced to `position: static` and
+// placed at (col 2/3, row 2) so it sizes to its content instead of
+// the 1228px-wide absolute strip drawio's stock CSS produces. This
+// is the layout primitive that actually fits the design — earlier
+// revisions mimicked it via `display: flex` on the container plus
+// drawio's stock `position: absolute` on the menubar, which left
+// two giant overlapping empty rectangles behind the chrome (very
+// visible when inspecting either element in DevTools).
 const MENUBAR_STYLE_ID = "inkwell-drawio-menubar-style";
 const MENUBAR_CSS = `
 /* Restore the natural Kennedy 2-row chrome but tightened from the
    stock 60px down to 52px. The math is anchored on drawio's own
    .geMenubar (File/Edit/View) which is a fixed 30px-tall row — we
    can't shrink that without breaking drawio's button hit areas, so
-   the savings come entirely from the title row (24px → 20px) and
-   the bottom gap (2px, matching drawio's natural 2px gap to the
-   toolbar). Layout in container coords:
-     - title row:   y= 2 … 22 (margin-top:2 + height:20)
-     - menu row:    y=20 … 50 (absolute top:20 + height:30)
-     - bottom gap:  y=50 … 52 (2px breathing room to toolbar)
-   The 2px overlap between title (ends 22) and menu (starts 20) is
-   only on the box edges — the title text is centred at y≈12 and the
-   menu text at y≈35, with ~10px clear space between glyphs. Brand +
-   filename still flow horizontally so the title can shrink to fit
-   narrow viewports. Actions live in the File menu (see
-   installFileMenuExtras), so no right gutter is reserved. */
+   the savings come entirely from the title row (24px → 22px) and
+   the bottom gap (vanishes; the 30px menubar runs to y=52 with no
+   trailing breathing room — drawio's toolbar below has its own
+   internal padding so this still reads cleanly).
+
+   Layout primitive: 2×3 CSS Grid. The earlier flex+absolute hybrid
+   (flex container with brand/filename/trailing as flex children
+   plus drawio's stock 'position: absolute' menubar layered on top)
+   left two giant overlapping empty rectangles — the filename slot
+   grew to fill the row's free space and the menubar always spanned
+   100% width — visible whenever either was inspected. Grid lets
+   each cell size to its content, so the chrome is exactly as wide
+   as what's actually drawn.
+
+     col 1 (auto):           brand mark, spans rows 1+2
+     col 2 (minmax(0,1fr)):  filename slot (row 1), menubar (row 2)
+     col 3 (auto):           trailing sidebar toggles (row 1 only)
+
+     row 1 (22px): title + save status
+     row 2 (30px): drawio File/Edit/View/Arrange/Extras/Help
+
+   Glyph alignment between the title (row 1) and File menu (row 2)
+   is now intrinsic: both items live in the same grid column, so
+   their left edges coincide automatically. We just match the inner
+   padding (8px on .inkwell-drawio-title-text, 8px on .geMenubar a)
+   so the first glyph lands at the same x in both rows. */
 .geEditor.geCompactMode > .geMenubarContainer {
   height: 52px !important;
   margin-top: 0 !important;
-  display: flex !important;
-  align-items: flex-start;
-  /* 14px gap between brand and filename is sized to align the
-     title's first glyph with the File menu item's first glyph.
-     The math (verified at runtime):
-       title text x = pad_left(16) + logo_w(28) + gap(14) + title_pad_left(6) = 64
-       File  text x = pad_left(16) + menu_extra(40) + item_pad_left(8)       = 64
-     Adjusting either side requires keeping that equation balanced;
-     see the .geMenubar block below. */
-  gap: 14px;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: 22px 30px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 0;
   padding-left: max(16px, env(safe-area-inset-left)) !important;
   padding-right: max(12px, env(safe-area-inset-right)) !important;
 }
-/* Drawio's native menubar lives in row 2 of the chrome, absolutely
-   positioned. We pull it up to top: 20px (down from drawio's stock
-   28px) so its 30px height ends at y=50 — leaving the same 2px gap
-   to the toolbar that drawio's native 60px chrome provides. We pin
-   it to the container's padding-box origin (left: 0) and size the
-   left padding so the FIRST GLYPH of the leftmost menu item (File)
-   aligns horizontally with the FIRST GLYPH of the row-1 title — not
-   with the title button's rect, and not with the logo. Drawio's own
-   .geMenubar a has padding-left: 8px on each item; the title button
-   has padding-left: 6px on its inner text. So:
-     menubar_pad_left + 8 = logo_offset(16+28+14) + title_pad_left(6) = 64
-     ⇒ menubar_pad_left = 56
-   which factors into max(16, safe-area) + 40 here. If you change the
-   logo width, brand-to-title gap, or title button padding, update
-   the +40px constant below to keep the two glyphs aligned.
-
-   left: 0 !important is required because the menubar is an
-   absolutely positioned child of a flex container; without it,
-   left: auto resolves to the static position the menubar would
-   have inside the flex flow (= the container's content edge,
-   16px), stacking on top of our padding-left and double-counting
-   the gutter. */
+/* Drawio's stock CSS positions .geMenubar absolutely inside the
+   container; we override that so the menubar participates in the
+   grid as a normal item in (col 2/3, row 2). justify-self: start
+   keeps it sized to its content (the six menu items) instead of
+   spanning the full row. !important is needed against drawio's
+   compact-mode override (.geCompactMode > .geMenubarContainer >
+   .geMenubar) which sets 'position: absolute; top: 0'. */
 .geEditor.geCompactMode > .geMenubarContainer > .geMenubar {
-  top: 20px !important;
-  left: 0 !important;
-  padding-left: calc(max(16px, env(safe-area-inset-left)) + 40px) !important;
-  padding-right: max(12px, env(safe-area-inset-right)) !important;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  /* Drawio's stock .geMenubar { width: 100% } would beat justify-self,
+     so we shrink-to-fit explicitly. The result is exactly the six
+     menu items wide; no trailing empty strip. */
+  width: max-content !important;
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  justify-self: start;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
-/* Drawio's natural rule (.geEmbed .geMenubarContainer { padding:
-   0 28px 0 16px }) sets a non-symmetric gutter we don't want; our
-   compact-mode rule above declares the gutters we do want with
-   !important and higher specificity, which already wins, so we no
-   longer need a separate reset here. */
-.geMenubarContainer > .geStatusDiv {
+/* Drawio renders the filename in two places we don't want:
+   - <div class="geStatusDiv"> as a direct child of the menubar
+     container (the visible one in non-compact mode, still inserted
+     in compact+embed). Without hiding it, it sits as a stray grid
+     item at the right edge of row 1 showing the filename a second
+     time — our injected .inkwell-filename-container already shows
+     the filename in row 1, so this is a duplicate.
+   - <a class="geStatus"> appended at the end of .geMenubar (would
+     normally be the filename slot in the non-embed build). With
+     the menubar shrunk to max-content this stub would otherwise
+     extend the menubar's effective content width. */
+.geMenubarContainer > .geStatusDiv,
+.geMenubarContainer > .geMenubar > .geStatus {
   display: none !important;
 }
 
@@ -315,18 +346,15 @@ const MENUBAR_CSS = `
   .geTabContainer .geButton { min-height: 36px; padding: 4px 10px; }
 }
 
-/* Brand mark — leading slot in the flex row, mirrors drawio's own
-   .geAppIcon rectangle. Vertically centred across the chrome
-   (align-self: center) so it anchors the left corner and visually
-   bridges the title row (top) and the File/Edit/View menu row
-   (bottom) — the same role drawio's native orange .geAppIcon plays.
-   Without this the logo floats at the top of row 1 with margin-top
-   alone and reads as disconnected from the menu below. Sized down
-   from 32×36/28px svg to 28×32/22px svg to match the tightened
-   46px chrome. */
+/* Brand mark — column 1 of the grid, spanning both rows so it
+   visually bridges the title row (top) and the File/Edit/View menu
+   row (bottom), the same role drawio's native orange .geAppIcon
+   plays. Sized 28×32 with a 22×22 svg to match the tightened
+   52px chrome. */
 .inkwell-app-icon {
   position: relative;
-  flex: 0 0 auto;
+  grid-column: 1;
+  grid-row: 1 / span 2;
   align-self: center;
   width: 28px;
   height: 32px;
@@ -354,18 +382,23 @@ const MENUBAR_CSS = `
   height: 22px;
 }
 
-/* Filename + save-status row — fluid (flex:1) so it absorbs the
-   remaining width and truncates with an ellipsis. min-width:0 is
-   the key idiom that lets the flex item shrink past its content
-   size, restoring sane behaviour at 320px. Tightened from drawio's
-   natural 26px / 18px text down to 20px / 14px text so the chrome
-   reads as a single compact band; see the .geMenubarContainer
-   block above for how this row stacks against the menubar. */
+/* Filename + save-status row — column 2 of the grid, row 1.
+   justify-self: start sizes the slot to its content (title +
+   status icon) instead of stretching to fill the column — keeps
+   the DOM rectangle honest. max-width: 100% then caps it at the
+   grid column width when the title gets too long, so the title
+   ellipsizes against the column at narrow viewports (the
+   minmax(0, 1fr) column on the container shrinks to fit the
+   viewport, dragging max-width: 100% down with it).
+   Tightened from drawio's natural 26px / 18px text down to 20px /
+   14px text so the chrome reads as a single compact band. */
 .inkwell-filename-container {
   position: relative;
-  flex: 1 1 0;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  max-width: 100%;
   min-width: 0;
-  margin-top: 2px;
   height: 20px;
   display: flex;
   align-items: center;
@@ -381,10 +414,12 @@ const MENUBAR_CSS = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* 6px horizontal padding lands the title's first glyph at the
-     same x as the File menu item's first glyph below — see the
-     .geMenubarContainer gap comment for the full equation. */
-  padding: 1px 6px;
+  /* 8px horizontal padding matches drawio's .geMenubar a
+     padding-left, so the title's first glyph sits at the same x as
+     the File menu item's first glyph below. Both share grid column
+     2 — the alignment is intrinsic and survives any change to the
+     brand width or column gap. */
+  padding: 1px 8px;
   border-radius: 4px;
   min-width: 0;
   max-width: 100%;
@@ -453,16 +488,16 @@ const MENUBAR_CSS = `
   .inkwell-status-btn { width: 36px; height: 36px; }
 }
 
-/* Tier 2 sidebar toggles — trailing slot in the menubar flex row.
-   Empty (display:none) on desktop; visible only at narrow viewports
+/* Tier 2 sidebar toggles — column 3 of the grid, row 1. Empty
+   (display:none) on desktop; visible only at narrow viewports
    where drawio's smallScreenWidth=1024 collapses both side panels.
    The buttons drive drawio's own toggle actions via the
    contentWindow.editorUi handles, with aria-pressed mirroring
    drawio's actual panel state via MutationObserver. */
 .inkwell-trailing-container {
   position: relative;
-  flex: 0 0 auto;
-  margin-top: 2px;
+  grid-column: 3;
+  grid-row: 1;
   height: 28px;
   display: none;
   align-items: center;
@@ -499,9 +534,12 @@ const MENUBAR_CSS = `
 }
 
 /* Sketch theme — scoped on body.geSketch which drawio sets when
-   ?ui=sketch. The brand mark sits in the sketchMainMenuElt next to
-   the hamburger, the trailing container holds only the save-status
-   icon (filename comes from drawio's own .geStatus). */
+   ui=sketch. The brand mark, filename, and save-status all live
+   inside the floating top-left pill (sketchMainMenuElt) so the
+   scene title is colocated with the hamburger menu. Drawio's own
+   filename status in sketchMenubarElt (top-right) is suppressed
+   below; with no other content there in embed mode the whole
+   right-edge pill is hidden. */
 body.geSketch .inkwell-app-icon {
   position: relative;
   margin: 0 4px 0 0;
@@ -515,23 +553,60 @@ body.geSketch .inkwell-app-icon > div {
   height: 36px;
   border-radius: 4px;
 }
-body.geSketch .inkwell-trailing-container {
-  display: flex;
+/* Filename + save status sit inline inside the sketch main pill.
+   flex: 0 1 auto lets the slot shrink past its content size on
+   narrow viewports without pushing the trailing buttons off the
+   pill. min-width: 0 is the canonical idiom for ellipsis-capable
+   flex children. The pill's own padding (0 10px) supplies the gap
+   to the brand, so this slot adds only inner gap. */
+body.geSketch .inkwell-filename-container {
   position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
+  padding: 0 2px;
   height: auto;
+  display: flex;
   align-items: center;
   gap: 4px;
 }
-/* Save-status icon inside the sketch menubar inherits the floating
-   pill background of sketchMenubarElt, so the standalone hover ring
-   stays subtle. */
+/* Filename text inside the dark sketch pill. Hover lightens against
+   the pill background to mirror drawio's own .geButton hover. */
+body.geSketch .inkwell-drawio-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 6px;
+  /* Cap the text width so a long filename can't push the trailing
+     buttons off the floating pill. The ellipsis kicks in past this. */
+  max-width: 180px;
+}
+body.geSketch .inkwell-drawio-title-text[data-clickable="true"]:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.10));
+}
+/* Save-status icon next to the filename inside the sketch pill.
+   Sized 28px to match drawio's own geButton footprint in this
+   pill; touch users get the standard 36px from inkwell-status-btn
+   pointer:coarse rule. */
 body.geSketch .inkwell-status-btn {
   width: 28px;
   height: 28px;
 }
 @media (pointer: coarse) {
   body.geSketch .inkwell-status-btn { width: 36px; height: 36px; }
+}
+/* Suppress drawio's native filename + the now-empty right-edge
+   pill. .geStatusDiv inside .geButtonContainer is where sketch
+   renders the file name; with the filename moved to the main pill
+   we hide it here. The whole sketchMenubarElt becomes empty in
+   embed mode (no comments / share / format buttons appended) so
+   we hide it entirely to avoid a stray dark pill at top-right.
+   Targeted via the inline-style flex set by drawio's JS so we beat
+   future style writes (e.g., on resize). */
+body.geSketch .geToolbarContainer > .geButtonContainer > .geStatusDiv {
+  display: none !important;
+}
+body.geSketch .geToolbarContainer[style*="position: absolute"][style*="right: 12px"] {
+  display: none !important;
 }
 `;
 
@@ -582,11 +657,10 @@ function ensureSketchSlots(iframe: HTMLIFrameElement): DrawioMenubarSlots | null
   const doc = iframe.contentDocument;
   const w = iframe.contentWindow as (Window & { editorUi?: DrawioSketchUI }) | null;
   const ui = w?.editorUi;
-  if (!doc || !ui?.sketchMainMenuElt || !ui.sketchMenubarElt) return null;
+  if (!doc || !ui?.sketchMainMenuElt) return null;
   ensureStylesheet(doc);
 
   const main = ui.sketchMainMenuElt;
-  const menubar = ui.sketchMenubarElt;
 
   // Brand mark — prepend into the sketch main menu so it sits
   // before the hamburger. We re-insert if drawio re-rendered the
@@ -598,22 +672,29 @@ function ensureSketchSlots(iframe: HTMLIFrameElement): DrawioMenubarSlots | null
     main.insertBefore(appIcon, main.firstChild);
   }
 
-  // Save status — append into the sketch menubar after drawio's
-  // own filename element (.geStatus). The menubar's flex layout
-  // handles spacing.
-  let trailing = menubar.querySelector<HTMLDivElement>(".inkwell-trailing-container");
-  if (!trailing) {
-    trailing = doc.createElement("div");
-    trailing.className = "inkwell-trailing-container";
-    menubar.appendChild(trailing);
+  // Filename + save-status slot — sits between the brand and the
+  // hamburger menu inside the sketch main pill. Drawio's own
+  // `.geStatus` filename in `sketchMenubarElt` is hidden via the
+  // injected stylesheet so the title is shown in only one place.
+  let filename = main.querySelector<HTMLDivElement>(".inkwell-filename-container");
+  if (!filename) {
+    filename = doc.createElement("div");
+    filename.className = "inkwell-filename-container";
+    // appIcon.nextSibling lands the slot at index 1 (right after
+    // the brand). If drawio re-rendered and only the brand exists,
+    // nextSibling is null and insertBefore degrades to appendChild —
+    // still correct (slot ends up after the brand).
+    main.insertBefore(filename, appIcon.nextSibling);
   }
 
-  // No filename slot in sketch — drawio's .geStatus already shows
-  // the file name ("Test Diagram" etc.) as part of its native chrome.
+  // No trailing slot in sketch — the floating shape picker and
+  // format-panel button drawio renders cover the role Kennedy's
+  // sidebar toggles play, and the save status now lives next to
+  // the filename inside the main pill.
   return {
     appIcon,
-    filename: null,
-    trailing,
+    filename,
+    trailing: null,
   };
 }
 
@@ -1091,11 +1172,12 @@ export default function DrawioEditor({
 
       {slots ? createPortal(brand, slots.appIcon) : null}
 
-      {/* Filename + save status. Kennedy renders both inline; sketch
-          delegates filename rendering to drawio's own .geStatus and
-          we host the save status in the trailing slot instead
-          (further down). */}
-      {slots?.filename
+      {/* Filename + save status. Both Kennedy and sketch render this
+          inline next to the brand mark — sketch slots it into the
+          floating top-left pill, between the brand and the
+          hamburger menu (drawio's native filename in the right-edge
+          pill is hidden via injected CSS). */}
+      {slots
         ? createPortal(
             <>
               <button
@@ -1118,22 +1200,13 @@ export default function DrawioEditor({
           )
         : null}
 
-      {/* Trailing slot.
-          - Kennedy: hosts the Tier 2 sidebar toggles (visible only
-            below 1024px via CSS).
-          - Sketch: hosts only the save-status icon — sidebar toggles
-            are unnecessary in sketch (the floating shape picker and
-            format-panel button are drawio's own touch UI).
-      */}
-      {slots
-        ? createPortal(
-            drawioStyle === "sketch" ? (
-              statusButton
-            ) : (
-              <DrawioSidebarToggles iframe={iframeRef.current} />
-            ),
-            slots.trailing,
-          )
+      {/* Trailing slot — Kennedy only. Hosts the Tier 2 sidebar
+          toggles (visible only below 1024px via CSS). Sketch has
+          `trailing: null` since drawio's own floating shape picker
+          and format-panel button cover the same role; the save
+          status moved into the filename slot above. */}
+      {slots?.trailing
+        ? createPortal(<DrawioSidebarToggles iframe={iframeRef.current} />, slots.trailing)
         : null}
 
       <LeaveConfirmDialog
