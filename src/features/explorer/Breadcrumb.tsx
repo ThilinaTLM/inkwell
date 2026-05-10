@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FolderMeta } from "@/lib/api/client";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 
 export type BreadcrumbVariant = "default" | "compact" | "heading";
@@ -43,23 +44,42 @@ interface BreadcrumbProps {
 }
 
 /** Maximum number of named segments shown after "Home" before the
- *  middle of the path is collapsed into a "…" dropdown. */
-const MAX_VISIBLE = 2;
+ *  middle of the path is collapsed into a "…" dropdown.
+ *
+ *  We use **two values**: a roomy `MAX_VISIBLE_DEFAULT` for tablet /
+ *  desktop where there's space for `parent › current`, and a tighter
+ *  `MAX_VISIBLE_MOBILE` for narrow phones where the current folder
+ *  name needs the full row to stay readable. The crossover matches
+ *  Tailwind's `sm` breakpoint (640 px) so the heading-variant font
+ *  size and the segment count flip together. */
+const MAX_VISIBLE_DEFAULT = 2;
+const MAX_VISIBLE_MOBILE = 1;
+/** Matches Tailwind v4's default `sm` breakpoint. Keep in sync if the
+ *  theme overrides it. */
+const SM_QUERY = "(min-width: 640px)";
 
 export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProps) {
+  // Heading-variant breadcrumb is the explorer page title and lives in
+  // a tight header row alongside action buttons — so on `<sm` we drop
+  // to a single visible segment (the current folder) and push every
+  // ancestor into the "…" dropdown. Other variants always use the
+  // default budget; their layouts have plenty of room.
+  const isWide = useMediaQuery(SM_QUERY);
+  const maxVisible = variant === "heading" && !isWide ? MAX_VISIBLE_MOBILE : MAX_VISIBLE_DEFAULT;
+
   // Always-visible: Home + last segment + (optionally) the parent of the
   // last segment. Anything between Home and that suffix collapses into "…".
   const atRoot = path.length === 0;
 
   let visible: FolderMeta[];
   let collapsed: FolderMeta[];
-  if (path.length <= MAX_VISIBLE) {
+  if (path.length <= maxVisible) {
     visible = path;
     collapsed = [];
   } else {
-    // Keep the last MAX_VISIBLE segments visible; collapse the rest.
-    const head = path.slice(0, path.length - MAX_VISIBLE);
-    visible = path.slice(path.length - MAX_VISIBLE);
+    // Keep the last `maxVisible` segments visible; collapse the rest.
+    const head = path.slice(0, path.length - maxVisible);
+    visible = path.slice(path.length - maxVisible);
     collapsed = head;
   }
 
@@ -71,7 +91,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
       aria-label="Folder path"
       className={cn(
         "flex items-center text-muted-foreground",
-        isHeading && "min-w-0 gap-1.5 font-heading text-lg font-medium sm:text-xl",
+        isHeading && "min-w-0 gap-1 font-heading text-sm sm:gap-1.5 sm:text-base",
         isCompact && "gap-1 text-xs",
         !isHeading && !isCompact && "gap-1 px-6 py-2 text-sm",
       )}
@@ -80,18 +100,19 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
         type="button"
         onClick={() => onJump(null)}
         aria-current={atRoot ? "page" : undefined}
+        aria-label="Home"
         className={cn(
-          "inline-flex items-center rounded transition-colors hover:text-foreground",
-          isHeading ? "gap-2 px-0.5" : "gap-1.5 px-1 py-0.5",
+          "inline-flex shrink-0 items-center rounded transition-colors hover:text-foreground",
+          isHeading ? "gap-1.5 px-0.5 sm:gap-2" : "gap-1.5 px-1 py-0.5",
           atRoot && "text-foreground",
         )}
       >
         <HugeiconsIcon
           icon={Home01Icon}
           strokeWidth={1.6}
-          className={cn("opacity-80", isHeading ? "size-5" : "size-3.5")}
+          className={cn("opacity-80", isHeading ? "size-4 sm:size-4.5" : "size-3.5")}
         />
-        Home
+        <span className={cn(isHeading && "hidden sm:inline")}>Home</span>
       </button>
 
       {collapsed.length > 0 && (
@@ -106,8 +127,8 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
                     collapsed.length === 1 ? "" : "s"
                   }`}
                   className={cn(
-                    "inline-flex items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground",
-                    isHeading ? "size-8" : "size-6",
+                    "inline-flex shrink-0 items-center justify-center rounded text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground",
+                    isHeading ? "size-7" : "size-6",
                   )}
                 />
               }
@@ -115,7 +136,7 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
               <HugeiconsIcon
                 icon={MoreHorizontalIcon}
                 strokeWidth={2}
-                className={isHeading ? "size-5" : "size-3.5"}
+                className={isHeading ? "size-4" : "size-3.5"}
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={4}>
@@ -135,6 +156,9 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
           <Fragment key={f.id}>
             <Separator heading={isHeading} />
             {isLast ? (
+              // Current folder — the page the user is on. Keep it
+              // readable: default `shrink` (1) so it only starts
+              // truncating after ancestors have collapsed first.
               <span
                 aria-current="page"
                 className={cn(
@@ -146,11 +170,16 @@ export function Breadcrumb({ path, onJump, variant = "default" }: BreadcrumbProp
                 {f.name}
               </span>
             ) : (
+              // Ancestor segment — collapses first when space is
+              // tight. `shrink-[8]` makes it shrink ~8× faster than
+              // the current segment, so a deep path like
+              // "Home › Sub T… › SubSubTest" keeps the current name
+              // fully visible while the ancestor truncates.
               <button
                 type="button"
                 onClick={() => onJump(f.id)}
                 className={cn(
-                  "min-w-0 truncate rounded transition-colors hover:text-foreground",
+                  "min-w-0 shrink-[8] truncate rounded transition-colors hover:text-foreground",
                   isHeading ? "px-0.5" : "px-1 py-0.5",
                 )}
                 title={f.name}
@@ -170,7 +199,9 @@ function Separator({ heading }: { heading?: boolean }) {
     <HugeiconsIcon
       icon={ArrowRight01Icon}
       strokeWidth={1.5}
-      className={cn("opacity-50", heading ? "size-5" : "size-3")}
+      // `shrink-0` so the chevrons never compete for flex room with
+      // the segments themselves — their width is fixed.
+      className={cn("shrink-0 opacity-50", heading ? "size-4" : "size-3")}
       aria-hidden
     />
   );

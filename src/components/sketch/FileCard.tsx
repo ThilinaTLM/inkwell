@@ -135,7 +135,10 @@ export function FileCard({
         <FileGlyph id={id} kind={kind} hasThumb={hasThumb} thumbUrl={thumbUrl} />
 
         <div className="w-full min-w-0 text-center">
-          <div className="truncate font-heading text-sm font-medium text-foreground" title={name}>
+          <div
+            className="line-clamp-2 min-h-[2.5em] font-heading text-sm font-medium leading-tight text-foreground"
+            title={name}
+          >
             {name}
           </div>
         </div>

@@ -129,14 +129,21 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
           {/* In-panel header — title + actions. Bottom border mirrors
            *  the footer's top border so both rows read as panel chrome
            *  framing the scrolling grid body. */}
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-6 py-3">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 px-4 py-3 sm:gap-3 sm:px-6">
             <div className="min-w-0 flex-1">{titleNode}</div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => actions.createFolderIn(folderId)}>
+              <Button
+                variant="outline"
+                aria-label="New folder"
+                onClick={() => actions.createFolderIn(folderId)}
+              >
                 <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
-                New folder
+                <span className="hidden sm:inline">New folder</span>
               </Button>
-              <NewFileButton onClick={() => actions.openNewFilePicker(folderId)} />
+              <NewFileButton
+                onClick={() => actions.openNewFilePicker(folderId)}
+                collapseLabelOnMobile
+              />
             </div>
           </header>
 
