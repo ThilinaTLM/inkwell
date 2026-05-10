@@ -10,6 +10,7 @@ import { type ReactNode, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { NotesPreferencesProvider } from "@/features/editor/notes/preferences";
 import { createQueryClient } from "@/lib/api/query-client";
 import { ThemeProvider } from "@/lib/theme";
 
@@ -22,13 +23,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <BrowserRouter>
         <ThemeProvider>
-          <TooltipProvider>
-            {children}
-            <Toaster position="bottom-right" />
-            {import.meta.env.DEV && import.meta.env.VITE_ENABLE_QUERY_DEVTOOLS === "true" && (
-              <ReactQueryDevtools buttonPosition="bottom-left" />
-            )}
-          </TooltipProvider>
+          <NotesPreferencesProvider>
+            <TooltipProvider>
+              {children}
+              <Toaster position="bottom-right" />
+              {import.meta.env.DEV && import.meta.env.VITE_ENABLE_QUERY_DEVTOOLS === "true" && (
+                <ReactQueryDevtools buttonPosition="bottom-left" />
+              )}
+            </TooltipProvider>
+          </NotesPreferencesProvider>
         </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>

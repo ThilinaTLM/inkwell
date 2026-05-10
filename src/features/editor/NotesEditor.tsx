@@ -21,11 +21,14 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { FileBlob, LoadedFile, NotesFileBlob } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
 import { useThumbPipeline } from "./lifecycle/useThumbPipeline";
 import { NotesEditorChrome } from "./NotesEditorChrome";
+import { loadNotesFont } from "./notes/fontLoader";
+import { useNotesPreferences, widthMaxClass } from "./notes/preferences";
 import { notesBlocksToThumbSvg } from "./notes/thumb";
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
@@ -73,6 +76,7 @@ export default function NotesEditor({
 }: NotesEditorProps) {
   const readOnly = loaded.permission !== "write";
   const { resolved: themeResolved } = useTheme();
+  const { width, font } = useNotesPreferences();
 
   // The blob may legitimately be the legacy excalidraw shape (this
   // editor only mounts when `kind === "notes"`, but we still narrow
@@ -150,6 +154,19 @@ export default function NotesEditor({
   // we depend on `loaded.blob` reference, not `meta.version`, because
   // the parent bumps `meta.version` after every save while keeping
   // the blob ref stable.
+  //
+  // ⚠ The dependency list intentionally excludes `editor`, `thumb.reset`,
+  // and `lifecycle.reset`. Earlier versions included them, which caused
+  // theme switches (which re-render the parent) to trip the effect and
+  // silently mark a dirty document as "saved" without actually saving —
+  // a real data-loss footgun. The targets are stable for the file's
+  // lifetime, so reading them via refs is safe.
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+  const thumbRef = useRef(thumb);
+  thumbRef.current = thumb;
+  const lifecycleRef = useRef(lifecycle);
+  lifecycleRef.current = lifecycle;
   useEffect(() => {
     const blob = loaded.blob as Partial<NotesFileBlob>;
     const blocks = Array.isArray(blob.blocks) ? blob.blocks : [];
@@ -157,16 +174,38 @@ export default function NotesEditor({
     latestRef.current = { blocks, fp };
     if (blocks.length > 0) {
       try {
-        editor.replaceBlocks(editor.document, blocks as never);
+        editorRef.current.replaceBlocks(editorRef.current.document, blocks as never);
       } catch {
         // BlockNote rejects malformed blocks; in that case we leave
         // the editor empty — the autosave loop will overwrite the
         // bad blob on the next change.
       }
     }
-    thumb.reset();
-    lifecycle.reset(loaded.meta.version, fp);
-  }, [loaded.blob, loaded.meta.version, editor, thumb.reset, lifecycle.reset]);
+    thumbRef.current.reset();
+    lifecycleRef.current.reset(loaded.meta.version, fp);
+  }, [loaded.blob, loaded.meta.version]);
+
+  // ─── Font face loading + body-level CSS hook ──────────────────
+  // The chosen typeface is applied to BlockNote via `--bn-font-family`
+  // (see `[data-notes-font=…] .bn-root` rules in `src/index.css`). We
+  // set the data attribute on <html> so the cascade reaches both the
+  // in-tree editor and BlockNote's portal popovers (mounted to body).
+  // The actual @font-face CSS is fetched lazily on first selection by
+  // `loadNotesFont`; subsequent selections of the same family are
+  // resolved from the loader's in-memory cache without re-importing.
+  useEffect(() => {
+    void loadNotesFont(font);
+    const html = document.documentElement;
+    const previous = html.getAttribute("data-notes-font");
+    html.setAttribute("data-notes-font", font);
+    return () => {
+      // Restore the previous attribute when this editor unmounts so
+      // BlockNote popovers on a re-mount don't briefly inherit a
+      // stale font from a stripped-but-still-cached value.
+      if (previous == null) html.removeAttribute("data-notes-font");
+      else html.setAttribute("data-notes-font", previous);
+    };
+  }, [font]);
 
   // ─── Leave-confirm guard for the back button ──────────────────────
   const leave = useLeaveConfirm({
@@ -223,16 +262,24 @@ export default function NotesEditor({
         onExportMarkdown={onExportMarkdown}
         allowDownload={allowDownload}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto bg-background">
-        {/* `editable={false}` puts BlockNote in read-only / view mode for
+      <div className="notes-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        {/* The padding + max-width wrapper lives **outside** BlockNoteView.
+         *  BlockNote's shadcn build renders a second `.bn-root` portal node
+         *  directly under <body> and copies the view's `className` onto
+         *  it; passing padding utilities through `className` therefore
+         *  leaks 80+ vertical pixels to a phantom element on body and
+         *  forces the page into vertical+horizontal scroll. Wrapping is
+         *  the cleanest way to keep our presentation off the portal.
+         *
+         *  `editable={false}` puts BlockNote in read-only / view mode for
          *  share-token recipients. Theme is controlled top-down so the
-         *  editor matches the rest of the app. */}
-        <BlockNoteView
-          editor={editor}
-          editable={!readOnly}
-          theme={themeResolved}
-          className="px-4 py-6 sm:px-8 sm:py-10"
-        />
+         *  editor matches the rest of the app. The selected typeface
+         *  is applied via `--bn-font-family` (set on <html> by the
+         *  effect below) so popovers rendered to the body portal
+         *  inherit the same face. */}
+        <div className={cn("mx-auto w-full px-4 py-6 sm:px-8 sm:py-10", widthMaxClass(width))}>
+          <BlockNoteView editor={editor} editable={!readOnly} theme={themeResolved} />
+        </div>
       </div>
       <LeaveConfirmDialog
         open={leave.open}

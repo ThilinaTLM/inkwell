@@ -228,7 +228,7 @@ export function EditorPage() {
 
   if (loaded.meta.kind === "drawio") {
     return (
-      <div className="h-dvh w-dvw bg-background">
+      <div className="h-dvh w-full overflow-hidden bg-background">
         <DrawioEditor
           loaded={loaded}
           save={save}
@@ -258,7 +258,7 @@ export function EditorPage() {
 
   if (loaded.meta.kind === "notes") {
     return (
-      <div className="h-dvh w-dvw bg-background">
+      <div className="h-dvh w-full overflow-hidden bg-background">
         <NotesEditor
           loaded={loaded}
           save={save}
@@ -280,7 +280,7 @@ export function EditorPage() {
   }
 
   return (
-    <div className="h-dvh w-dvw bg-background">
+    <div className="h-dvh w-full overflow-hidden bg-background">
       <ExcalidrawEditor
         loaded={loaded}
         save={save}
