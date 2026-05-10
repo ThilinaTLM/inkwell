@@ -1,12 +1,40 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-/* Inter (variable) — every UI surface: body, labels, controls, headings.
-   `wght` = weight axis only; `opsz` would also load optical sizing. */
-@import "@fontsource-variable/inter/wght.css";
-/* JetBrains Mono (variable) — IDs, tokens, timestamps, code. */
-@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource-variable/caveat";
 @import "@excalidraw/excalidraw/index.css";
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Excalifont — self-hosted from the woff2 already shipped in
+   @excalidraw/excalidraw/dist/prod/fonts/Excalifont/. We copy two subsets
+   (Latin + Latin-Extended) for our own UI labels because Excalidraw only
+   loads its fonts inside the canvas iframe-ish layout-ui wrapper.
+   ─────────────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: "Excalifont";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Excalifont/Excalifont-Regular-Latin.woff2") format("woff2");
+  unicode-range:
+    U+20-7e, U+a0-a3, U+a5-a6, U+a8-ab, U+ad-b1, U+b4, U+b6-b8,
+    U+ba-ff, U+131, U+152-153, U+2bc, U+2c6, U+2da, U+2dc, U+304, U+308,
+    U+2013-2014, U+2018-201a, U+201c-201e, U+2020, U+2022, U+2024-2026,
+    U+2030, U+2039-203a, U+20ac, U+2122, U+2212;
+}
+@font-face {
+  font-family: "Excalifont";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Excalifont/Excalifont-Regular-LatinExt.woff2") format("woff2");
+  unicode-range:
+    U+100-130, U+132-137, U+139-149, U+14c-151, U+154-17e, U+192, U+1fc-1ff, U+218-21b, U+237,
+    U+1e80-1e85, U+1ef2-1ef3, U+2113;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -25,20 +53,11 @@
    change. Components consume colours exclusively through these tokens.
    ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
-  /* ─── Fonts ───
-     A deliberately minimal two-family system:
-       • --font-sans    Inter — every UI surface (body, labels, controls,
-                         data tables, headings). Variable axis 100–900.
-       • --font-heading Inter — same family; this token exists only so
-                         components can opt into a tighter, weightier
-                         heading style without binding to a literal class.
-       • --font-mono    JetBrains Mono — IDs, tokens, timestamps, code.
-     Components opt in via `font-sans | font-heading | font-mono`. */
-  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
-  --font-heading: "Inter Variable", "Inter", system-ui, sans-serif;
-  --font-mono:
-    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+  /* ─── Fonts ─── */
+  --font-brand: "Excalifont", "Caveat Variable", system-ui, sans-serif;
+  --font-heading: "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-hand: "Caveat Variable", "Excalifont", cursive;
 
   /* ─── shadcn semantic tokens (used by every component) ─── */
   --color-background: var(--background);
@@ -219,11 +238,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
-    /* Inter OpenType features:
-         cv11 — single-story `a` (more modern, less mechanical)
-         ss03 — disambiguated `Il1` for legibility in dense data tables
-         ss01 — alternate `g` (open descender)                          */
-    font-feature-settings: "cv11", "ss03", "ss01";
+    font-feature-settings: "ss01", "cv11"; /* IBM Plex stylistic alts where supported */
   }
   h1,
   h2,

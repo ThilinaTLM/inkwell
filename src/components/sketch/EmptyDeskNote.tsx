@@ -1,7 +1,6 @@
-// EmptyDeskNote — a paper-note zero-state used when a folder is empty,
-// when a search returns nothing, or as a placeholder for any other empty
-// surface. The card silhouette is a slightly torn RoughBox; type is plain
-// Inter (was Excalifont/Caveat before the font system was simplified).
+// EmptyDeskNote — a hand-written paper note used when a folder is empty,
+// when a search returns nothing, or as a placeholder for any zero-state.
+// Caveat font on a small RoughBox card with a slightly torn rotation.
 
 import type * as React from "react";
 import { RoughBox } from "@/components/rough/RoughBox";
@@ -46,10 +45,10 @@ export function EmptyDeskNote({
         {/* Wrap content in a `relative` block so it paints above the
             absolute-positioned RoughBox card silhouette. */}
         <div className="relative">
-          <h3 className="font-heading text-xl font-semibold tracking-tight text-foreground">
-            {title}
-          </h3>
-          {body && <div className="mt-2 text-sm/relaxed text-muted-foreground">{body}</div>}
+          <h3 className="font-brand text-2xl font-normal text-foreground">{title}</h3>
+          {body && (
+            <div className="mt-2 font-hand text-lg/relaxed text-muted-foreground">{body}</div>
+          )}
           {action && <div className="mt-5 flex justify-center">{action}</div>}
         </div>
       </div>
