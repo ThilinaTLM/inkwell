@@ -139,3 +139,91 @@ export function DrawioLogo({
     </svg>
   );
 }
+
+// ─── Notes (BlockNote-backed) ─────────────────────────────────────
+//
+// Unlike Excalidraw / draw.io, "Notes" isn't a third-party product
+// brand we're trying to match — it's an internal kind label backed
+// by BlockNote. So this glyph is Inkwell's own: a ruled-paper /
+// document-with-lines mark in emerald, deliberately distinct from
+// the purple Excalidraw and orange draw.io chips.
+
+const NOTES_TEAL = "#0a7a5e";
+const NOTES_TEAL_DARK = "#075c47";
+
+/** Notes brand mark (Inkwell-original).
+ *
+ *  - "full" → 32×32 emerald rounded chip with a white document
+ *             outline + ruled lines, matching the visual rhythm of
+ *             the Excalidraw / draw.io chips.
+ *  - "mark" → just the document outline + ruled lines in emerald,
+ *             on transparent. Default size is `size-3.5`.
+ */
+export function NotesLogo({
+  variant = "mark",
+  className,
+}: {
+  variant?: BrandLogoVariant;
+  className?: string;
+}) {
+  if (variant === "full") {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        xmlns="http://www.w3.org/2000/svg"
+        className={cn("size-full", className)}
+        aria-hidden
+      >
+        <title>Notes</title>
+        <rect x="2" y="2" width="28" height="28" rx="1.12" fill={NOTES_TEAL} />
+        {/* Folded-corner accent in a darker shade, mirroring the
+            draw.io mark's corner motif. */}
+        <path d="M22 5h5v5l-5-5z" fill={NOTES_TEAL_DARK} fillRule="evenodd" />
+        {/* Document outline. */}
+        <rect
+          x="7"
+          y="7"
+          width="15"
+          height="19"
+          rx="1.5"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="1.5"
+        />
+        {/* Ruled lines. */}
+        <path
+          d="M10 13h9M10 16.5h9M10 20h6"
+          stroke="#fff"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("size-3.5", className)}
+      aria-hidden
+    >
+      <title>Notes</title>
+      <rect
+        x="7"
+        y="7"
+        width="15"
+        height="19"
+        rx="1.5"
+        fill="none"
+        stroke={NOTES_TEAL}
+        strokeWidth="2"
+      />
+      <path
+        d="M10 13h9M10 16.5h9M10 20h6"
+        stroke={NOTES_TEAL}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

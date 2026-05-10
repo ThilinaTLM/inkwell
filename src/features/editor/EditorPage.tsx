@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { downloadLabelForKind } from "@/components/sketch/file-kind-icons";
 import { useFile, useRenameFile, useSetFileTags } from "@/data/files";
 import { useTags } from "@/data/tags";
 import { useMutationWithToast } from "@/data/useMutationWithToast";
@@ -29,6 +30,7 @@ import { useTheme } from "@/lib/theme";
 import DrawioEditor from "./DrawioEditor";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import ExcalidrawEditor from "./ExcalidrawEditor";
+import NotesEditor from "./NotesEditor";
 import { RenameFileDialog } from "./RenameFileDialog";
 
 export function EditorPage() {
@@ -254,6 +256,29 @@ export function EditorPage() {
     );
   }
 
+  if (loaded.meta.kind === "notes") {
+    return (
+      <div className="h-dvh w-dvw bg-background">
+        <NotesEditor
+          loaded={loaded}
+          save={save}
+          saveThumb={saveThumb}
+          onThumbSaved={onThumbSaved}
+          reload={reload}
+          onReload={(ls) => setLoaded(ls)}
+          back={{ onClick: handleBack, label: "Back to dashboard" }}
+          onRequestRename={() => setRenameOpen(true)}
+          onTags={() => setTagsOpen(true)}
+          onShare={() => setShareOpen(true)}
+          onDownload={() => {
+            window.location.href = files.downloadUrl(id);
+          }}
+        />
+        {fileDialogs}
+      </div>
+    );
+  }
+
   return (
     <div className="h-dvh w-dvw bg-background">
       <ExcalidrawEditor
@@ -293,7 +318,7 @@ export function EditorPage() {
               href={files.downloadUrl(id)}
               icon={<HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />}
             >
-              Download .excalidraw
+              {downloadLabelForKind(loaded.meta.kind)}
             </MainMenu.ItemLink>
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.Separator />

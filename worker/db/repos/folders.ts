@@ -5,7 +5,7 @@
 // parameterizes the bound values automatically.
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import type { Env, FilePreview, FileRow, FolderRow } from "../../types";
+import type { Env, FileKind, FilePreview, FileRow, FolderRow } from "../../types";
 import { getDb, t } from "../client";
 
 export const MAX_DEPTH = 8;
@@ -196,7 +196,7 @@ export async function loadListAggregates(env: Env, owner: string): Promise<Folde
   const previewRowsP = db.all<{
     folder_id: string;
     id: string;
-    kind: "excalidraw" | "drawio";
+    kind: FileKind;
     has_thumb: number;
     thumb_updated_at: number;
     rn: number;

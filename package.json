@@ -30,6 +30,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@blocknote/core": "^0.50.0",
+    "@blocknote/react": "^0.50.0",
+    "@blocknote/shadcn": "^0.50.0",
     "@excalidraw/excalidraw": "^0.18.1",
     "@fontsource-variable/caveat": "^5.2.8",
     "@fontsource-variable/manrope": "^5.2.8",

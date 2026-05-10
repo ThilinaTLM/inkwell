@@ -23,9 +23,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { downloadLabelForKind } from "@/components/sketch/file-kind-icons";
 import { useSharedFile } from "@/data/shares";
 import DrawioEditor from "@/features/editor/DrawioEditor";
 import ExcalidrawEditor from "@/features/editor/ExcalidrawEditor";
+import NotesEditor from "@/features/editor/NotesEditor";
 import type { FileBlob, LoadedFile } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
@@ -141,6 +143,32 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
     );
   }
 
+  if (loaded.meta.kind === "notes") {
+    return (
+      <div className="h-dvh w-dvw bg-background">
+        <NotesEditor
+          loaded={loaded}
+          save={writable ? save : async () => ({ version: loaded.meta.version })}
+          // No thumbnail uploads from share-token sessions — only the
+          // owner's saves should advance the canonical thumb.
+          saveThumb={null}
+          reload={reload}
+          onReload={(ls) => setLoaded(ls)}
+          back={
+            fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
+          }
+          // Visitors don't own the file, so rename / tags / share are
+          // omitted (the chrome hides those rows when handlers are
+          // null). Download is gated on the share's allowDownload bit.
+          onDownload={() => {
+            window.location.href = downloadHref;
+          }}
+          allowDownload={loaded.allowDownload}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="h-dvh w-dvw bg-background">
       <ExcalidrawEditor
@@ -185,7 +213,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
                 href={downloadHref}
                 icon={<HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />}
               >
-                Download .excalidraw
+                {downloadLabelForKind(loaded.meta.kind)}
               </MainMenu.ItemLink>
             )}
 

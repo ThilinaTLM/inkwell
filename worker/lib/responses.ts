@@ -125,12 +125,20 @@ function safeFilename(name: string): string {
   return base.slice(0, 80);
 }
 
-function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" {
+function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "notes.json" {
   switch (kind) {
     case "drawio":
       return "drawio";
     case "excalidraw":
       return "excalidraw";
+    case "notes":
+      // Notes blobs are BlockNote document JSON; the `.notes.json`
+      // double extension keeps both "this is JSON" and "this is an
+      // Inkwell notes file" obvious to the OS and to humans. The
+      // worker does not convert to Markdown — the SPA exposes a
+      // separate client-only "Export as Markdown" path that runs
+      // `editor.blocksToMarkdownLossy()` in the browser.
+      return "notes.json";
     default:
       return assertNever(kind);
   }

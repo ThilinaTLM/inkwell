@@ -5,6 +5,13 @@
 @import "@fontsource-variable/caveat";
 @import "@excalidraw/excalidraw/index.css";
 
+/* BlockNote (used by NotesEditor) ships utility classes from its
+ * shadcn integration build. Tell Tailwind v4 to scan that package
+ * source so the relevant utilities get generated. The package is
+ * loaded only inside the notes editor route, but the classes need to
+ * exist in the global CSS bundle. */
+@source "../node_modules/@blocknote/shadcn";
+
 /* ───────────────────────────────────────────────────────────────────────────
    Excalifont — self-hosted from the woff2 already shipped in
    @excalidraw/excalidraw/dist/prod/fonts/Excalifont/. We copy two subsets

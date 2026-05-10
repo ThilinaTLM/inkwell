@@ -19,6 +19,7 @@ import type {
   FileKind,
   FileMeta,
   FileRow,
+  NotesFileBlob,
 } from "../types";
 import { rowToMeta } from "../types";
 
@@ -32,6 +33,8 @@ export function seedBlobForKind(kind: FileKind, name: string): FileBlob {
       return { kind: "drawio", xml: emptyDrawioXml(name) };
     case "excalidraw":
       return { elements: [], appState: { name }, files: {} };
+    case "notes":
+      return { kind: "notes", blocks: [{ type: "paragraph", content: [] }] };
     default:
       return assertNever(kind);
   }
@@ -57,6 +60,13 @@ export function isDrawioBlob(blob: FileBlob): blob is DrawioFileBlob {
   );
 }
 
+export function isNotesBlob(blob: FileBlob): blob is NotesFileBlob {
+  return (
+    (blob as { kind?: unknown }).kind === "notes" &&
+    Array.isArray((blob as { blocks?: unknown }).blocks)
+  );
+}
+
 export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | null {
   switch (kind) {
     case "drawio":
@@ -66,6 +76,9 @@ export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | 
     case "excalidraw":
       if (!Array.isArray((parsed as ExcalidrawFileBlob).elements))
         return "elements must be an array";
+      return null;
+    case "notes":
+      if (!isNotesBlob(parsed)) return "notes blob must include kind=notes and blocks array";
       return null;
     default:
       return assertNever(kind);
