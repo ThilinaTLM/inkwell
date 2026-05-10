@@ -90,7 +90,7 @@ export function AppPageHeader({
   className,
 }: AppPageHeaderProps) {
   return (
-    <header className={cn("mb-6 sm:mb-8", className)}>
+    <header className={cn("mb-5 sm:mb-7", className)}>
       {backTo ? (
         <Button
           variant="ghost"
@@ -104,18 +104,20 @@ export function AppPageHeader({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2.5 font-heading text-3xl font-semibold text-foreground">
+          <h1 className="flex items-center gap-2.5 font-heading text-2xl font-semibold text-foreground">
             {icon ? (
               <HugeiconsIcon
                 // biome-ignore lint/suspicious/noExplicitAny: icon shape comes from @hugeicons/core-free-icons
                 icon={icon as any}
-                strokeWidth={2}
-                className="size-7"
+                strokeWidth={1.7}
+                className="size-6"
               />
             ) : null}
             <span className="truncate">{title}</span>
           </h1>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+          {description ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>

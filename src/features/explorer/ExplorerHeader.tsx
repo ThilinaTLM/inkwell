@@ -1,75 +1,27 @@
 // ExplorerHeader — dashboard header.
 //
 // Layout:
-//   [ inkwell ]                                          [ Users? ] [ avatar ]
+//   [ inkwell ]                                                   [ avatar ]
 //
 // Composes the shared `<Topbar>` so the dashboard chrome matches the
-// rest of the authenticated app (Account, Users) — same height, same
-// wordmark, same bottom border.
+// rest of the authenticated app (Account, Users, Shares) — same
+// height, same wordmark, identical right-side. The Topbar's right
+// side intentionally renders only `<UserMenu>` on every authenticated
+// page; cross-page navigation (Dashboard / Settings / Shared Links /
+// Users) lives in the user-menu dropdown rather than as duplicated
+// icon shortcuts in the strip itself.
 //
-// Search and creation aren't part of the header — scene/folder
-// creation lives in the page-header buttons (and the right-click
+// Search and creation aren't part of the header — file/folder
+// creation lives in the in-panel header buttons (and the right-click
 // context menu in any view).
-//
-// The admin "Users" icon button is a one-click jump to /users and only
-// renders when `user.isAdmin` is true.
 
-import { Link04Icon, UserMultipleIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useNavigate } from "react-router-dom";
 import { Topbar } from "@/components/Topbar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { User } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
 
 interface ExplorerHeaderProps {
   user: User;
 }
 
 export function ExplorerHeader({ user }: ExplorerHeaderProps) {
-  const navigate = useNavigate();
-
-  const iconButtonClass = cn(
-    "grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-  );
-
-  const actions = (
-    <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              onClick={() => navigate("/shares")}
-              aria-label="Shared links"
-              className={iconButtonClass}
-            />
-          }
-        >
-          <HugeiconsIcon icon={Link04Icon} strokeWidth={1.7} className="size-4" />
-        </TooltipTrigger>
-        <TooltipContent>Shared links</TooltipContent>
-      </Tooltip>
-      {user.isAdmin && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => navigate("/users")}
-                aria-label="Manage users"
-                className={iconButtonClass}
-              />
-            }
-          >
-            <HugeiconsIcon icon={UserMultipleIcon} strokeWidth={1.7} className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent>Users</TooltipContent>
-        </Tooltip>
-      )}
-    </>
-  );
-
-  return <Topbar user={user} actions={actions} />;
+  return <Topbar user={user} />;
 }

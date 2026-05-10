@@ -7,7 +7,13 @@
 // its view switcher). `center` is centered in the remaining space.
 // `actions` sits immediately to the left of the shared `<UserMenu>`.
 // Using the same `<Topbar>` everywhere keeps height, wordmark, and
-// border consistent across Dashboard, Admin, Account, etc.
+// chrome consistent across Dashboard, Admin, Account, etc.
+//
+// Visual: borderless on purpose. Separation from page content comes
+// from `bg-background/85` + `backdrop-blur` (with a stronger
+// translucency under `supports-backdrop-filter`), not a hairline
+// rule. Don't reintroduce `border-b` here — it cuts the page in two
+// and fights the floating-glass look.
 
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -27,7 +33,7 @@ interface TopbarProps {
 
 export function Topbar({ user, leading, center, actions }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-5 backdrop-blur supports-backdrop-filter:bg-background/70">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-background/85 px-5 backdrop-blur supports-backdrop-filter:bg-background/70">
       <Link
         to="/"
         className="flex items-center gap-2 font-brand text-xl text-foreground transition-opacity hover:opacity-70"
