@@ -1,6 +1,5 @@
 // Per-device user preferences persisted to localStorage.
 //
-// `useDefaultFileKind` — default for the New File split-button.
 // `useDrawioStylePref` / `useDrawioStyle` — Editor style preference
 // for the drawio editor (auto / classic / sketch). Lives in
 // `src/lib/` rather than under any single feature because the
@@ -9,51 +8,15 @@
 // localStorage may be unavailable (private browsing, embedded
 // webviews, SSR-style first render) — every read/write is wrapped in
 // try/catch and falls back to in-memory state.
+//
+// Note: an earlier `useDefaultFileKind` hook (key:
+// `inkwell.defaultFileKind`) used to drive the old split-button. The
+// new `<NewFileDialog>` picker makes that pref redundant; the hook
+// has been removed and any stored value on existing devices is
+// orphaned but harmless.
 
 import { useCallback, useEffect, useState } from "react";
-import type { FileKind } from "@/lib/api/client";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-
-const DEFAULT_FILE_KIND_KEY = "inkwell.defaultFileKind";
-
-function readStoredKind(): FileKind {
-  try {
-    const v = localStorage.getItem(DEFAULT_FILE_KIND_KEY);
-    return v === "drawio" ? "drawio" : "excalidraw";
-  } catch {
-    return "excalidraw";
-  }
-}
-
-function writeStoredKind(kind: FileKind): void {
-  try {
-    localStorage.setItem(DEFAULT_FILE_KIND_KEY, kind);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function useDefaultFileKind(): [FileKind, (kind: FileKind) => void] {
-  const [kind, setKindState] = useState<FileKind>(readStoredKind);
-
-  // Keep multiple tabs in sync — the `storage` event fires on changes
-  // made in *other* tabs of the same origin.
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== DEFAULT_FILE_KIND_KEY) return;
-      setKindState(e.newValue === "drawio" ? "drawio" : "excalidraw");
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  const setKind = useCallback((next: FileKind) => {
-    writeStoredKind(next);
-    setKindState(next);
-  }, []);
-
-  return [kind, setKind];
-}
 
 // ---------------------------------------------------------------------------
 // Drawio editor style preference
@@ -64,8 +27,8 @@ export function useDefaultFileKind(): [FileKind, (kind: FileKind) => void] {
 //   "classic" — always Kennedy theme (today's default)
 //   "sketch"  — always sketch theme (touch-first floating UI)
 //
-// The pref is *device-local* (matches `useDefaultFileKind`); cross-
-// device sync would require a backend column and is deferred.
+// The pref is *device-local*; cross-device sync would require a
+// backend column and is deferred.
 //
 // `useDrawioStyle()` is the resolver every consumer should call
 // instead of branching on the raw pref — it folds in the media query

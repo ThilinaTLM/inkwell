@@ -39,6 +39,7 @@ import { FolderCreateDialog } from "./dialogs/FolderCreateDialog";
 import { FolderDeleteDialog } from "./dialogs/FolderDeleteDialog";
 import { FolderMoveDialog } from "./dialogs/FolderMoveDialog";
 import { FolderRenameDialog } from "./dialogs/FolderRenameDialog";
+import { NewFileDialog } from "./dialogs/NewFileDialog";
 
 type ShareTarget = { kind: "file"; file: FileMeta } | { kind: "folder"; folder: FolderMeta };
 
@@ -82,6 +83,11 @@ export function DashboardPage() {
   const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(null);
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
   const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
+  // Picker for choosing the kind (excalidraw / drawio) of a new file.
+  // Every "New file" entry point — header button, empty-state CTA,
+  // and both context-menu variants — opens this picker; only after
+  // the user clicks a card does `newFile()` actually run.
+  const [newFilePicker, setNewFilePicker] = useState<{ parentId: string | null } | null>(null);
 
   const runCreateFile = useMutationWithToast(createFile, {
     success: (m) => `Created "${m.name}".`,
@@ -112,7 +118,7 @@ export function DashboardPage() {
     renameFolder: (f) => setFolderRenameTarget(f),
     deleteFile: (s) => setDeleteFileTarget(s),
     deleteFolder: (f) => setFolderDeleteTarget(f),
-    createFileIn: (parentFolderId, kind) => void newFile(parentFolderId, kind),
+    openNewFilePicker: (parentId) => setNewFilePicker({ parentId }),
     createFolderIn: (parentId) => setFolderCreate({ parentId }),
   };
 
@@ -177,6 +183,19 @@ export function DashboardPage() {
           targetName={shareTarget.kind === "file" ? shareTarget.file.name : shareTarget.folder.name}
         />
       ) : null}
+
+      {/* ─── New-file picker ─── */}
+      <NewFileDialog
+        open={!!newFilePicker}
+        onOpenChange={(o) => !o && setNewFilePicker(null)}
+        onPick={(kind) => {
+          // Snapshot the target before clearing state so a StrictMode
+          // double-invocation can't read a stale `newFilePicker`.
+          const target = newFilePicker;
+          setNewFilePicker(null);
+          if (target) void newFile(target.parentId, kind);
+        }}
+      />
 
       {/* ─── Folder dialogs ─── */}
       {folderCreate ? (

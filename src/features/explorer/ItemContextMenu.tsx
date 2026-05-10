@@ -6,9 +6,13 @@
 //
 //   file   → Open · Open in new tab · Share · Download · Edit tags ·
 //            Move to · Rename · Delete
-//   folder → Open · Share · New file inside (excalidraw / draw.io) ·
-//            New subfolder · Edit tags · Move to · Rename · Delete
-//   empty  → New file (excalidraw / draw.io) · New folder
+//   folder → Open · Share · New file inside… · New subfolder ·
+//            Edit tags · Move to · Rename · Delete
+//   empty  → New file… · New folder
+//
+// "New file…" opens the `<NewFileDialog>` picker (rendered by the
+// dashboard) so the user chooses Excalidraw / Draw.io there — the
+// menu itself stays a single line per location.
 //
 // "empty" is used for the right-click background of the Browse grid so
 // users can create items without first selecting one.
@@ -37,7 +41,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import type { FileKind, FileMeta, FolderMeta } from "@/lib/api/client";
+import type { FileMeta, FolderMeta } from "@/lib/api/client";
 import { files } from "@/lib/api/client";
 
 export type ItemContextMenuTarget =
@@ -58,8 +62,8 @@ export interface ItemMenuActions {
   renameFolder: (f: FolderMeta) => void;
   deleteFile: (s: FileMeta) => void;
   deleteFolder: (f: FolderMeta) => void;
-  /** Create a file of the given kind inside `folderId` (or at root when null). */
-  createFileIn: (folderId: string | null, kind: FileKind) => void;
+  /** Open the file-kind picker, creating into `folderId` (or root when null). */
+  openNewFilePicker: (folderId: string | null) => void;
   createFolderIn: (parentId: string | null) => void;
 }
 
@@ -144,13 +148,9 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
         <HugeiconsIcon icon={Share08Icon} strokeWidth={2} />
         Share…
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createFileIn(f.id, "excalidraw")}>
+      <ContextMenuItem onClick={() => actions.openNewFilePicker(f.id)}>
         <PlusGlyph />
-        New excalidraw file inside
-      </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createFileIn(f.id, "drawio")}>
-        <PlusGlyph />
-        New draw.io file inside
+        New file inside…
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(f.id)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
@@ -180,13 +180,9 @@ function FolderItems({ folder: f, actions }: { folder: FolderMeta; actions: Item
 function EmptyItems({ folderId, actions }: { folderId: string | null; actions: ItemMenuActions }) {
   return (
     <>
-      <ContextMenuItem onClick={() => actions.createFileIn(folderId, "excalidraw")}>
+      <ContextMenuItem onClick={() => actions.openNewFilePicker(folderId)}>
         <PlusGlyph />
-        New excalidraw file
-      </ContextMenuItem>
-      <ContextMenuItem onClick={() => actions.createFileIn(folderId, "drawio")}>
-        <PlusGlyph />
-        New draw.io file
+        New file…
       </ContextMenuItem>
       <ContextMenuItem onClick={() => actions.createFolderIn(folderId)}>
         <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />

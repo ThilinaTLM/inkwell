@@ -1,6 +1,6 @@
-// PreferencesTab — appearance, drawio editor style, and default file
-// kind. Three labelled groups in one card so the tab reads as a single
-// settings panel rather than three islands.
+// PreferencesTab — appearance and drawio editor style. Two labelled
+// groups in one card so the tab reads as a single settings panel
+// rather than two islands.
 //
 // Every preference here is device-local (localStorage). Cross-device
 // sync requires backend columns and is deferred. See
@@ -9,8 +9,7 @@
 
 import { ElevatedCard } from "@/components/ElevatedCard";
 import { Separator } from "@/components/ui/separator";
-import type { FileKind } from "@/lib/api/client";
-import { type DrawioStylePref, useDefaultFileKind, useDrawioStylePref } from "@/lib/preferences";
+import { type DrawioStylePref, useDrawioStylePref } from "@/lib/preferences";
 import { type ThemeMode, useTheme } from "@/lib/theme";
 import { type SegmentedOption, SegmentedOptions } from "./SegmentedOptions";
 
@@ -38,23 +37,9 @@ const DRAWIO_STYLE_OPTIONS: ReadonlyArray<SegmentedOption<DrawioStylePref>> = [
   },
 ];
 
-const FILE_KIND_OPTIONS: ReadonlyArray<SegmentedOption<FileKind>> = [
-  {
-    value: "excalidraw",
-    label: "Excalidraw",
-    description: "Hand-drawn whiteboard, fast and simple.",
-  },
-  {
-    value: "drawio",
-    label: "Draw.io",
-    description: "Structured diagrams with shapes and connectors.",
-  },
-];
-
 export function PreferencesTab() {
   const { mode, setMode } = useTheme();
   const [drawioStyle, setDrawioStyle] = useDrawioStylePref();
-  const [defaultKind, setDefaultKind] = useDefaultFileKind();
 
   return (
     <ElevatedCard>
@@ -79,21 +64,6 @@ export function PreferencesTab() {
             value={drawioStyle}
             onChange={setDrawioStyle}
             options={DRAWIO_STYLE_OPTIONS}
-          />
-        </PreferenceGroup>
-
-        <Separator />
-
-        <PreferenceGroup
-          title="Default file kind"
-          description="Used by the New File button and right-click menus."
-        >
-          <SegmentedOptions
-            ariaLabel="Default file kind"
-            value={defaultKind}
-            onChange={setDefaultKind}
-            options={FILE_KIND_OPTIONS}
-            columns={2}
           />
         </PreferenceGroup>
       </div>

@@ -4,13 +4,13 @@
 //   /folders/:folderId      → that folder's direct children
 //
 // Layout:
-//   - Page header: path strip (breadcrumb) + folder name title +
-//     "X folders · Y files" subtitle + "New folder" outline button +
-//     `<NewFileSplitButton>` (primary action defaults to the user's
-//     last-picked file kind, dropdown lets them pick the other).
-//   - Body: a single responsive grid containing folders first, then
-//     files. The whole body is the empty-area `<ItemContextMenu>`
-//     target so right-click anywhere creates new.
+//   - Page header: heading-variant breadcrumb (acts as the title) +
+//     "New folder" outline button + `<NewFileButton>` (opens the
+//     `<NewFileDialog>` picker).
+//   - Body: a rounded "deck" panel containing the responsive grid
+//     (folders first, then files) and a footer status bar showing
+//     "X folders · Y files". The whole panel is the empty-area
+//     `<ItemContextMenu>` target so right-click anywhere creates new.
 
 import { FolderAddIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -29,7 +29,7 @@ import { relTime } from "@/lib/format";
 import { Breadcrumb } from "../Breadcrumb";
 import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
-import { NewFileSplitButton } from "../NewFileSplitButton";
+import { NewFileButton } from "../NewFileButton";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
 
 interface BrowseViewProps {
@@ -102,7 +102,10 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
   // Current" at title size, with ancestors clickable. This avoids the
   // duplicate "breadcrumb on top, folder name below" stutter.
   const titleNode = <Breadcrumb path={breadcrumb} onJump={onChangeFolder} variant="heading" />;
-  const subtitle = isLoading ? undefined : buildSubtitle(subfolders.length, files?.length ?? 0);
+  // Item-count text is rendered as a footer status bar inside the
+  // deck panel (see below) rather than as a page-header subtitle:
+  // it describes the panel contents, not the page.
+  const statusText = isLoading ? null : buildSubtitle(subfolders.length, files?.length ?? 0);
 
   // The body sits on a subtly lifted "deck" surface — `bg-muted/40`
   // tints just enough above `--background` to separate the working
@@ -115,22 +118,26 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
       actions={actions}
       className="flex flex-1 flex-col min-h-0"
     >
-      <div className="mx-3 mb-3 flex flex-1 flex-col min-h-0 rounded-2xl border border-border/50 bg-muted/40 py-4">
-        {isLoading ? (
-          <div className="px-6">
-            <SkeletonGrid />
-          </div>
-        ) : isEmpty ? (
-          <CenteredEmpty
-            folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
-            onCreate={(kind) => actions.createFileIn(folderId, kind)}
-            onCreateFolder={() => actions.createFolderIn(folderId)}
-          />
-        ) : (
-          <>
-            {/* Single grid: folders first, then files. Folder/file
-             *  keys are prefixed so a folder and a file with the
-             *  same uuid can never collide in React's reconciler. */}
+      <div className="mx-3 mb-3 flex flex-1 flex-col min-h-0 rounded-2xl border border-border/50 bg-muted/40">
+        {/* Inner content wrapper fills the panel height so the
+         *  status bar pins to the bottom edge. Padding lives here
+         *  (not on the panel) so the status row sits flush against
+         *  the panel's bottom rounded corner. */}
+        <div className="flex flex-1 flex-col min-h-0 py-4">
+          {isLoading ? (
+            <div className="px-6">
+              <SkeletonGrid />
+            </div>
+          ) : isEmpty ? (
+            <CenteredEmpty
+              folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
+              onCreate={() => actions.openNewFilePicker(folderId)}
+              onCreateFolder={() => actions.createFolderIn(folderId)}
+            />
+          ) : (
+            // Single grid: folders first, then files. Folder/file
+            // keys are prefixed so a folder and a file with the
+            // same uuid can never collide in React's reconciler.
             <div className={GRID_CLASSES}>
               {subfolders.map((f) => (
                 <ItemContextMenu
@@ -171,11 +178,16 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
                 </ItemContextMenu>
               ))}
             </div>
-            {/* Spacer fills remaining height so right-click reaches
-             *  the bottom of the working area. */}
-            <div className="flex-1" />
-          </>
-        )}
+          )}
+        </div>
+        {/* Footer status bar — quiet panel chrome that mirrors the
+         *  old page-header subtitle. Hidden during the skeleton so
+         *  it doesn't pop in before counts are known. */}
+        {statusText ? (
+          <div className="border-t border-border/40 px-6 py-2 text-xs text-muted-foreground/70">
+            {statusText}
+          </div>
+        ) : null}
       </div>
     </ItemContextMenu>
   );
@@ -184,16 +196,13 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
     <div ref={containerRef} className="flex flex-1 flex-col min-h-0" tabIndex={-1}>
       <ExplorerPageHeader
         title={titleNode}
-        subtitle={subtitle}
         secondaryAction={
           <Button variant="outline" onClick={() => actions.createFolderIn(folderId)}>
             <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
             New folder
           </Button>
         }
-        primaryAction={
-          <NewFileSplitButton onCreate={(kind) => actions.createFileIn(folderId, kind)} />
-        }
+        primaryAction={<NewFileButton onClick={() => actions.openNewFilePicker(folderId)} />}
       />
 
       {body}
@@ -219,7 +228,7 @@ function CenteredEmpty({
   onCreateFolder,
 }: {
   folderName: string | null;
-  onCreate: (kind: import("@/lib/api/client").FileKind) => void;
+  onCreate: () => void;
   onCreateFolder: () => void;
 }) {
   return (
@@ -230,7 +239,7 @@ function CenteredEmpty({
         body="Pick a file type and start drawing — your first file is one click away."
         action={
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <NewFileSplitButton onCreate={onCreate} size="lg" />
+            <NewFileButton onClick={onCreate} size="lg" />
             <Button onClick={onCreateFolder} variant="outline" size="lg">
               <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
               New folder
