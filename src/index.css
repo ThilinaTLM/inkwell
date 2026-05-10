@@ -1,9 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource-variable/manrope";
 @import "@fontsource-variable/caveat";
 @import "@excalidraw/excalidraw/index.css";
 
@@ -55,8 +53,8 @@
 @theme inline {
   /* ─── Fonts ─── */
   --font-brand: "Excalifont", "Caveat Variable", system-ui, sans-serif;
-  --font-heading: "IBM Plex Sans", system-ui, sans-serif;
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-heading: "Manrope Variable", system-ui, sans-serif;
+  --font-sans: "Manrope Variable", system-ui, sans-serif;
   --font-hand: "Caveat Variable", "Excalifont", cursive;
 
   /* ─── shadcn semantic tokens (used by every component) ─── */
@@ -238,7 +236,6 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11"; /* IBM Plex stylistic alts where supported */
   }
   h1,
   h2,

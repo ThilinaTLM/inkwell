@@ -4,13 +4,18 @@
 //   /folders/:folderId      → that folder's direct children
 //
 // Layout:
-//   - Page header: heading-variant breadcrumb (acts as the title) +
-//     "New folder" outline button + `<NewFileButton>` (opens the
-//     `<NewFileDialog>` picker).
-//   - Body: a rounded "deck" panel containing the responsive grid
-//     (folders first, then files) and a footer status bar showing
-//     "X folders · Y files". The whole panel is the empty-area
-//     `<ItemContextMenu>` target so right-click anywhere creates new.
+//   - A single rounded "deck" panel that owns three flex children:
+//       1. Header row: heading-variant breadcrumb (acts as the title)
+//          plus "New folder" outline button and `<NewFileButton>`
+//          (opens the `<NewFileDialog>` picker).
+//       2. Scrollable body: responsive grid (folders first, then
+//          files), the loading skeleton, or the centered empty state.
+//       3. Footer status bar showing "X folders · Y files".
+//     The whole panel is the empty-area `<ItemContextMenu>` target so
+//     right-click anywhere creates new.
+//   - The grid body is the route's vertical scroll container; the
+//     panel header and footer stay pinned, as does the global
+//     `<ExplorerHeader>` (DashboardPage uses `h-dvh`).
 
 import { FolderAddIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -27,7 +32,6 @@ import type { FolderMeta } from "@/lib/api/client";
 import { relTime } from "@/lib/format";
 
 import { Breadcrumb } from "../Breadcrumb";
-import { ExplorerPageHeader } from "../ExplorerPageHeader";
 import { ItemContextMenu, type ItemMenuActions } from "../ItemContextMenu";
 import { NewFileButton } from "../NewFileButton";
 import { useExplorerHotkeys } from "../useExplorerHotkeys";
@@ -107,105 +111,106 @@ export function BrowseView({ folderId, onChangeFolder, folders, actions }: Brows
   // it describes the panel contents, not the page.
   const statusText = isLoading ? null : buildSubtitle(subfolders.length, files?.length ?? 0);
 
-  // The body sits on a subtly lifted "deck" surface — `bg-muted/40`
+  // The view sits on a subtly lifted "deck" surface — `bg-muted/40`
   // tints just enough above `--background` to separate the working
-  // area from the page-header chrome, in both light and dark themes.
+  // area from the global header chrome, in both light and dark themes.
   // Inset on all four sides with a hairline border + rounded corners
   // so the panel reads as a self-contained tray rather than a wall.
-  const body = (
-    <ItemContextMenu
-      target={{ kind: "empty", folderId }}
-      actions={actions}
-      className="flex flex-1 flex-col min-h-0"
-    >
-      <div className="mx-3 mb-3 flex flex-1 flex-col min-h-0 rounded-2xl border border-border/50 bg-muted/40">
-        {/* Inner content wrapper fills the panel height so the
-         *  status bar pins to the bottom edge. Padding lives here
-         *  (not on the panel) so the status row sits flush against
-         *  the panel's bottom rounded corner. */}
-        <div className="flex flex-1 flex-col min-h-0 py-4">
-          {isLoading ? (
-            <div className="px-6">
-              <SkeletonGrid />
-            </div>
-          ) : isEmpty ? (
-            <CenteredEmpty
-              folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
-              onCreate={() => actions.openNewFilePicker(folderId)}
-              onCreateFolder={() => actions.createFolderIn(folderId)}
-            />
-          ) : (
-            // Single grid: folders first, then files. Folder/file
-            // keys are prefixed so a folder and a file with the
-            // same uuid can never collide in React's reconciler.
-            <div className={GRID_CLASSES}>
-              {subfolders.map((f) => (
-                <ItemContextMenu
-                  key={`f:${f.id}`}
-                  target={{ kind: "folder", folder: f }}
-                  actions={actions}
-                >
-                  <FolderCard
-                    id={f.id}
-                    name={f.name}
-                    itemCount={f.fileCount + f.subfolderCount}
-                    previews={f.previews}
-                    activeShareCount={f.activeShareCount}
-                    onOpenShare={() => actions.shareFolder(f)}
-                    onOpen={() => onChangeFolder(f.id)}
-                  />
-                </ItemContextMenu>
-              ))}
-              {files?.map((s) => (
-                <ItemContextMenu
-                  key={`s:${s.id}`}
-                  target={{ kind: "file", file: s }}
-                  actions={actions}
-                >
-                  <FileCard
-                    id={s.id}
-                    name={s.name}
-                    kind={s.kind}
-                    hasThumb={s.hasThumb}
-                    thumbUrl={`/api/files/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
-                    folderName={null}
-                    updatedAtLabel={relTime(s.updatedAt)}
-                    tags={s.tags}
-                    activeShareCount={s.activeShareCount}
-                    onOpenShare={() => actions.shareFile(s)}
-                    onOpen={() => navigate(`/f/${s.id}`)}
-                  />
-                </ItemContextMenu>
-              ))}
-            </div>
-          )}
-        </div>
-        {/* Footer status bar — quiet panel chrome that mirrors the
-         *  old page-header subtitle. Hidden during the skeleton so
-         *  it doesn't pop in before counts are known. */}
-        {statusText ? (
-          <div className="border-t border-border/40 px-6 py-2 text-xs text-muted-foreground/70">
-            {statusText}
-          </div>
-        ) : null}
-      </div>
-    </ItemContextMenu>
-  );
-
+  // The panel owns three rows: header (breadcrumb + actions),
+  // scrollable body (grid / skeleton / empty), and footer status bar.
   return (
     <div ref={containerRef} className="flex flex-1 flex-col min-h-0" tabIndex={-1}>
-      <ExplorerPageHeader
-        title={titleNode}
-        secondaryAction={
-          <Button variant="outline" onClick={() => actions.createFolderIn(folderId)}>
-            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
-            New folder
-          </Button>
-        }
-        primaryAction={<NewFileButton onClick={() => actions.openNewFilePicker(folderId)} />}
-      />
+      <ItemContextMenu
+        target={{ kind: "empty", folderId }}
+        actions={actions}
+        className="flex flex-1 flex-col min-h-0"
+      >
+        <div className="mx-3 mt-3 mb-3 flex flex-1 flex-col min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-muted/40">
+          {/* In-panel header — title + actions. Bottom border mirrors
+           *  the footer's top border so both rows read as panel chrome
+           *  framing the scrolling grid body. */}
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-6 py-3">
+            <div className="min-w-0 flex-1">{titleNode}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={() => actions.createFolderIn(folderId)}>
+                <HugeiconsIcon icon={FolderAddIcon} strokeWidth={1.7} />
+                New folder
+              </Button>
+              <NewFileButton onClick={() => actions.openNewFilePicker(folderId)} />
+            </div>
+          </header>
 
-      {body}
+          {/* Scrollable body — the route's vertical scroll container.
+           *  `min-h-0` lets the flex parent clamp its height so this
+           *  div actually scrolls instead of pushing the panel. */}
+          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto py-4">
+            {isLoading ? (
+              <div className="px-6">
+                <SkeletonGrid />
+              </div>
+            ) : isEmpty ? (
+              <CenteredEmpty
+                folderName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
+                onCreate={() => actions.openNewFilePicker(folderId)}
+                onCreateFolder={() => actions.createFolderIn(folderId)}
+              />
+            ) : (
+              // Single grid: folders first, then files. Folder/file
+              // keys are prefixed so a folder and a file with the
+              // same uuid can never collide in React's reconciler.
+              <div className={GRID_CLASSES}>
+                {subfolders.map((f) => (
+                  <ItemContextMenu
+                    key={`f:${f.id}`}
+                    target={{ kind: "folder", folder: f }}
+                    actions={actions}
+                  >
+                    <FolderCard
+                      id={f.id}
+                      name={f.name}
+                      itemCount={f.fileCount + f.subfolderCount}
+                      previews={f.previews}
+                      activeShareCount={f.activeShareCount}
+                      onOpenShare={() => actions.shareFolder(f)}
+                      onOpen={() => onChangeFolder(f.id)}
+                    />
+                  </ItemContextMenu>
+                ))}
+                {files?.map((s) => (
+                  <ItemContextMenu
+                    key={`s:${s.id}`}
+                    target={{ kind: "file", file: s }}
+                    actions={actions}
+                  >
+                    <FileCard
+                      id={s.id}
+                      name={s.name}
+                      kind={s.kind}
+                      hasThumb={s.hasThumb}
+                      thumbUrl={`/api/files/${s.id}/thumb?v=${s.thumbUpdatedAt}`}
+                      folderName={null}
+                      updatedAtLabel={relTime(s.updatedAt)}
+                      tags={s.tags}
+                      activeShareCount={s.activeShareCount}
+                      onOpenShare={() => actions.shareFile(s)}
+                      onOpen={() => navigate(`/f/${s.id}`)}
+                    />
+                  </ItemContextMenu>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer status bar — quiet panel chrome that mirrors the
+           *  old page-header subtitle. Hidden during the skeleton so
+           *  it doesn't pop in before counts are known. */}
+          {statusText ? (
+            <div className="border-t border-border/40 px-6 py-2 text-xs text-muted-foreground/70">
+              {statusText}
+            </div>
+          ) : null}
+        </div>
+      </ItemContextMenu>
     </div>
   );
 }

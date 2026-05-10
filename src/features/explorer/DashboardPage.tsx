@@ -127,7 +127,7 @@ export function DashboardPage() {
   const folderList = folders.data ?? null;
 
   return (
-    <PaperSurface variant="page" className="flex flex-col">
+    <PaperSurface variant="page" className="flex h-dvh flex-col">
       <ExplorerHeader user={me.data} />
 
       <main className="flex flex-1 flex-col min-h-0">
