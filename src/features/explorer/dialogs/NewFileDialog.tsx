@@ -50,6 +50,11 @@ const CARDS: ReadonlyArray<KindCard> = [
     title: "Draw.io",
     description: "Structured diagrams with shapes and connectors.",
   },
+  {
+    kind: "notes",
+    title: "Notes",
+    description: "Rich text notes with headings, lists and embeds.",
+  },
 ];
 
 export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps) {
@@ -63,7 +68,9 @@ export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps
         {/* Base UI's Dialog moves focus to the first focusable
          *  element on open, so the first card receives focus
          *  naturally without an explicit `autoFocus` attribute. */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Three cards — stacked single column on narrow screens, a
+         *  3-up grid from `sm` onwards so the picker stays compact. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {CARDS.map((c) => (
             <KindCardButton key={c.kind} card={c} onPick={() => onPick(c.kind)} />
           ))}

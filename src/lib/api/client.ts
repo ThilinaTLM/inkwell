@@ -39,7 +39,7 @@ export interface Invite {
   revokedAt: number | null;
 }
 
-export type FileKind = "excalidraw" | "drawio";
+export type FileKind = "excalidraw" | "drawio" | "notes";
 
 export interface FileMeta {
   id: string;
@@ -112,7 +112,15 @@ export interface DrawioFileBlob {
   xml: string;
 }
 
-export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob;
+/** BlockNote document JSON. The inner shape of `blocks` is opaque to
+ *  Inkwell — BlockNote owns that schema and it changes between
+ *  versions. We just round-trip the JSON. */
+export interface NotesFileBlob {
+  kind: "notes";
+  blocks: unknown[];
+}
+
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob;
 
 export interface LoadedFile {
   meta: {

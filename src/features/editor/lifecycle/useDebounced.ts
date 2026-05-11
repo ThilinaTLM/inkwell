@@ -29,12 +29,22 @@ export function useDebounced<A extends unknown[]>(
         clearTimeout(timer.current);
         timer.current = null;
       }
+      // Drop any pending args so a later `flush()` (e.g. the
+      // unmount cleanup in `useSaveLifecycle`, or a subsequent
+      // `beforeunload`) can't resurrect a call the caller has
+      // explicitly cancelled. Without this, clicking "Discard" in
+      // the leave dialog still persists the discarded edits via
+      // the unmount flush.
+      lastArgs.current = null;
     };
     const flush = () => {
       if (lastArgs.current) {
-        cancel();
         const args = lastArgs.current;
         lastArgs.current = null;
+        if (timer.current !== null) {
+          clearTimeout(timer.current);
+          timer.current = null;
+        }
         fnRef.current(...args);
       }
     };

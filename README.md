@@ -30,7 +30,8 @@ on Cloudflare."**
 Features at a glance:
 
 - Multi-file dashboard with **folders** (nested, per-user) and **tags**
-- Two equal-priority file types today (Excalidraw, draw.io), more later
+- Three equal-priority file types today (Excalidraw, draw.io, Notes via
+  [BlockNote](https://www.blocknotejs.org/)), more later
 - **Share links** for individual files or whole folder subtrees, read or
   read-write, with optional expiry and downloads
 - **Email + password auth**, invitation-only signup, super-admin bootstrap

@@ -34,7 +34,7 @@ export function AllowDownloadField({
         disabled={isWrite}
         onChange={(e) => onChange(e.target.checked)}
       />
-      Allow download (.excalidraw)
+      Allow download
     </label>
   );
 }

@@ -5,6 +5,13 @@
 @import "@fontsource-variable/caveat";
 @import "@excalidraw/excalidraw/index.css";
 
+/* BlockNote (used by NotesEditor) ships utility classes from its
+ * shadcn integration build. Tell Tailwind v4 to scan that package
+ * source so the relevant utilities get generated. The package is
+ * loaded only inside the notes editor route, but the classes need to
+ * exist in the global CSS bundle. */
+@source "../node_modules/@blocknote/shadcn";
+
 /* ───────────────────────────────────────────────────────────────────────────
    Excalifont — self-hosted from the woff2 already shipped in
    @excalidraw/excalidraw/dist/prod/fonts/Excalifont/. We copy two subsets
@@ -575,4 +582,198 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* ─── Notes editor (BlockNote) ──────────────────────────────────────────
+   Three concerns are handled here:
+
+   1. **Phantom `.bn-root` portal.** BlockNote's shadcn build mounts a
+      second `.bn-root` element directly under <body> for floating
+      menus/popovers. Any `className` we hand to `<BlockNoteView>` is
+      copied onto that portal, which in practice means padding
+      utilities used to leak there and balloon the page beyond the
+      viewport (vertical overflow → horizontal scrollbar). We keep
+      presentation off `BlockNoteView.className` entirely; the rule
+      below is a defensive belt that strips layout box on any portal
+      `.bn-root` (i.e. not the in-tree `.bn-container` variant).
+
+   2. **Theme alignment.** BlockNote's shadcn build paints its own
+      editor surface (`--bn-colors-editor-background`) one shade
+      different from the app background, which reads as a visible
+      "card" mid-page in dark mode. We map BlockNote's theme tokens
+      onto inkwell's shadcn palette so the editor surface is
+      indistinguishable from the page surface in both themes.
+
+   3. **Typeface.** Per-font `--bn-font-family` overrides are keyed
+      on `[data-notes-font="…"]` set on <html> from React. Driving the
+      cascade from the document root means BlockNote's portal popovers
+      (rendered to <body>, outside our React tree) inherit the same
+      face as the in-tree editor. Font CSS itself is loaded lazily by
+      `notes/fontLoader.ts`; this file only declares the family stacks
+      that resolve once the @font-face rules are present.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* (1) Defence-in-depth: even if a future caller sneaks padding onto
+   BlockNoteView's className again, the portal root won't add layout
+   weight to <body>. */
+.bn-root:not(.bn-container) {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* (2) Editor surface always blends with the app background. Targeting
+   `[data-color-scheme]` (regardless of value) covers both themes;
+   BlockNote's own light/dark switch toggles `data-color-scheme`. */
+.bn-root[data-color-scheme] {
+  --bn-colors-editor-background: var(--color-background);
+  --bn-colors-editor-text: var(--color-foreground);
+  --bn-colors-side-menu: var(--color-muted-foreground);
+  --bn-colors-border: var(--color-border);
+}
+.bn-root[data-color-scheme="dark"] {
+  --bn-colors-menu-background: var(--color-popover);
+  --bn-colors-menu-text: var(--color-popover-foreground);
+  --bn-colors-tooltip-background: var(--color-popover);
+  --bn-colors-tooltip-text: var(--color-popover-foreground);
+  --bn-colors-hovered-background: var(--color-accent);
+  --bn-colors-hovered-text: var(--color-accent-foreground);
+  --bn-colors-selected-background: var(--color-primary);
+  --bn-colors-selected-text: var(--color-primary-foreground);
+  --bn-colors-disabled-background: var(--color-muted);
+  --bn-colors-disabled-text: var(--color-muted-foreground);
+  --bn-colors-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* (3) Per-font BlockNote font-family overrides. Activated by
+   `<html data-notes-font="…">` so the cascade reaches the portal
+   `.bn-root` mounted on <body>. */
+[data-notes-font="inter"] .bn-root {
+  --bn-font-family: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+[data-notes-font="manrope"] .bn-root {
+  --bn-font-family: "Manrope Variable", "Manrope", system-ui, sans-serif;
+}
+[data-notes-font="geist"] .bn-root {
+  --bn-font-family: "Geist Variable", "Geist", "Inter Variable", system-ui, sans-serif;
+}
+[data-notes-font="lora"] .bn-root {
+  --bn-font-family: "Lora Variable", "Lora", "Iowan Old Style", Georgia, serif;
+}
+[data-notes-font="source-serif"] .bn-root {
+  --bn-font-family: "Source Serif 4 Variable", "Source Serif 4", "Source Serif Pro", Georgia, serif;
+}
+[data-notes-font="jetbrains-mono"] .bn-root {
+  --bn-font-family:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* BlockNote ships a hardcoded `font-family: Inter, …` rule on its
+   `.bn-default-styles` class (the wrapper `.bn-editor` uses) that
+   beats the inherited `--bn-font-family`. Our global `h1…h4` rule
+   in @layer base similarly forces Manrope onto every heading. Both
+   undo the user's font choice for the actual content, so we re-route
+   them to the BlockNote variable here — once the variable is set,
+   the cascade does the rest. */
+.bn-default-styles,
+.bn-container :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--bn-font-family);
+}
+
+/* ─── Responsive editor padding ─────────────────────────────────────
+   BlockNote ships `padding-inline: 54px` on `.bn-editor` to reserve a
+   gutter for its drag-handle side menu. On a 375px viewport that
+   eats 108px (~30%) of the writable column, leaving ~230px for
+   prose — unworkably narrow. We tighten the gutter on small screens
+   where:
+     • the side menu (hover-only) isn't usable on touch anyway, and
+     • horizontal space is precious.
+
+   Targets the in-tree editor (`.bn-container .bn-editor`) so popover
+   menus (mounted on the body-level `.bn-root`) are unaffected.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 639.98px) {
+  .bn-container .bn-editor {
+    padding-inline: 12px;
+  }
+}
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .bn-container .bn-editor {
+    padding-inline: 32px;
+  }
+}
+
+/* Drag handle + add-block button (`.bn-side-menu`) are rendered into
+   BlockNote's body-level `.bn-root` portal (NOT inside `.bn-container`)
+   and absolutely positioned over the hovered block. On coarse pointers
+   there's no hover to reveal them; on narrow viewports the gutter
+   that hosts them is tighter than the menu itself, so they overlap
+   or clip the prose. Hide the menu globally in those modes.
+
+   We scope the rule with `.bn-root` (the portal root) so we don't
+   accidentally affect any in-tree `.bn-side-menu` (BlockNote also
+   ships an inline variant for some embedded use-cases). */
+@media (max-width: 1023.98px), (pointer: coarse) {
+  .bn-root .bn-side-menu {
+    display: none !important;
+  }
+}
+
+/* BlockNote's floating formatting toolbar can extend past the
+   viewport on phones (it's positioned by Floating UI relative to the
+   selection, but its default content can exceed 100vw with all the
+   format buttons). The shadcn build already caps it at `100vw` with
+   overflow-x: auto; we add a small inline scroll-padding so the
+   leftmost button isn't flush against the edge. */
+@media (max-width: 639.98px) {
+  .bn-shadcn .bn-formatting-toolbar,
+  .bn-shadcn .bn-toolbar {
+    scroll-padding-inline: 8px;
+  }
+}
+
+/* ─── Notion-style custom scrollbar ─────────────────────────────────
+   Used on the notes-editor scroll surface (.notes-scroll). Keeps the
+   app shell free of native browser chrome scrollbars while still
+   surfacing scroll position. The track is invisible at rest; the
+   thumb is a translucent rounded pill that becomes more opaque on
+   hover, similar to Notion / Linear / Vercel docs.
+
+   We use `background-clip: padding-box` + a transparent border so the
+   thumb appears thinner than the track gutter, which makes the
+   resting state read as a slim 4–5px pill on a 10px-wide gutter.
+
+   Firefox uses `scrollbar-width` / `scrollbar-color` (no per-state
+   styling); we approximate by picking a mid-opacity thumb colour.
+   ─────────────────────────────────────────────────────────────────── */
+.notes-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.dark .notes-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.notes-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.notes-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.notes-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.18);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.notes-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.32);
+  background-clip: padding-box;
+}
+.dark .notes-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+  background-clip: padding-box;
+}
+.dark .notes-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
 }

@@ -15,7 +15,7 @@
 
 import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import { type BrandLogoVariant, DrawioLogo, ExcalidrawLogo } from "./brand-logos";
+import { type BrandLogoVariant, DrawioLogo, ExcalidrawLogo, NotesLogo } from "./brand-logos";
 
 export type FileKindGlyphVariant = BrandLogoVariant;
 
@@ -34,11 +34,37 @@ export function FileKindGlyph({
   className?: string;
 }) {
   if (kind === "drawio") return <DrawioLogo variant={variant} className={className} />;
+  if (kind === "notes") return <NotesLogo variant={variant} className={className} />;
   return <ExcalidrawLogo variant={variant} className={className} />;
 }
 
 export function fileKindLabel(kind: FileKind): string {
-  return kind === "drawio" ? "draw.io file" : "excalidraw file";
+  switch (kind) {
+    case "drawio":
+      return "draw.io file";
+    case "notes":
+      return "notes file";
+    default:
+      return "excalidraw file";
+  }
+}
+
+/** Menu label for the per-kind download item, e.g.
+ *  "Download .excalidraw" / "Download .drawio" / "Download .notes.json".
+ *
+ *  Pulled out of the editor pages so adding a new kind is a one-line
+ *  change here, and so the same label is used everywhere a download
+ *  is offered (owner editor MainMenu, drawio File-menu extras,
+ *  shared-page MainMenu, notes editor chrome). */
+export function downloadLabelForKind(kind: FileKind): string {
+  switch (kind) {
+    case "drawio":
+      return "Download .drawio";
+    case "notes":
+      return "Download .notes.json";
+    default:
+      return "Download .excalidraw";
+  }
 }
 
 /**

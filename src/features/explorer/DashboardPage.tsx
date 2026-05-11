@@ -83,10 +83,11 @@ export function DashboardPage() {
   const [folderTagsTarget, setFolderTagsTarget] = useState<FolderMeta | null>(null);
   const [folderDeleteTarget, setFolderDeleteTarget] = useState<FolderMeta | null>(null);
   const [folderCreate, setFolderCreate] = useState<{ parentId: string | null } | null>(null);
-  // Picker for choosing the kind (excalidraw / drawio) of a new file.
-  // Every "New file" entry point — header button, empty-state CTA,
-  // and both context-menu variants — opens this picker; only after
-  // the user clicks a card does `newFile()` actually run.
+  // Picker for choosing the kind (excalidraw / drawio / notes) of a
+  // new file. Every "New file" entry point — header button,
+  // empty-state CTA, and both context-menu variants — opens this
+  // picker; only after the user clicks a card does `newFile()`
+  // actually run.
   const [newFilePicker, setNewFilePicker] = useState<{ parentId: string | null } | null>(null);
 
   const runCreateFile = useMutationWithToast(createFile, {
@@ -97,7 +98,7 @@ export function DashboardPage() {
     if (createFile.isPending) return;
     const m = await runCreateFile({
       folderId: parentFolderId ?? undefined,
-      name: kind === "drawio" ? "Untitled diagram" : "Untitled drawing",
+      name: defaultNameForKind(kind),
       kind,
     });
     if (m) navigate(`/f/${m.id}`);
@@ -251,4 +252,17 @@ export function DashboardPage() {
       />
     </PaperSurface>
   );
+}
+
+// Default "Untitled" name for a freshly created file. Kept colocated
+// with the create flow so adding a new kind is a one-line change here.
+function defaultNameForKind(kind: FileKind): string {
+  switch (kind) {
+    case "drawio":
+      return "Untitled diagram";
+    case "notes":
+      return "Untitled note";
+    default:
+      return "Untitled drawing";
+  }
 }

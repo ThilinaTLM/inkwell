@@ -121,14 +121,16 @@ export type FolderRow = InferSelectModel<typeof t.folders>;
 // Compact preview info for a single file inside a folder. Used by
 // `FolderCard` to render thumbnails between the folds. Carries only
 // what the card needs — not the full FileMeta.
-export type FileKind = "excalidraw" | "drawio";
+export type FileKind = "excalidraw" | "drawio" | "notes";
 
 /** Coerce arbitrary user input to a valid FileKind. Anything that
  *  isn't an explicit known variant collapses to "excalidraw" — the
  *  default file type. This is the single boundary where untrusted
  *  `kind` values become typed. */
 export function normalizeFileKind(input: unknown): FileKind {
-  return input === "drawio" ? "drawio" : "excalidraw";
+  if (input === "drawio") return "drawio";
+  if (input === "notes") return "notes";
+  return "excalidraw";
 }
 
 export interface FilePreview {
@@ -258,7 +260,16 @@ export interface DrawioFileBlob {
   xml: string;
 }
 
-export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob;
+/** What the client PUTs as a notes file blob. The inner shape of
+ *  `blocks` is BlockNote's document JSON — we don't validate it here
+ *  because BlockNote owns that schema and it changes between versions.
+ *  We just round-trip the JSON. */
+export interface NotesFileBlob {
+  kind: "notes";
+  blocks: unknown[];
+}
+
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob;
 
 // ─── Shares (polymorphic) ────────────────────────────────────────────
 export type SharePermission = "read" | "write";
