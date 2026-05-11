@@ -277,7 +277,20 @@ export default function NotesEditor({
          *  is applied via `--bn-font-family` (set on <html> by the
          *  effect below) so popovers rendered to the body portal
          *  inherit the same face. */}
-        <div className={cn("mx-auto w-full px-4 py-6 sm:px-8 sm:py-10", widthMaxClass(width))}>
+        {/* `overflow-hidden` on the editor wrapper clips BlockNote's
+         *  floating affordances (drag handles, side menu, in-tree
+         *  formatting toolbar) when a block sits near the viewport
+         *  edge. Without it, those elements briefly extend past the
+         *  wrapper's box — wide enough to trigger a horizontal
+         *  scrollbar on `.notes-scroll` even though that container
+         *  already declares `overflow-x-hidden`. Clipping at the
+         *  inner box stops the overflow at its source. */}
+        <div
+          className={cn(
+            "mx-auto w-full overflow-hidden px-4 py-6 sm:px-8 sm:py-10",
+            widthMaxClass(width),
+          )}
+        >
           <BlockNoteView editor={editor} editable={!readOnly} theme={themeResolved} />
         </div>
       </div>
