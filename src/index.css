@@ -679,6 +679,58 @@
   font-family: var(--bn-font-family);
 }
 
+/* ─── Responsive editor padding ─────────────────────────────────────
+   BlockNote ships `padding-inline: 54px` on `.bn-editor` to reserve a
+   gutter for its drag-handle side menu. On a 375px viewport that
+   eats 108px (~30%) of the writable column, leaving ~230px for
+   prose — unworkably narrow. We tighten the gutter on small screens
+   where:
+     • the side menu (hover-only) isn't usable on touch anyway, and
+     • horizontal space is precious.
+
+   Targets the in-tree editor (`.bn-container .bn-editor`) so popover
+   menus (mounted on the body-level `.bn-root`) are unaffected.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 639.98px) {
+  .bn-container .bn-editor {
+    padding-inline: 12px;
+  }
+}
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .bn-container .bn-editor {
+    padding-inline: 32px;
+  }
+}
+
+/* Drag handle + add-block button (`.bn-side-menu`) are rendered into
+   BlockNote's body-level `.bn-root` portal (NOT inside `.bn-container`)
+   and absolutely positioned over the hovered block. On coarse pointers
+   there's no hover to reveal them; on narrow viewports the gutter
+   that hosts them is tighter than the menu itself, so they overlap
+   or clip the prose. Hide the menu globally in those modes.
+
+   We scope the rule with `.bn-root` (the portal root) so we don't
+   accidentally affect any in-tree `.bn-side-menu` (BlockNote also
+   ships an inline variant for some embedded use-cases). */
+@media (max-width: 1023.98px), (pointer: coarse) {
+  .bn-root .bn-side-menu {
+    display: none !important;
+  }
+}
+
+/* BlockNote's floating formatting toolbar can extend past the
+   viewport on phones (it's positioned by Floating UI relative to the
+   selection, but its default content can exceed 100vw with all the
+   format buttons). The shadcn build already caps it at `100vw` with
+   overflow-x: auto; we add a small inline scroll-padding so the
+   leftmost button isn't flush against the edge. */
+@media (max-width: 639.98px) {
+  .bn-shadcn .bn-formatting-toolbar,
+  .bn-shadcn .bn-toolbar {
+    scroll-padding-inline: 8px;
+  }
+}
+
 /* ─── Notion-style custom scrollbar ─────────────────────────────────
    Used on the notes-editor scroll surface (.notes-scroll). Keeps the
    app shell free of native browser chrome scrollbars while still

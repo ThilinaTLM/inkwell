@@ -285,9 +285,20 @@ export default function NotesEditor({
          *  scrollbar on `.notes-scroll` even though that container
          *  already declares `overflow-x-hidden`. Clipping at the
          *  inner box stops the overflow at its source. */}
+        {/* Responsive padding:
+         *   • Mobile (<sm):     px-0 py-4  — BlockNote's `.bn-editor`
+         *     already provides its own horizontal padding (overridden
+         *     to ~16px on mobile by `src/index.css`); double-padding
+         *     here would shrink the writable column below useful.
+         *   • Tablet (≥sm):     px-6 py-8
+         *   • Desktop (≥lg):    px-8 py-10 (original)
+         * The `notes-editor-shell` class is a stable hook for CSS that
+         * targets the in-tree wrapper without leaking onto BlockNote's
+         * body-mounted portal (see `.bn-root:not(.bn-container)`). */}
         <div
           className={cn(
-            "mx-auto w-full overflow-hidden px-4 py-6 sm:px-8 sm:py-10",
+            "notes-editor-shell mx-auto w-full overflow-hidden",
+            "py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10",
             widthMaxClass(width),
           )}
         >

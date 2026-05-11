@@ -42,6 +42,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useId } from "react";
 import { InkwellMark } from "@/components/InkwellMark";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -104,14 +105,24 @@ export function NotesEditorChrome({
 }: NotesEditorChromeProps) {
   const renameInteractive = !readOnly && !!onRequestRename;
   const labelId = useId();
+  // Below the Tailwind `sm` breakpoint (640px) we collapse the
+  // width quick-toggle into the overflow menu — its three presets
+  // (45rem / 60rem / full) are all wider than a phone viewport, so
+  // toggling them has no visible effect there. Font + theme stay
+  // visible because they're per-document presentation choices that
+  // matter at any width.
+  const isMobile = useMediaQuery("(max-width: 639.98px)");
   const showOverflow =
-    (!readOnly && (onRequestRename || onTags || onShare)) || !readOnly || allowDownload;
+    (!readOnly && (onRequestRename || onTags || onShare)) ||
+    !readOnly ||
+    allowDownload ||
+    isMobile;
 
   return (
     <div
       className={cn(
-        "relative z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border/60",
-        "bg-background/80 px-3 backdrop-blur",
+        "relative z-10 flex h-12 shrink-0 items-center gap-1 border-b border-border/60",
+        "bg-background/80 px-2 backdrop-blur sm:gap-2 sm:px-3",
       )}
       role="toolbar"
       aria-labelledby={labelId}
@@ -141,6 +152,14 @@ export function NotesEditorChrome({
         <InkwellMark className="size-5 shrink-0 text-foreground/80" />
       )}
 
+      {/* Filename: a flexible 1fr-style cell. We let it `flex-1`
+       *  here (instead of using the spacer below) so the right
+       *  cluster never gets pushed off-screen on narrow viewports.
+       *  The legacy `max-w-[40ch]` cap is preserved on desktop only
+       *  so wide screens still show the toolbar as a tight visual
+       *  group with the brand cluster.
+       *  Touch sizing: extra py-2 keeps the rename target tall
+       *  enough to satisfy a comfortable touch target (≈44px). */}
       {renameInteractive ? (
         <button
           id={labelId}
@@ -149,7 +168,7 @@ export function NotesEditorChrome({
           onClick={onRequestRename ?? undefined}
           onDoubleClick={onRequestRename ?? undefined}
           className={cn(
-            "min-w-0 max-w-[40ch] cursor-text truncate text-left font-heading text-sm font-medium",
+            "min-w-0 flex-1 cursor-text truncate py-2 text-left font-heading text-sm font-medium sm:flex-initial sm:py-0 sm:max-w-[40ch]",
             "rounded-sm text-foreground hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
@@ -160,7 +179,7 @@ export function NotesEditorChrome({
         <span
           id={labelId}
           title={name}
-          className="min-w-0 max-w-[40ch] truncate font-heading text-sm font-medium text-foreground"
+          className="min-w-0 flex-1 truncate font-heading text-sm font-medium text-foreground sm:flex-initial sm:max-w-[40ch]"
         >
           {name}
         </span>
@@ -175,12 +194,20 @@ export function NotesEditorChrome({
         onSaveNow={onSaveNow}
       />
 
-      {/* Flex spacer — pushes the right cluster to the edge. */}
-      <div className="flex-1" />
+      {/* Spacer — only needed on desktop (the filename takes flex-1
+       *  itself on mobile, so the right cluster already sits at the
+       *  edge there). */}
+      <div className="hidden flex-1 sm:block" />
 
-      {/* ─── Right cluster: quick toggles + overflow menu ──────────── */}
+      {/* ─── Right cluster: quick toggles + overflow menu ────────────
+       *  Width toggle is hidden on phones (its three presets are all
+       *  wider than a phone viewport; toggling them is a no-op). It
+       *  also appears as a submenu in the overflow on mobile so the
+       *  preference is still reachable from any width. */}
       <div className="flex items-center gap-0.5">
-        <WidthQuickToggle />
+        <div className="hidden sm:contents">
+          <WidthQuickToggle />
+        </div>
         <FontQuickToggle />
         <ThemeQuickToggle />
         {showOverflow ? (
@@ -195,6 +222,17 @@ export function NotesEditorChrome({
                 }
               />
               <DropdownMenuContent align="end" className="min-w-[12rem]">
+                {/* Mobile-only: surface the width preference here
+                 *  since the quick-toggle is hidden above. Rendered as
+                 *  inline radios to keep the overflow menu compact. */}
+                {isMobile ? (
+                  <>
+                    <WidthOverflowSection />
+                    {(!readOnly && (onRequestRename || onTags || onShare)) || allowDownload ? (
+                      <DropdownMenuSeparator />
+                    ) : null}
+                  </>
+                ) : null}
                 {!readOnly && onRequestRename ? (
                   <DropdownMenuItem onClick={onRequestRename}>
                     <HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />
@@ -238,6 +276,31 @@ export function NotesEditorChrome({
 }
 
 // ─── Quick-toggle buttons ────────────────────────────────────────────────────
+
+// Inline mobile-only version of the width selector: surfaces the
+// preference inside the overflow menu (since the quick-toggle button
+// is hidden under `sm`). Uses a radio group instead of nested
+// submenus to keep the dropdown one tap deep.
+function WidthOverflowSection() {
+  const { width, setWidth } = useNotesPreferences();
+  return (
+    <>
+      <div className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Width
+      </div>
+      <DropdownMenuRadioGroup
+        value={width}
+        onValueChange={(v) => setWidth(v as NotesEditorWidth)}
+      >
+        {NOTES_WIDTHS.map((opt) => (
+          <DropdownMenuRadioItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </>
+  );
+}
 
 function WidthQuickToggle() {
   const { width, setWidth } = useNotesPreferences();
