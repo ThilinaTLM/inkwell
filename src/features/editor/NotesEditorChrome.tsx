@@ -42,7 +42,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useId } from "react";
 import { InkwellMark } from "@/components/InkwellMark";
-import { useMediaQuery } from "@/lib/useMediaQuery";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -54,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type ThemeMode, useTheme } from "@/lib/theme";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import type { EditorSaveStatus } from "./lifecycle/types";
 import {
@@ -113,10 +113,7 @@ export function NotesEditorChrome({
   // matter at any width.
   const isMobile = useMediaQuery("(max-width: 639.98px)");
   const showOverflow =
-    (!readOnly && (onRequestRename || onTags || onShare)) ||
-    !readOnly ||
-    allowDownload ||
-    isMobile;
+    (!readOnly && (onRequestRename || onTags || onShare)) || !readOnly || allowDownload || isMobile;
 
   return (
     <div
@@ -165,8 +162,13 @@ export function NotesEditorChrome({
           id={labelId}
           type="button"
           title="Double-click or press Enter to rename"
-          onClick={onRequestRename ?? undefined}
           onDoubleClick={onRequestRename ?? undefined}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onRequestRename?.();
+            }
+          }}
           className={cn(
             "min-w-0 flex-1 cursor-text truncate py-2 text-left font-heading text-sm font-medium sm:flex-initial sm:py-0 sm:max-w-[40ch]",
             "rounded-sm text-foreground hover:text-foreground",
@@ -288,10 +290,7 @@ function WidthOverflowSection() {
       <div className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         Width
       </div>
-      <DropdownMenuRadioGroup
-        value={width}
-        onValueChange={(v) => setWidth(v as NotesEditorWidth)}
-      >
+      <DropdownMenuRadioGroup value={width} onValueChange={(v) => setWidth(v as NotesEditorWidth)}>
         {NOTES_WIDTHS.map((opt) => (
           <DropdownMenuRadioItem key={opt.value} value={opt.value}>
             {opt.label}
