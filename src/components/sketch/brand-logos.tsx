@@ -18,6 +18,8 @@
 //   /home/tlm/Downloads/excalidraw-logo.svg
 //   /home/tlm/Downloads/drawio-svgrepo-com.svg
 
+import { useId } from "react";
+
 import { cn } from "@/lib/utils";
 
 export type BrandLogoVariant = "mark" | "full";
@@ -140,24 +142,39 @@ export function DrawioLogo({
   );
 }
 
-// ─── Notes (BlockNote-backed) ─────────────────────────────────────
+// ─── Notes (BlockNote) ─────────────────────────────────────────────
 //
-// Unlike Excalidraw / draw.io, "Notes" isn't a third-party product
-// brand we're trying to match — it's an internal kind label backed
-// by BlockNote. So this glyph is Inkwell's own: a ruled-paper /
-// document-with-lines mark in emerald, deliberately distinct from
-// the purple Excalidraw and orange draw.io chips.
+// Notes documents are authored with BlockNote, so we surface the
+// actual BlockNote brand mark here (rather than an Inkwell-original
+// glyph) — same approach as Excalidraw / draw.io. Path data and
+// gradient stops are copied verbatim from the official favicon:
+//   https://www.blocknotejs.org/favicon.svg
+//
+// The mark is a stylised loop / knot in a cyan→purple gradient; the
+// "full" chip wraps it in BlockNote's soft off-white rounded square
+// (also a subtle vertical gradient). We mint per-instance gradient
+// IDs with `useId` so multiple <NotesLogo /> instances on the same
+// page don't collide on a shared `id`.
 
-const NOTES_TEAL = "#0a7a5e";
-const NOTES_TEAL_DARK = "#075c47";
+const BLOCKNOTE_BG_TOP = "#F7F6FE";
+const BLOCKNOTE_BG_BOTTOM = "#DCDBF9";
+const BLOCKNOTE_MARK_FROM = "#00EBE7";
+const BLOCKNOTE_MARK_TO = "#6923BA";
 
-/** Notes brand mark (Inkwell-original).
+const BLOCKNOTE_CHIP_D =
+  "M329.788 0H170.212C112.592 0 96.4244 0 71.6186 8.34096C42.2918 19.0585 19.0587 42.2923 8.34045 71.6189C0 96.4246 0 112.593 0 170.212C0 329.788 0 329.788 0 329.788C0 387.407 0 403.575 8.34045 428.381C19.0587 457.708 42.2918 480.941 71.6186 491.659C96.4249 500 112.592 500 170.212 500C329.788 500 329.788 500 329.788 500C387.407 500 403.576 500 428.381 491.659C457.708 480.941 480.942 457.708 491.659 428.381C500 403.575 500 387.407 500 329.788C500 170.212 500 170.212 500 170.212C500 112.593 500 96.4246 491.659 71.6189C480.942 42.2923 457.708 19.0585 428.381 8.34096C403.576 0 387.407 0 329.788 0Z";
+
+const BLOCKNOTE_MARK_D =
+  "M386.629 261.169L335.34 231.557C331.976 229.615 330.832 230.275 330.832 234.159V249.91C330.832 254.254 333.15 258.269 336.913 260.441L374.515 282.151C376.632 283.373 377.946 285.649 377.946 288.094V323.392L317.719 288.62V228.378L317.719 144.842C317.719 133.769 311.762 123.453 302.174 117.918L262.922 95.2559C253.334 89.721 241.42 89.7195 231.832 95.2559L192.58 117.918C182.96 123.472 177.035 133.735 177.035 144.842V201.038C177.035 204.922 178.178 205.582 181.542 203.64L195.182 195.765C198.945 193.593 201.262 189.578 201.262 185.234V144.842C201.262 142.398 202.577 140.122 204.694 138.9L235.263 121.25L235.264 187.766L183.092 217.887L113.371 258.141C103.782 263.678 97.8256 273.994 97.8261 285.065V330.39C97.8266 341.46 103.782 351.779 113.371 357.314L152.623 379.976C162.242 385.53 174.093 385.53 183.713 379.977L229.757 353.393C233.121 351.451 233.121 350.131 229.757 348.189L216.116 340.313C212.354 338.141 207.718 338.141 203.956 340.313L171.599 358.995C169.482 360.217 166.853 360.217 164.736 358.995L134.167 341.345L189.149 309.601L241.32 339.722L316.288 383.005C325.877 388.541 337.789 388.541 347.377 383.005L386.629 360.342C396.216 354.807 402.174 344.49 402.174 333.418V288.094C402.174 276.986 396.248 266.723 386.629 261.169ZM335.262 362.023C333.147 363.244 330.518 363.245 328.401 362.023L253.434 318.741L201.263 288.62V255.719C201.263 251.834 200.12 251.174 196.756 253.116L183.116 260.991C179.353 263.164 177.036 267.178 177.036 271.523V288.62L122.054 320.363L122.054 285.064C122.054 282.622 123.368 280.345 125.485 279.123L200.452 235.841L247.377 208.748L275.87 225.198C279.234 227.14 280.378 226.48 280.378 222.596V206.846C280.378 202.501 278.06 198.487 274.298 196.315L259.491 187.766V121.25L290.061 138.901C292.176 140.122 293.491 142.398 293.491 144.842V231.407L293.492 288.62L264.998 305.07C261.634 307.012 261.634 308.333 264.998 310.275L278.639 318.15C282.401 320.322 287.036 320.322 290.799 318.15L305.605 309.601L365.833 344.374L335.262 362.023Z";
+
+/** BlockNote brand mark (used for Notes-kind files).
  *
- *  - "full" → 32×32 emerald rounded chip with a white document
- *             outline + ruled lines, matching the visual rhythm of
- *             the Excalidraw / draw.io chips.
- *  - "mark" → just the document outline + ruled lines in emerald,
- *             on transparent. Default size is `size-3.5`.
+ *  - "full" → 500×500 BlockNote chip: a soft off-white squircle
+ *             background (`#F7F6FE` → `#DCDBF9`) with the official
+ *             cyan→purple loop mark inside. Renders edge-to-edge of
+ *             its container.
+ *  - "mark" → just the cyan→purple loop on transparent, in the same
+ *             native 500×500 viewBox. Default size is `size-3.5`.
  */
 export function NotesLogo({
   variant = "mark",
@@ -166,64 +183,72 @@ export function NotesLogo({
   variant?: BrandLogoVariant;
   className?: string;
 }) {
+  // Per-instance gradient ids so multiple icons on the same page
+  // don't reference each other's `<defs>` by accident.
+  const rid = useId();
+  const bgGradId = `bn-bg-${rid}`;
+  const markGradId = `bn-mark-${rid}`;
+
   if (variant === "full") {
     return (
       <svg
-        viewBox="0 0 32 32"
+        viewBox="0 0 500 500"
         xmlns="http://www.w3.org/2000/svg"
         className={cn("size-full", className)}
         aria-hidden
       >
-        <title>Notes</title>
-        <rect x="2" y="2" width="28" height="28" rx="1.12" fill={NOTES_TEAL} />
-        {/* Folded-corner accent in a darker shade, mirroring the
-            draw.io mark's corner motif. */}
-        <path d="M22 5h5v5l-5-5z" fill={NOTES_TEAL_DARK} fillRule="evenodd" />
-        {/* Document outline. */}
-        <rect
-          x="7"
-          y="7"
-          width="15"
-          height="19"
-          rx="1.5"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="1.5"
-        />
-        {/* Ruled lines. */}
-        <path
-          d="M10 13h9M10 16.5h9M10 20h6"
-          stroke="#fff"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
+        <title>BlockNote</title>
+        <defs>
+          <linearGradient
+            id={bgGradId}
+            x1="250"
+            y1="-14.1548"
+            x2="250"
+            y2="462.259"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop stopColor={BLOCKNOTE_BG_TOP} />
+            <stop offset="1" stopColor={BLOCKNOTE_BG_BOTTOM} />
+          </linearGradient>
+          <linearGradient
+            id={markGradId}
+            x1="353.828"
+            y1="128.509"
+            x2="191.895"
+            y2="407.394"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop stopColor={BLOCKNOTE_MARK_FROM} />
+            <stop offset="1" stopColor={BLOCKNOTE_MARK_TO} />
+          </linearGradient>
+        </defs>
+        <path d={BLOCKNOTE_CHIP_D} fill={`url(#${bgGradId})`} />
+        <path d={BLOCKNOTE_MARK_D} fill={`url(#${markGradId})`} />
       </svg>
     );
   }
   return (
     <svg
-      viewBox="0 0 32 32"
+      viewBox="0 0 500 500"
       xmlns="http://www.w3.org/2000/svg"
       className={cn("size-3.5", className)}
       aria-hidden
     >
-      <title>Notes</title>
-      <rect
-        x="7"
-        y="7"
-        width="15"
-        height="19"
-        rx="1.5"
-        fill="none"
-        stroke={NOTES_TEAL}
-        strokeWidth="2"
-      />
-      <path
-        d="M10 13h9M10 16.5h9M10 20h6"
-        stroke={NOTES_TEAL}
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <title>BlockNote</title>
+      <defs>
+        <linearGradient
+          id={markGradId}
+          x1="353.828"
+          y1="128.509"
+          x2="191.895"
+          y2="407.394"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor={BLOCKNOTE_MARK_FROM} />
+          <stop offset="1" stopColor={BLOCKNOTE_MARK_TO} />
+        </linearGradient>
+      </defs>
+      <path d={BLOCKNOTE_MARK_D} fill={`url(#${markGradId})`} />
     </svg>
   );
 }
