@@ -10,3 +10,4 @@ worker-configuration.d.ts
 *.tsbuildinfo
 public/drawio/
 .zed/
+.vscode/

@@ -121,7 +121,7 @@ export type FolderRow = InferSelectModel<typeof t.folders>;
 // Compact preview info for a single file inside a folder. Used by
 // `FolderCard` to render thumbnails between the folds. Carries only
 // what the card needs — not the full FileMeta.
-export type FileKind = "excalidraw" | "drawio" | "notes";
+export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site";
 
 /** Coerce arbitrary user input to a valid FileKind. Anything that
  *  isn't an explicit known variant collapses to "excalidraw" — the
@@ -130,6 +130,7 @@ export type FileKind = "excalidraw" | "drawio" | "notes";
 export function normalizeFileKind(input: unknown): FileKind {
   if (input === "drawio") return "drawio";
   if (input === "notes") return "notes";
+  if (input === "static-site") return "static-site";
   return "excalidraw";
 }
 
@@ -269,7 +270,34 @@ export interface NotesFileBlob {
   blocks: unknown[];
 }
 
-export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob;
+/** One asset inside a static-site bundle. Paths are forward-slash,
+ *  no leading slash, no `..`, no empty segments. `contentType` is
+ *  resolved from the extension at upload time so the render route
+ *  can serve assets without re-sniffing. */
+export interface StaticSiteAsset {
+  path: string;
+  size: number;
+  contentType: string;
+  /** unix-ms of the most recent upload of this asset. */
+  updatedAt: number;
+}
+
+/** Manifest for a `kind === "static-site"` file. Stored as the
+ *  canonical R2 JSON blob (same key path as the other kinds) so
+ *  `streamFileResponse` and the existing reader plumbing work
+ *  unchanged. Mutations go through dedicated asset endpoints; direct
+ *  PUTs of this manifest are rejected to keep R2 and the manifest
+ *  consistent. */
+export interface StaticSiteFileBlob {
+  kind: "static-site";
+  /** Asset path served for the root request (`GET /sites/.../` or `GET /shared/.../`).
+   *   Must exist in `assets`. */
+  entry: string;
+  /** Sorted alphabetically by path. */
+  assets: StaticSiteAsset[];
+}
+
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob | StaticSiteFileBlob;
 
 // ─── Shares (polymorphic) ────────────────────────────────────────────
 export type SharePermission = "read" | "write";

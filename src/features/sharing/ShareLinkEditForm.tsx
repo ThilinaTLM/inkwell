@@ -51,12 +51,18 @@ export function ShareLinkEditForm({
   share,
   onCancel,
   onSave,
+  lockedToRead = false,
 }: {
   share: Share;
   onCancel: () => void;
   onSave: (patch: ShareLinkEditPatch) => Promise<void>;
+  /** When true, permission is locked to "read" — used for static-site
+   *  shares. Defensive against legacy rows whose persisted permission
+   *  is "write": we surface them as "read" and the patch will
+   *  downgrade them on save. */
+  lockedToRead?: boolean;
 }) {
-  const [perm, setPerm] = useState<SharePermission>(share.permission);
+  const [perm, setPerm] = useState<SharePermission>(lockedToRead ? "read" : share.permission);
   const [allowDownload, setAllowDownload] = useState<boolean>(share.allowDownload);
   const [expiry, setExpiry] = useState<ExpiryChoice>("keep");
   const [label, setLabel] = useState<string>(share.label ?? "");
@@ -104,7 +110,7 @@ export function ShareLinkEditForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4 rounded-lg bg-muted/30 p-4 ring-1 ring-border/50"
     >
-      <PermissionSegment value={perm} onChange={setPerm} />
+      <PermissionSegment value={perm} onChange={setPerm} lockedToRead={lockedToRead} />
       <AllowDownloadField permission={perm} value={allowDownload} onChange={setAllowDownload} />
       <ExpiryChips
         options={EXPIRY_OPTIONS}
