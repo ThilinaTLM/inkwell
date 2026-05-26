@@ -15,7 +15,13 @@
 
 import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import { type BrandLogoVariant, DrawioLogo, ExcalidrawLogo, NotesLogo } from "./brand-logos";
+import {
+  type BrandLogoVariant,
+  DrawioLogo,
+  ExcalidrawLogo,
+  NotesLogo,
+  StaticSiteLogo,
+} from "./brand-logos";
 
 export type FileKindGlyphVariant = BrandLogoVariant;
 
@@ -35,6 +41,7 @@ export function FileKindGlyph({
 }) {
   if (kind === "drawio") return <DrawioLogo variant={variant} className={className} />;
   if (kind === "notes") return <NotesLogo variant={variant} className={className} />;
+  if (kind === "static-site") return <StaticSiteLogo variant={variant} className={className} />;
   return <ExcalidrawLogo variant={variant} className={className} />;
 }
 
@@ -44,6 +51,8 @@ export function fileKindLabel(kind: FileKind): string {
       return "draw.io file";
     case "notes":
       return "notes file";
+    case "static-site":
+      return "static site";
     default:
       return "excalidraw file";
   }
@@ -62,6 +71,8 @@ export function downloadLabelForKind(kind: FileKind): string {
       return "Download .drawio";
     case "notes":
       return "Download .notes.json";
+    case "static-site":
+      return "Download .zip";
     default:
       return "Download .excalidraw";
   }

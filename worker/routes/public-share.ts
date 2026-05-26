@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import * as filesRepo from "../db/repos/files";
 import * as foldersRepo from "../db/repos/folders";
 import * as tagsRepo from "../db/repos/tags";
+import { shareRenderPayload, signRender } from "../lib/crypto";
 import {
   errorResponse,
   jsonResponse,
@@ -68,6 +69,53 @@ r.get(
     const file = await filesRepo.findByIdAnyOwner(c.env, tk.target_id);
     if (!file?.has_thumb) return errorResponse(404, "no thumbnail");
     return await serveR2WithCache(c.env, c.executionCtx ?? null, c.req.raw, r2ThumbKey(file.id));
+  },
+);
+
+// POST /api/share/:token/render-session — mint a short-lived signed
+// URL prefix for a static-site file behind a file share. The visitor
+// is redirected to `prefix + manifest.entry`. Revoking the share
+// immediately kills outstanding sessions (the render route re-checks
+// `findActive` on every request).
+r.post(
+  "/:token/render-session",
+  requireShareToken({ target: "file", targetMismatchMessage: "not a file share" }),
+  async (c) => {
+    const tk = c.get("share");
+    const file = await filesRepo.findByIdAnyOwner(c.env, tk.target_id);
+    if (!file) return errorResponse(404, "file not found");
+    if (file.kind !== "static-site") return errorResponse(400, "file is not a static-site");
+    const signed = await signRender(c.env.SESSION_SECRET, shareRenderPayload(tk.token, file.id));
+    return jsonResponse({
+      prefix: `/shared/${tk.token}/${signed.sig}/`,
+      expiresAt: signed.expiresAt,
+    });
+  },
+);
+
+// POST /api/share/:token/files/:fileId/render-session — folder-share
+// analogue. The folder share must cover the requested file; the file
+// itself must be a static-site. URL shape is
+// `/shared/:token/files/:fileId/:sig/<relpath>` to disambiguate from
+// the file-share URL shape (which has no `files` segment).
+r.post(
+  "/:token/files/:fileId/render-session",
+  requireShareToken({ target: "folder", targetMismatchMessage: "not a folder share" }),
+  async (c) => {
+    const tk = c.get("share");
+    const fileId = c.req.param("fileId");
+    if (!fileId) return errorResponse(404, "file not in shared folder");
+    if (!(await foldersRepo.fileInSubtree(c.env, tk.owner, fileId, tk.target_id))) {
+      return errorResponse(404, "file not in shared folder");
+    }
+    const file = await filesRepo.findByIdAnyOwner(c.env, fileId);
+    if (!file) return errorResponse(404, "file not found");
+    if (file.kind !== "static-site") return errorResponse(400, "file is not a static-site");
+    const signed = await signRender(c.env.SESSION_SECRET, shareRenderPayload(tk.token, file.id));
+    return jsonResponse({
+      prefix: `/shared/${tk.token}/files/${file.id}/${signed.sig}/`,
+      expiresAt: signed.expiresAt,
+    });
   },
 );
 

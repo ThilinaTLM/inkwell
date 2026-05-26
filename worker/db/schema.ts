@@ -120,7 +120,7 @@ export const files = sqliteTable(
       onDelete: "set null",
     }),
     name: text("name").notNull().default("Untitled"),
-    kind: text("kind", { enum: ["excalidraw", "drawio", "notes"] })
+    kind: text("kind", { enum: ["excalidraw", "drawio", "notes", "static-site"] })
       .notNull()
       .default("excalidraw"),
     version: integer("version").notNull().default(1),

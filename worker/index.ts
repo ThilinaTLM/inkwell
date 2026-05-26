@@ -15,6 +15,7 @@ import foldersRoutes from "./routes/folders";
 import invitesRoutes from "./routes/invites";
 import meRoutes from "./routes/me";
 import publicShareRoutes from "./routes/public-share";
+import { ownerSites, sharedSites } from "./routes/render";
 import { fileSharesNested, folderSharesNested, sharesRoot } from "./routes/shares";
 import tagsRoutes from "./routes/tags";
 
@@ -36,6 +37,19 @@ app.route("/api/files", filesRoutes);
 app.route("/api/tags", tagsRoutes);
 app.route("/api/shares", sharesRoot);
 app.route("/api/share", publicShareRoutes);
+// Static-site asset serving (signature-gated, session-less). Mounted
+// at top-level paths OUTSIDE `/api/` so the URL the user sees in
+// "Open in new tab" looks like a site URL, not an API call:
+//
+//   /sites/:id/:sig/<path>      — owner-minted
+//   /shared/:token/:sig/<path>  — share-token-minted
+//
+// The worker `fetch` handler below routes `/sites/*` and `/shared/*`
+// to Hono alongside `/api/*`. The two flavors are intentionally
+// separate Hono routers — see worker/routes/render.ts for the
+// access-control invariants that depend on this split.
+app.route("/sites", ownerSites);
+app.route("/shared", sharedSites);
 // Nested share routers under file/folder owner namespaces. These mount
 // AFTER the resource routers so unrelated method+path combos within
 // the resource don't get shadowed.
@@ -62,7 +76,11 @@ app.notFound(
 export default {
   async fetch(req: Request, env: AppEnv["Bindings"], ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname.startsWith("/api/")) {
+    if (
+      url.pathname.startsWith("/api/") ||
+      url.pathname.startsWith("/sites/") ||
+      url.pathname.startsWith("/shared/")
+    ) {
       return await app.fetch(req, env, ctx);
     }
     // Everything else — serve the SPA via the ASSETS binding.

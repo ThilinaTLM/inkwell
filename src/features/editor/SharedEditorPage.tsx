@@ -34,6 +34,7 @@ import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
+import { SharedStaticSitePreviewRedirect } from "./StaticSitePreviewRedirect";
 
 interface SharedEditorProps {
   /** Optional preloaded file; used by SharedTokenLanding to avoid a double fetch. */
@@ -116,6 +117,20 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   const downloadHref = fileId
     ? shares.folderFileDownloadUrl(token, fileId)
     : shares.downloadUrl(token);
+
+  if (loaded.meta.kind === "static-site") {
+    // Share-token visitors don't see the management surface for
+    // static-site bundles — the file tree is an owner concept. We
+    // bounce to the signed preview URL exactly the way the top-level
+    // `/share/:token` dispatcher does for file shares, but minting
+    // through the folder-share render endpoint when this is a
+    // folder-share child (fileId present). The share render-session
+    // endpoint re-checks `findActive`, so revoking the share kills
+    // the outstanding session immediately.
+    return (
+      <SharedStaticSitePreviewRedirect token={token} fileId={fileId ?? null} blob={loaded.blob} />
+    );
+  }
 
   if (loaded.meta.kind === "drawio") {
     return (

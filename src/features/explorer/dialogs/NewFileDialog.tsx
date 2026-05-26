@@ -55,6 +55,11 @@ const CARDS: ReadonlyArray<KindCard> = [
     title: "Notes",
     description: "Rich text notes with headings, lists and embeds.",
   },
+  {
+    kind: "static-site",
+    title: "Static site",
+    description: "Upload HTML, CSS, and JS files (or a .zip) and share the rendered page.",
+  },
 ];
 
 export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps) {
@@ -68,9 +73,9 @@ export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps
         {/* Base UI's Dialog moves focus to the first focusable
          *  element on open, so the first card receives focus
          *  naturally without an explicit `autoFocus` attribute. */}
-        {/* Three cards — stacked single column on narrow screens, a
-         *  3-up grid from `sm` onwards so the picker stays compact. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Four cards — stacked single column on the narrowest screens,
+         *  then a 2x2 grid from `sm` upward so the picker stays compact. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {CARDS.map((c) => (
             <KindCardButton key={c.kind} card={c} onPick={() => onPick(c.kind)} />
           ))}

@@ -20,14 +20,27 @@ import type {
   FileMeta,
   FileRow,
   NotesFileBlob,
+  StaticSiteFileBlob,
 } from "../types";
 import { rowToMeta } from "../types";
+import { emptyManifest, isStaticSiteBlob, validateManifest, writeSeedSite } from "./static-site";
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_THUMB_BYTES = 1 * 1024 * 1024;
 
 // ─── Blob construction ──────────────────────────────────────────────
-export function seedBlobForKind(kind: FileKind, name: string): FileBlob {
+//
+// Two-phase seeding:
+//   1. `seedManifestForKind(kind, name)` returns the JSON manifest
+//      that will be stored at `r2FileKey(id)`. Pure — no R2 writes.
+//   2. `writeSeedSite(env, id, name)` (static-site only) writes the
+//      seed `index.html` to R2 under `static-sites/<id>/` and then
+//      writes the canonical manifest. The other kinds need no extra
+//      R2 writes — the manifest IS the seed blob.
+//
+// `seedBlobForKind` is preserved as a back-compat alias; new code
+// should prefer `seedManifestForKind` for clarity.
+export function seedManifestForKind(kind: FileKind, name: string): FileBlob {
   switch (kind) {
     case "drawio":
       return { kind: "drawio", xml: emptyDrawioXml(name) };
@@ -35,10 +48,16 @@ export function seedBlobForKind(kind: FileKind, name: string): FileBlob {
       return { elements: [], appState: { name }, files: {} };
     case "notes":
       return { kind: "notes", blocks: [{ type: "paragraph", content: [] }] };
+    case "static-site":
+      // The canonical seed manifest (with one asset entry) is built
+      // by `writeSeedSite`; this sentinel keeps the function pure.
+      return emptyManifest();
     default:
       return assertNever(kind);
   }
 }
+
+export const seedBlobForKind = seedManifestForKind;
 
 function emptyDrawioXml(name: string): string {
   const safeName = escapeXml(name || "Page-1");
@@ -80,6 +99,13 @@ export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | 
     case "notes":
       if (!isNotesBlob(parsed)) return "notes blob must include kind=notes and blocks array";
       return null;
+    case "static-site":
+      // Direct manifest PUTs are not supported — `putFileBlob` short-
+      // circuits before reaching here. This branch is a defensive
+      // fallback for any future code path that calls the validator
+      // directly (e.g. round-trip symmetry tests).
+      if (!isStaticSiteBlob(parsed)) return "static-site blob shape invalid";
+      return validateManifest(parsed as StaticSiteFileBlob);
     default:
       return assertNever(kind);
   }
@@ -104,6 +130,14 @@ export async function writeR2Blob(
 // place. `row` must already be loaded; the caller is responsible for
 // authorization (owner check, share-token resolution, etc.).
 export async function putFileBlob(env: Env, row: FileRow, req: Request): Promise<Response> {
+  // Static-site manifests are server-managed — owners mutate the site
+  // through the dedicated /api/files/:id/assets* endpoints, which keep
+  // the R2 objects and the manifest in lockstep. Allowing a raw
+  // manifest PUT here would let a client desync the two.
+  if (row.kind === "static-site") {
+    return errorResponse(400, "static-site files are managed via /api/files/:id/assets endpoints");
+  }
+
   // Optimistic concurrency: if the client supplies If-Match and it
   // doesn't match the current version, refuse and return the current
   // metadata so the client can decide what to do.
@@ -172,9 +206,22 @@ export async function createFileInFolder(
   const id = newId();
   const ts = now();
   const safe = (name || "Untitled").slice(0, 200);
-  const seed = seedBlobForKind(kind, safe);
-  const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
-  await writeR2Blob(env, id, seedBytes);
+
+  // Static-site uses a two-phase seed: write the seed asset to R2
+  // first, then `writeSeedSite` builds the canonical manifest and
+  // writes it to the standard blob key. The other kinds bundle the
+  // seed and the manifest into one JSON blob.
+  let totalBytes: number;
+  if (kind === "static-site") {
+    const seeded = await writeSeedSite(env, id, safe);
+    totalBytes = seeded.bytes;
+  } else {
+    const seed = seedManifestForKind(kind, safe);
+    const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
+    await writeR2Blob(env, id, seedBytes);
+    totalBytes = seedBytes.byteLength;
+  }
+
   await filesRepo.insert(env, {
     id,
     owner,
@@ -182,7 +229,7 @@ export async function createFileInFolder(
     name: safe,
     kind,
     version: 1,
-    size_bytes: seedBytes.byteLength,
+    size_bytes: totalBytes,
     has_thumb: false,
     thumb_updated_at: 0,
     created_at: ts,
@@ -195,7 +242,7 @@ export async function createFileInFolder(
     kind,
     tags: [],
     version: 1,
-    sizeBytes: seedBytes.byteLength,
+    sizeBytes: totalBytes,
     hasThumb: false,
     thumbUpdatedAt: 0,
     activeShareCount: 0,

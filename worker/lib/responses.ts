@@ -6,6 +6,8 @@
 // response shapes (the `{error}` envelope, R2-cached thumbnails, file
 // downloads) live in one place rather than being copy-pasted.
 
+import { zipSync } from "fflate";
+import { isStaticSiteBlob, r2StaticSiteAssetKey } from "../services/static-site";
 import type { FileBlob, FileKind, FileRow } from "../types";
 import { assertNever } from "./util";
 
@@ -103,6 +105,28 @@ export async function streamFileResponse(
       headers["content-type"] = "application/xml; charset=utf-8";
       return new Response(parsed.xml, { headers });
     }
+    if (row.kind === "static-site") {
+      // Re-package the site's R2 assets into a single ZIP. The
+      // manifest blob lists every asset path, so we fan-out R2 reads
+      // and feed the result to fflate. `zipSync` is memory-bounded by
+      // the 100 MB site cap — within Workers limits but tight; if it
+      // becomes a problem we can switch to the streaming `Zip` API.
+      const manifest = await parseStoredFileBlob(obj);
+      if (!manifest || !isStaticSiteBlob(manifest)) {
+        return errorResponse(500, "invalid static-site manifest");
+      }
+      const entries: Record<string, Uint8Array> = {};
+      for (const a of manifest.assets) {
+        const assetObj = await env.R2.get(r2StaticSiteAssetKey(row.id, a.path));
+        if (!assetObj) {
+          return errorResponse(500, `missing asset "${a.path}" in R2`);
+        }
+        entries[a.path] = new Uint8Array(await assetObj.arrayBuffer());
+      }
+      const zip = zipSync(entries);
+      headers["content-type"] = "application/zip";
+      return new Response(zip, { headers });
+    }
   }
   return new Response(obj.body, { headers });
 }
@@ -125,7 +149,7 @@ function safeFilename(name: string): string {
   return base.slice(0, 80);
 }
 
-function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "notes.json" {
+function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "notes.json" | "zip" {
   switch (kind) {
     case "drawio":
       return "drawio";
@@ -139,6 +163,9 @@ function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "no
       // separate client-only "Export as Markdown" path that runs
       // `editor.blocksToMarkdownLossy()` in the browser.
       return "notes.json";
+    case "static-site":
+      // Re-packaged ZIP — see `streamFileResponse` for the build.
+      return "zip";
     default:
       return assertNever(kind);
   }

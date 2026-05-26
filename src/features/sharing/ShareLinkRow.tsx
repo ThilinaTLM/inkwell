@@ -44,9 +44,19 @@ export interface ShareLinkRowProps {
   onRevoke: () => Promise<void>;
   /** Optional class name for the outer card. */
   className?: string;
+  /** When true, the inline edit form locks the permission selector
+   *  to "read". Used for static-site file shares. */
+  lockedToRead?: boolean;
 }
 
-export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: ShareLinkRowProps) {
+export function ShareLinkRow({
+  share,
+  onEdit,
+  onRotate,
+  onRevoke,
+  className,
+  lockedToRead = false,
+}: ShareLinkRowProps) {
   const [editing, setEditing] = useState(false);
 
   const url = shareUrl(share.token);
@@ -130,7 +140,12 @@ export function ShareLinkRow({ share, onEdit, onRotate, onRevoke, className }: S
 
       {/* Edit form OR meta+actions */}
       {editing ? (
-        <ShareLinkEditForm share={share} onCancel={() => setEditing(false)} onSave={handleSave} />
+        <ShareLinkEditForm
+          share={share}
+          onCancel={() => setEditing(false)}
+          onSave={handleSave}
+          lockedToRead={lockedToRead}
+        />
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">

@@ -12,6 +12,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { EditorPage } from "@/features/editor/EditorPage";
 import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
 import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
+import { StaticSitePreviewRedirect } from "@/features/editor/StaticSitePreviewRedirect";
 import { DashboardPage } from "@/features/explorer/DashboardPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
@@ -24,6 +25,11 @@ export function AppRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/folders/:folderId" element={<DashboardPage />} />
       <Route path="/f/:id" element={<EditorPage />} />
+      {/* Owner-facing stable preview URL for static-site files. The
+          component mints a fresh signed `/sites/:id/:sig/...` URL on
+          every visit and `location.replace`s into it — see
+          StaticSitePreviewRedirect for the access-control story. */}
+      <Route path="/f/:id/site" element={<StaticSitePreviewRedirect />} />
       {/* Legacy: pre-rebrand `/s/:id` URLs (bookmarks, browser history,
           tabs) redirect to the canonical /f/:id form. */}
       <Route path="/s/:id" element={<LegacyFileRedirect />} />

@@ -30,6 +30,10 @@ export const keys = {
     list: (q: FilesQuery) => ["files", "list", q] as const,
     detail: (id: string) => ["files", "detail", id] as const,
     shares: (fileId: string) => ["files", fileId, "shares"] as const,
+    /** Static-site manifest for the editor tree. Separate from
+     *  `detail` so a manifest mutation doesn't blow up the cached
+     *  `LoadedFile` and force the editor to remount. */
+    manifest: (fileId: string) => ["files", fileId, "manifest"] as const,
   },
 
   sharesAll: ["shares"] as const,

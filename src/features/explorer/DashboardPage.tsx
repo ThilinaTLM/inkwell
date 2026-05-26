@@ -182,6 +182,7 @@ export function DashboardPage() {
           targetType={shareTarget.kind}
           targetId={shareTarget.kind === "file" ? shareTarget.file.id : shareTarget.folder.id}
           targetName={shareTarget.kind === "file" ? shareTarget.file.name : shareTarget.folder.name}
+          targetKind={shareTarget.kind === "file" ? shareTarget.file.kind : undefined}
         />
       ) : null}
 
@@ -262,6 +263,8 @@ function defaultNameForKind(kind: FileKind): string {
       return "Untitled diagram";
     case "notes":
       return "Untitled note";
+    case "static-site":
+      return "Untitled site";
     default:
       return "Untitled drawing";
   }

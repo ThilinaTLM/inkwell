@@ -39,7 +39,7 @@ export interface Invite {
   revokedAt: number | null;
 }
 
-export type FileKind = "excalidraw" | "drawio" | "notes";
+export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site";
 
 export interface FileMeta {
   id: string;
@@ -120,7 +120,28 @@ export interface NotesFileBlob {
   blocks: unknown[];
 }
 
-export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob;
+/** One asset inside a static-site bundle. Paths are forward-slash,
+ *  no leading slash, no `..`, no empty segments. */
+export interface StaticSiteAsset {
+  path: string;
+  size: number;
+  contentType: string;
+  /** unix-ms of the most recent upload of this asset. */
+  updatedAt: number;
+}
+
+/** Manifest for a `kind === "static-site"` file. Mutations go through
+ *  the dedicated `/api/files/:id/assets*` endpoints — direct PUT of
+ *  this manifest is rejected by the worker. */
+export interface StaticSiteFileBlob {
+  kind: "static-site";
+  /** Asset path served for the root request. Must exist in `assets`. */
+  entry: string;
+  /** Sorted alphabetically by path. */
+  assets: StaticSiteAsset[];
+}
+
+export type FileBlob = ExcalidrawFileBlob | DrawioFileBlob | NotesFileBlob | StaticSiteFileBlob;
 
 export interface LoadedFile {
   meta: {
@@ -403,6 +424,111 @@ export const files = {
     request<{ ok: true }>(`/api/files/${id}/shares/${token}`, { method: "DELETE" }),
 };
 
+// Static-site mutators for `kind === "static-site"` files. The worker
+// rejects raw `PUT /api/files/:id` for this kind — use these endpoints
+// so the manifest and the R2 objects stay in lockstep. All writes
+// return `{ meta, manifest }` so callers can patch both the file-list
+// cache and the editor tree without an extra round trip.
+
+export interface StaticSiteRenderSession {
+  /** Absolute URL prefix (with trailing slash) for the signed render
+   *  route. Concat `manifest.entry` to get the iframe `src`. */
+  prefix: string;
+  /** unix-ms when the signature expires. */
+  expiresAt: number;
+}
+
+export interface StaticSiteMutationResult {
+  meta: FileMeta;
+  manifest: StaticSiteFileBlob;
+}
+
+export const staticSites = {
+  /** Convenience read of the manifest. Same JSON as `files.load` but
+   *  skips the binary-response header dance. */
+  manifest: (id: string) => request<StaticSiteFileBlob>(`/api/files/${id}/manifest`),
+
+  /** Upload one or more files. Bare `File` keeps the file's own name
+   *  as the asset path; `{path, file}` lets the caller override
+   *  (e.g. preserving `webkitRelativePath` for dropped folders).
+   *  Pass `version` to enable optimistic-concurrency. */
+  async uploadAssets(
+    id: string,
+    files: Array<File | { path: string; file: File }>,
+    version?: number,
+  ): Promise<StaticSiteMutationResult> {
+    const fd = new FormData();
+    for (const entry of files) {
+      if (entry instanceof File) {
+        fd.append("file", entry, entry.name);
+      } else {
+        fd.append("file", entry.file, entry.path);
+      }
+    }
+    const headers: Record<string, string> = {};
+    if (typeof version === "number") headers["if-match"] = `"${version}"`;
+    const resp = await fetch(`/api/files/${id}/assets`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: fd,
+    });
+    return await unwrapStaticSiteResp(resp);
+  },
+
+  /** Replace the entire site with the contents of a ZIP. */
+  async uploadZip(id: string, zip: Blob, version?: number): Promise<StaticSiteMutationResult> {
+    const headers: Record<string, string> = { "content-type": "application/zip" };
+    if (typeof version === "number") headers["if-match"] = `"${version}"`;
+    const resp = await fetch(`/api/files/${id}/assets/zip`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: zip,
+    });
+    return await unwrapStaticSiteResp(resp);
+  },
+
+  async deleteAsset(id: string, path: string, version?: number): Promise<StaticSiteMutationResult> {
+    const headers: Record<string, string> = {};
+    if (typeof version === "number") headers["if-match"] = `"${version}"`;
+    const resp = await fetch(
+      `/api/files/${id}/assets/${path.split("/").map(encodeURIComponent).join("/")}`,
+      { method: "DELETE", credentials: "include", headers },
+    );
+    return await unwrapStaticSiteResp(resp);
+  },
+
+  async setEntry(id: string, path: string, version?: number): Promise<StaticSiteMutationResult> {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (typeof version === "number") headers["if-match"] = `"${version}"`;
+    const resp = await fetch(`/api/files/${id}/entry`, {
+      method: "PUT",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({ path }),
+    });
+    return await unwrapStaticSiteResp(resp);
+  },
+
+  /** Mint a render session for the owner's preview iframe. */
+  renderSession: (id: string) =>
+    postJson<StaticSiteRenderSession>(`/api/files/${id}/render-session`, {}),
+};
+
+async function unwrapStaticSiteResp(resp: Response): Promise<StaticSiteMutationResult> {
+  if (!resp.ok) {
+    let payload: { error?: string } | null = null;
+    try {
+      payload = await resp.json();
+    } catch {
+      /* */
+    }
+    throw new ApiError(resp.status, payload?.error || `HTTP ${resp.status}`, payload);
+  }
+  return (await resp.json()) as StaticSiteMutationResult;
+}
+
 // ─── Shares (cross-target) ────────────────────────────────────────────
 export const shares = {
   /** All of caller's active shares (files + folders), with target name. */
@@ -518,6 +644,16 @@ export const shares = {
   folderFileDownloadUrl: (token: string, fileId: string) =>
     `/api/share/${token}/files/${fileId}/download`,
   fileThumbUrl: (token: string) => `/api/share/${token}/thumb`,
+
+  /** Mint a short-lived render session for a static-site file share. */
+  renderSession: (token: string) =>
+    postJson<StaticSiteRenderSession>(`/api/share/${token}/render-session`, {}),
+
+  /** Mint a short-lived render session for a static-site file inside a
+   *  folder share. The token must point at the parent folder share;
+   *  `fileId` must be in the folder subtree. */
+  renderSessionForFile: (token: string, fileId: string) =>
+    postJson<StaticSiteRenderSession>(`/api/share/${token}/files/${fileId}/render-session`, {}),
 };
 
 // ─── Internal helpers ─────────────────────────────────────────────────
