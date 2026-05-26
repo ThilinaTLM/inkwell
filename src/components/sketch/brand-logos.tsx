@@ -252,3 +252,90 @@ export function NotesLogo({
     </svg>
   );
 }
+
+// ───────────────────────────────────────────────────────────────
+// Static-site logo.
+//
+// No third-party brand to honor here — this is an Inkwell-native
+// "site" mark: a browser-window glyph (top bar + traffic-light dots
+// + content area). Two variants follow the same "full" / "mark"
+// contract as the other kinds.
+//
+// Color: a deep indigo close to Tailwind `indigo-600`, picked so the
+// chip reads as a distinct fourth brand next to the existing purple
+// (Excalidraw) and cyan→purple (BlockNote) marks.
+const STATIC_SITE_BG = "#EEF2FF"; // indigo-50
+const STATIC_SITE_INK = "#4338CA"; // indigo-700
+const STATIC_SITE_DOT = "#94A3B8"; // slate-400
+
+/** Static-site brand mark (used for `kind === "static-site"` files). */
+export function StaticSiteLogo({
+  variant = "mark",
+  className,
+}: {
+  variant?: BrandLogoVariant;
+  className?: string;
+}) {
+  if (variant === "full") {
+    return (
+      <svg
+        viewBox="0 0 500 500"
+        xmlns="http://www.w3.org/2000/svg"
+        className={cn("size-full", className)}
+        aria-hidden
+      >
+        <title>Static site</title>
+        {/* Soft indigo background chip with rounded corners. */}
+        <rect x="0" y="0" width="500" height="500" rx="110" fill={STATIC_SITE_BG} />
+        {/* Browser-window frame. */}
+        <rect
+          x="80"
+          y="110"
+          width="340"
+          height="280"
+          rx="32"
+          fill="white"
+          stroke={STATIC_SITE_INK}
+          strokeWidth="14"
+        />
+        {/* Title bar divider. */}
+        <line x1="80" y1="175" x2="420" y2="175" stroke={STATIC_SITE_INK} strokeWidth="14" />
+        {/* Traffic-light dots. */}
+        <circle cx="118" cy="143" r="10" fill={STATIC_SITE_DOT} />
+        <circle cx="152" cy="143" r="10" fill={STATIC_SITE_DOT} />
+        <circle cx="186" cy="143" r="10" fill={STATIC_SITE_DOT} />
+        {/* Content lines. */}
+        <rect x="120" y="220" width="180" height="22" rx="6" fill={STATIC_SITE_INK} />
+        <rect x="120" y="260" width="260" height="14" rx="5" fill={STATIC_SITE_DOT} />
+        <rect x="120" y="290" width="240" height="14" rx="5" fill={STATIC_SITE_DOT} />
+        <rect x="120" y="320" width="200" height="14" rx="5" fill={STATIC_SITE_DOT} />
+      </svg>
+    );
+  }
+  // Inline "mark" variant: simplified browser-window glyph, indigo
+  // strokes on transparent, sized like the other marks.
+  return (
+    <svg
+      viewBox="0 0 500 500"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("size-3.5", className)}
+      aria-hidden
+    >
+      <title>Static site</title>
+      <rect
+        x="60"
+        y="90"
+        width="380"
+        height="320"
+        rx="40"
+        fill="none"
+        stroke={STATIC_SITE_INK}
+        strokeWidth="28"
+      />
+      <line x1="60" y1="170" x2="440" y2="170" stroke={STATIC_SITE_INK} strokeWidth="28" />
+      <circle cx="108" cy="130" r="14" fill={STATIC_SITE_INK} />
+      <circle cx="152" cy="130" r="14" fill={STATIC_SITE_INK} />
+      <circle cx="196" cy="130" r="14" fill={STATIC_SITE_INK} />
+    </svg>
+  );
+}

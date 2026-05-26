@@ -40,7 +40,7 @@ import {
   useShareList,
   useUpdateShare,
 } from "@/data/shares";
-import type { ShareTargetType } from "@/lib/api/client";
+import type { FileKind, ShareTargetType } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { errorMessage } from "@/lib/errors";
 import { shareUrl } from "@/lib/url";
@@ -53,6 +53,10 @@ interface ShareDialogProps {
   targetType: ShareTargetType;
   targetId: string;
   targetName: string;
+  /** File kind, only meaningful for `targetType === "file"`. Drives
+   *  kind-aware UX such as locking the permission selector for
+   *  static-site shares (which have no write path). */
+  targetKind?: FileKind;
 }
 
 export function ShareDialog({
@@ -61,7 +65,9 @@ export function ShareDialog({
   targetType,
   targetId,
   targetName,
+  targetKind,
 }: ShareDialogProps) {
+  const lockedToRead = targetType === "file" && targetKind === "static-site";
   const sharesQuery = useShareList(targetType, targetId, open);
   const createShare = useCreateShare(targetType, targetId);
   const updateShare = useUpdateShare(targetType, targetId);
@@ -105,7 +111,9 @@ export function ShareDialog({
           <DialogDescription>
             {targetType === "folder"
               ? "Anyone with a link can access files inside this folder. Edit links can also create, edit and delete files."
-              : "Anyone with a link can access this file. Edit links can also save changes back to it."}
+              : lockedToRead
+                ? "Anyone with a link can view this site."
+                : "Anyone with a link can access this file. Edit links can also save changes back to it."}
           </DialogDescription>
         </DialogHeader>
 
@@ -147,6 +155,7 @@ export function ShareDialog({
                   <ShareLinkRow
                     key={sh.token}
                     share={sh}
+                    lockedToRead={lockedToRead}
                     onEdit={async (patch) => {
                       await updateShare.mutateAsync({ token: sh.token, body: patch });
                     }}
@@ -175,6 +184,7 @@ export function ShareDialog({
               <ShareLinkCreateForm
                 pending={createShare.isPending}
                 resetSignal={resetSignal}
+                lockedToRead={lockedToRead}
                 onCreate={async (body) => {
                   try {
                     const sh = await createShare.mutateAsync(body);
