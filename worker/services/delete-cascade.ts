@@ -10,6 +10,7 @@ import * as filesRepo from "../db/repos/files";
 import { r2FileKey, r2ThumbKey } from "../lib/responses";
 import { now } from "../lib/util";
 import type { Env, FolderRow } from "../types";
+import { deleteAllStaticSiteAssets } from "./static-site";
 
 // Delete one file: cascade shares + taggings, then drop the row, then
 // best-effort R2 cleanup. Used by both the owner endpoint and the
@@ -23,7 +24,15 @@ export async function deleteFileCascade(env: Env, owner: string, id: string): Pr
       .where(and(eq(t.taggings.target_type, "file"), eq(t.taggings.target_id, id))),
     db.delete(t.files).where(and(eq(t.files.id, id), eq(t.files.owner, owner))),
   ]);
-  await Promise.allSettled([env.R2.delete(r2FileKey(id)), env.R2.delete(r2ThumbKey(id))]);
+  // Always drop the static-site asset prefix unconditionally: the
+  // helper paginates an R2 list under `static-sites/<id>/` and no-ops
+  // when there are no objects, so we don't need to branch on `kind`
+  // here (kind isn't loaded at this layer anyway).
+  await Promise.allSettled([
+    env.R2.delete(r2FileKey(id)),
+    env.R2.delete(r2ThumbKey(id)),
+    deleteAllStaticSiteAssets(env, id),
+  ]);
 }
 
 // Delete one folder. Children (direct files + subfolders) move up one
@@ -91,6 +100,8 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
     for (const id of fileIds) {
       deletes.push(env.R2.delete(r2FileKey(id)));
       deletes.push(env.R2.delete(r2ThumbKey(id)));
+      // No-op for kinds that don't have a static-site prefix.
+      deletes.push(deleteAllStaticSiteAssets(env, id));
     }
     await Promise.allSettled(deletes);
   }

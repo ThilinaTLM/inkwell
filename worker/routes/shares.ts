@@ -51,6 +51,18 @@ sharesRoot.patch("/:token", async (c) => {
   // extend the expiry on a link they're still using.
   if (row.revoked_at) return errorResponse(410, "share is revoked");
 
+  // Static-site file shares are view-only by design — no share-side
+  // asset mutators exist. Reject permission=write up front so we
+  // never persist a row whose permission silently doesn't match the
+  // runtime behavior. Folder shares are unaffected: a folder-share
+  // write permission applies to the non-static-site files inside.
+  if (body.permission === "write" && row.target_type === "file") {
+    const file = await filesRepo.findByIdAnyOwner(c.env, row.target_id);
+    if (file && file.kind === "static-site") {
+      return errorResponse(400, "static-site shares cannot grant write access");
+    }
+  }
+
   // Resolve the next state. Each field is independent: undefined
   // leaves it alone, a value replaces it, `null` is the explicit clear
   // for nullable fields.
@@ -148,6 +160,10 @@ fileSharesNested.post("/", async (c) => {
   const row = await filesRepo.findById(c.env, owner, fileId);
   if (!row) return errorResponse(404, "file not found");
   const body = await parseJsonOrEmpty<CreateShareBody>(c);
+  // Static-site shares are view-only — see PATCH handler above.
+  if (row.kind === "static-site" && body.permission === "write") {
+    return errorResponse(400, "static-site shares cannot grant write access");
+  }
   const created = await createShareRow(c.env, owner, "file", fileId, body);
   return jsonResponse(rowToSharePublic(created));
 });
