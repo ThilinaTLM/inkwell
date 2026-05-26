@@ -41,6 +41,7 @@ export function ShareLinkCreateForm({
   pending,
   onCreate,
   resetSignal,
+  lockedToRead = false,
 }: {
   pending: boolean;
   /** Called with the create body. The parent runs the mutation, copies
@@ -50,6 +51,9 @@ export function ShareLinkCreateForm({
   /** Bumping this number resets the form (e.g. when the dialog reopens
    *  with a different target). */
   resetSignal?: number;
+  /** When true, the permission selector is locked to "read" (e.g.
+   *  static-site file shares, which have no write path). */
+  lockedToRead?: boolean;
 }) {
   const [perm, setPerm] = useState<SharePermission>("read");
   const [allowDownload, setAllowDownload] = useState(true);
@@ -65,6 +69,13 @@ export function ShareLinkCreateForm({
     setExpiryId(DEFAULT_EXPIRY_ID);
     setLabel("");
   }, [resetSignal]);
+
+  // If the kind constraint flips on while the form is open, force
+  // perm back to read so a stale "write" selection can't slip into
+  // the submit body.
+  useEffect(() => {
+    if (lockedToRead && perm !== "read") setPerm("read");
+  }, [lockedToRead, perm]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +99,7 @@ export function ShareLinkCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <PermissionSegment value={perm} onChange={setPerm} />
+      <PermissionSegment value={perm} onChange={setPerm} lockedToRead={lockedToRead} />
       <AllowDownloadField permission={perm} value={allowDownload} onChange={setAllowDownload} />
       <ExpiryChips
         options={EXPIRY_OPTIONS}
