@@ -3,8 +3,11 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// During `vite dev` we proxy /api to a locally-running Worker (`wrangler dev`).
-// In production the Worker serves the built SPA directly via the [assets] binding.
+// During `vite dev` we proxy /api, /sites, and /shared to a locally-running
+// Worker (`wrangler dev`). /sites and /shared serve signed static-site
+// asset bundles (owner-minted and share-token-minted respectively); see
+// worker/routes/render.ts. In production the Worker serves the built SPA
+// directly via the [assets] binding.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -17,6 +20,14 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
+        target: "http://127.0.0.1:8888",
+        changeOrigin: true,
+      },
+      "/sites": {
+        target: "http://127.0.0.1:8888",
+        changeOrigin: true,
+      },
+      "/shared": {
         target: "http://127.0.0.1:8888",
         changeOrigin: true,
       },

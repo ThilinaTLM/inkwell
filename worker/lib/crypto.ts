@@ -62,3 +62,60 @@ export function timingSafeEqual(a: string, b: string): boolean {
   }
   return diff === 0;
 }
+
+// ─── Render-session signatures ───────────────────────────────
+//
+// Used by `/sites/...` and `/shared/...` to gate access to static-site assets
+// without requiring the session cookie inside the sandboxed iframe.
+// The signature shape is `<hmac>.<exp>` where `<exp>` is unix-ms.
+//
+// `payload` should encode (id, who-the-signature-was-minted-for) so a
+// signature minted for one owner/share can't be replayed to read
+// another file. The render route reconstructs the exact same payload
+// and verifies.
+
+export interface RenderSig {
+  sig: string; // hmac.expMs
+  expiresAt: number;
+}
+
+const RENDER_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+export async function signRender(
+  secret: string,
+  payload: string,
+  ttlMs: number = RENDER_TTL_MS,
+): Promise<RenderSig> {
+  const expiresAt = Date.now() + ttlMs;
+  const mac = await hmacSha256(secret, `${payload}|${expiresAt}`);
+  return { sig: `${mac}.${expiresAt}`, expiresAt };
+}
+
+/** Verify a render signature against the expected payload. Returns true
+ *  on success, false on any malformed-token / expired / mismatched
+ *  outcome. Constant-time on the HMAC compare. */
+export async function verifyRender(
+  secret: string,
+  sig: string,
+  payload: string,
+  nowMs: number = Date.now(),
+): Promise<boolean> {
+  const dot = sig.lastIndexOf(".");
+  if (dot < 0) return false;
+  const mac = sig.slice(0, dot);
+  const expStr = sig.slice(dot + 1);
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp <= nowMs) return false;
+  const expected = await hmacSha256(secret, `${payload}|${exp}`);
+  return timingSafeEqual(mac, expected);
+}
+
+/** Stable payload string for an owner-minted render signature. */
+export function ownerRenderPayload(fileId: string, ownerId: string): string {
+  return `owner|${fileId}|${ownerId}`;
+}
+
+/** Stable payload string for a share-minted render signature. */
+export function shareRenderPayload(token: string, fileId: string): string {
+  return `share|${token}|${fileId}`;
+}

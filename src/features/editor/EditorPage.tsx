@@ -32,6 +32,7 @@ import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import ExcalidrawEditor from "./ExcalidrawEditor";
 import NotesEditor from "./NotesEditor";
 import { RenameFileDialog } from "./RenameFileDialog";
+import StaticSiteEditor from "./StaticSiteEditor";
 
 export function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -199,6 +200,7 @@ export function EditorPage() {
         targetType="file"
         targetId={id}
         targetName={loaded.meta.name}
+        targetKind={loaded.meta.kind}
       />
 
       {tagsOpen && fileTags.status === "ok" && tagsQuery.data ? (
@@ -249,6 +251,41 @@ export function EditorPage() {
             onDownload: () => {
               window.location.href = files.downloadUrl(id);
             },
+          }}
+        />
+        {fileDialogs}
+      </div>
+    );
+  }
+
+  if (loaded.meta.kind === "static-site") {
+    // StaticSiteEditor paints its own <PaperSurface> and owns its own
+    // scroll container — the wrapper just sizes to the viewport.
+    return (
+      <div className="h-dvh w-full">
+        <StaticSiteEditor
+          loaded={loaded}
+          back={{ onClick: handleBack, label: "Back to dashboard" }}
+          onRequestRename={() => setRenameOpen(true)}
+          onTags={() => setTagsOpen(true)}
+          onShare={() => setShareOpen(true)}
+          onManifestChanged={(_manifest, meta) => {
+            // Keep the editor's `LoadedFile` mirror in sync with the
+            // server's bumped version so subsequent mutations send the
+            // right `If-Match` header.
+            setLoaded((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    meta: {
+                      ...prev.meta,
+                      version: meta.version,
+                      updatedAt: meta.updatedAt,
+                      name: meta.name,
+                    },
+                  }
+                : prev,
+            );
           }}
         />
         {fileDialogs}

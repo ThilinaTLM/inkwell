@@ -30,8 +30,9 @@ on Cloudflare."**
 Features at a glance:
 
 - Multi-file dashboard with **folders** (nested, per-user) and **tags**
-- Three equal-priority file types today (Excalidraw, draw.io, Notes via
-  [BlockNote](https://www.blocknotejs.org/)), more later
+- Four equal-priority file kinds today (Excalidraw, draw.io, Notes via
+  [BlockNote](https://www.blocknotejs.org/), and **Static sites** for
+  publishing uploaded HTML/CSS/JS bundles), more later
 - **Share links** for individual files or whole folder subtrees, read or
   read-write, with optional expiry and downloads
 - **Email + password auth**, invitation-only signup, super-admin bootstrap
@@ -53,6 +54,13 @@ Key choices:
 - **R2 holds the bytes, D1 holds the index.** Listing the dashboard never
   hits R2 — D1 returns metadata in milliseconds. R2 is only touched on open
   and save.
+- **Static-site files** are multi-asset bundles: the canonical JSON blob
+  is a *manifest* listing every uploaded file, and each asset lives at
+  `static-sites/{id}/{relpath}` in R2. The Worker serves them through a
+  signed `/sites/...` (owner) and `/shared/...` (share-token) routes so uploaded JS
+  cannot read session cookies or call `/api/*` as the owner. See
+  [`worker/services/static-site.ts`](./worker/services/static-site.ts)
+  and [`worker/routes/render.ts`](./worker/routes/render.ts).
 - **Optimistic concurrency** via an integer `version` column and `If-Match`.
 - **Client-side SVG thumbnails** (`exportToSvg` on a debounce). No
   server-side rendering required.
