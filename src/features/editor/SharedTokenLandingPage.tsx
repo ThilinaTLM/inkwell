@@ -19,10 +19,10 @@
 // `SharedEditorPage` — it can't run here because the dispatcher
 // doesn't see the child fileId.
 
+import { LinkBackwardIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
-import { PaperSurface } from "@/components/PaperSurface";
-import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
+import { EmptyState } from "@/components/EmptyState";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
@@ -49,13 +49,13 @@ export function SharedTokenLandingPage() {
 
   if (peek.isError) {
     return (
-      <PaperSurface variant="page" className="grid place-items-center px-4">
-        <EmptyDeskNote
-          seed="shared-link-error"
+      <div className="grid min-h-dvh place-items-center bg-background px-4">
+        <EmptyState
+          icon={LinkBackwardIcon}
           title="Couldn't open this link"
-          body={errorMessage(peek.error, "could not open this link")}
+          description={errorMessage(peek.error, "could not open this link")}
         />
-      </PaperSurface>
+      </div>
     );
   }
 

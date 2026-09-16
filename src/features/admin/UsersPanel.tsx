@@ -14,8 +14,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { ElevatedCard } from "@/components/ElevatedCard";
-import { SectionHeading } from "@/components/SectionHeading";
+import { SectionHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,9 +62,12 @@ export function UsersPanel({ selfId }: { selfId: string }) {
   const busyId = updateUser.isPending ? updateUser.variables?.id : null;
 
   return (
-    <ElevatedCard>
-      <SectionHeading label="Users" count={users?.length} />
-      <div className="px-6 pb-6">
+    <section className="rounded-lg border border-border bg-card p-5">
+      <SectionHeader
+        title="Users"
+        description={users?.length != null ? `${users?.length} total` : undefined}
+      />
+      <div className="mt-4">
         <p className="mb-4 text-sm text-muted-foreground">
           Promote, disable, or remove members of your workspace.
         </p>
@@ -204,6 +206,6 @@ export function UsersPanel({ selfId }: { selfId: string }) {
         target={confirmDelete}
         onOpenChange={(open) => !open && setConfirmDelete(null)}
       />
-    </ElevatedCard>
+    </section>
   );
 }

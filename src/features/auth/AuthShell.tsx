@@ -1,10 +1,11 @@
 // AuthShell — centered single-sheet layout for unauthenticated routes
-// (Login, InviteAccept) and the same shape reused for Account.
-// A paper-style page with a slightly rotated card laid on top.
+// (Login, InviteAccept).
+//
+// Deliberately plain: brand mark, product name, one card. Nothing here
+// should distract from the single action the page exists for.
 
 import type { ReactNode } from "react";
 import { InkwellMark } from "@/components/InkwellMark";
-import { PaperSurface } from "@/components/PaperSurface";
 import { cn } from "@/lib/utils";
 
 interface AuthShellProps {
@@ -17,38 +18,30 @@ interface AuthShellProps {
 
 export function AuthShell({ title, description, footer, children, className }: AuthShellProps) {
   return (
-    <PaperSurface variant="page" className="grid place-items-center overflow-hidden px-4 py-10">
-      <div className="relative z-10 w-full max-w-md">
+    <div className="grid min-h-dvh place-items-center bg-background px-4 py-10 text-foreground">
+      <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <InkwellMark className="size-10 text-foreground" />
-          <div className="font-brand text-3xl text-foreground">inkwell</div>
-          <p className="text-sm text-muted-foreground">
-            A small place for your diagrams and drawings.
+          <InkwellMark className="size-8 text-foreground" />
+          <div className="text-xl font-semibold tracking-tight text-foreground">Inkwell</div>
+          <p className="text-xs text-muted-foreground">
+            Your diagrams, notes and sites in one workspace.
           </p>
         </div>
 
-        <div
-          className={cn(
-            "relative rounded-lg bg-card p-7 ring-1 ring-border",
-            "shadow-[0_8px_30px_-12px_rgba(28,24,20,0.18)] dark:shadow-[0_18px_40px_-14px_rgba(0,0,0,0.55)]",
-            className,
+        <div className={cn("rounded-lg border border-border bg-card p-6", className)}>
+          {(title || description) && (
+            <div className="mb-4 flex flex-col gap-1">
+              {title && (
+                <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+              )}
+              {description && <p className="text-xs text-muted-foreground">{description}</p>}
+            </div>
           )}
-        >
-          <div>
-            {(title || description) && (
-              <div className="mb-4 flex flex-col gap-1">
-                {title && <h2 className="font-heading text-2xl text-foreground">{title}</h2>}
-                {description && <p className="text-sm text-muted-foreground">{description}</p>}
-              </div>
-            )}
-            {children}
-          </div>
+          {children}
         </div>
 
-        {footer && (
-          <div className="mt-5 text-center text-sm text-muted-foreground/70">{footer}</div>
-        )}
+        {footer && <div className="mt-5 text-center text-xs text-muted-foreground">{footer}</div>}
       </div>
-    </PaperSurface>
+    </div>
   );
 }

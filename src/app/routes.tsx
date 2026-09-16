@@ -13,7 +13,10 @@ import { EditorPage } from "@/features/editor/EditorPage";
 import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
 import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
 import { StaticSitePreviewRedirect } from "@/features/editor/StaticSitePreviewRedirect";
+import { AllFilesPage } from "@/features/explorer/AllFilesPage";
 import { DashboardPage } from "@/features/explorer/DashboardPage";
+import { HomePage } from "@/features/explorer/HomePage";
+import { TagFilesPage } from "@/features/explorer/TagFilesPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
 
@@ -22,7 +25,13 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
-      <Route path="/" element={<DashboardPage />} />
+      {/* `/` is the Home (recent) view; the folder browser lives under
+          `/folders`. Legacy `/?folder=<id>` bookmarks are redirected by
+          HomePage itself. */}
+      <Route path="/" element={<HomePage />} />
+      <Route path="/files" element={<AllFilesPage />} />
+      <Route path="/tags/:tag" element={<TagFilesPage />} />
+      <Route path="/folders" element={<DashboardPage />} />
       <Route path="/folders/:folderId" element={<DashboardPage />} />
       <Route path="/f/:id" element={<EditorPage />} />
       {/* Owner-facing stable preview URL for static-site files. The

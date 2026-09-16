@@ -5,8 +5,7 @@
 
 import { Shield01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ElevatedCard } from "@/components/ElevatedCard";
-import { SectionHeading } from "@/components/SectionHeading";
+import { SectionHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/api/client";
 import { userDisplayName } from "@/lib/user";
@@ -19,10 +18,9 @@ export function ProfileTab({ user }: ProfileTabProps) {
   const fullName = userDisplayName(user);
 
   return (
-    <ElevatedCard>
-      <SectionHeading label="Profile" />
-      <div className="px-6 pb-6">
-        <p className="mb-4 text-sm text-muted-foreground">Read-only for now.</p>
+    <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5">
+      <SectionHeader title="Profile" description="Read-only for now." />
+      <div>
         <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 text-sm">
           <dt className="text-muted-foreground">Name</dt>
           <dd>{fullName}</dd>
@@ -41,6 +39,6 @@ export function ProfileTab({ user }: ProfileTabProps) {
           </dd>
         </dl>
       </div>
-    </ElevatedCard>
+    </section>
   );
 }

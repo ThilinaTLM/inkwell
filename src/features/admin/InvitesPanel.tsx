@@ -14,8 +14,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { ElevatedCard } from "@/components/ElevatedCard";
-import { SectionHeading } from "@/components/SectionHeading";
+import { SectionHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -106,9 +105,9 @@ export function InvitesPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <ElevatedCard>
-        <SectionHeading label="Generate invite link" />
-        <div className="px-6 pb-6">
+      <section className="rounded-lg border border-border bg-card p-5">
+        <SectionHeader title="Generate invite link" />
+        <div className="mt-4">
           <p className="mb-4 text-sm text-muted-foreground">
             Single-use links new members exchange for an account.
           </p>
@@ -166,11 +165,14 @@ export function InvitesPanel() {
             </div>
           )}
         </div>
-      </ElevatedCard>
+      </section>
 
-      <ElevatedCard>
-        <SectionHeading label="Invites" count={sorted?.length} />
-        <div className="px-6 pb-6">
+      <section className="rounded-lg border border-border bg-card p-5">
+        <SectionHeader
+          title="Invites"
+          description={sorted?.length != null ? `${sorted?.length} total` : undefined}
+        />
+        <div className="mt-4">
           <p className="mb-4 text-sm text-muted-foreground">
             All invites issued from this workspace.
           </p>
@@ -247,7 +249,7 @@ export function InvitesPanel() {
             </Table>
           )}
         </div>
-      </ElevatedCard>
+      </section>
     </div>
   );
 }

@@ -9,7 +9,8 @@
 import { MailAdd02Icon, UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { AppPage, AppPageHeader } from "@/components/AppPage";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMe } from "@/data/auth";
 
@@ -22,34 +23,33 @@ export function UsersPage() {
   if (!self) return null;
 
   return (
-    <AppPage user={self}>
-      <AppPageHeader
-        icon={UserMultipleIcon}
-        title="Users"
-        description="Manage workspace members, roles, and invite links."
-        backTo="/"
-        backLabel="Back to dashboard"
-      />
+    <AppShell>
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 py-4">
+        <PageHeader
+          title="Users"
+          description="Manage workspace members, roles, and invite links."
+        />
 
-      <Tabs defaultValue="members" className="gap-6">
-        <TabsList>
-          <TabsTrigger value="members" className="gap-1.5">
-            <HugeiconsIcon icon={UserMultipleIcon} strokeWidth={2} />
-            Members
-          </TabsTrigger>
-          <TabsTrigger value="invites" className="gap-1.5">
-            <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
-            Invites
-          </TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="members" className="gap-5">
+          <TabsList>
+            <TabsTrigger value="members" className="gap-1.5">
+              <HugeiconsIcon icon={UserMultipleIcon} strokeWidth={2} />
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="invites" className="gap-1.5">
+              <HugeiconsIcon icon={MailAdd02Icon} strokeWidth={2} />
+              Invites
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="members">
-          <UsersPanel selfId={self.id} />
-        </TabsContent>
-        <TabsContent value="invites">
-          <InvitesPanel />
-        </TabsContent>
-      </Tabs>
-    </AppPage>
+          <TabsContent value="members">
+            <UsersPanel selfId={self.id} />
+          </TabsContent>
+          <TabsContent value="invites">
+            <InvitesPanel />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AppShell>
   );
 }

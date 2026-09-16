@@ -10,21 +10,19 @@
 //   - the routing decision: a single dropped ZIP is treated as a
 //     "replace all", everything else merges
 //
-// Receives the two mutations (files / zip) plus the bundle id from
+// Receives the two mutations (files / zip) from
 // the parent so the editor stays the single source of truth for
 // version mirroring and `If-Match` semantics.
 
 import { FileUploadIcon, FolderUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useRef, useState } from "react";
-import { RoughBox } from "@/components/rough/RoughBox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type UploadEntry = File | { path: string; file: File };
 
 export interface UploadPanelProps {
-  id: string;
   isEmpty: boolean;
   filesPending: boolean;
   zipPending: boolean;
@@ -33,7 +31,6 @@ export interface UploadPanelProps {
 }
 
 export function UploadPanel({
-  id,
   isEmpty,
   filesPending,
   zipPending,
@@ -102,8 +99,8 @@ export function UploadPanel({
     <section
       aria-label="Upload files"
       className={cn(
-        "relative isolate rounded-md p-5 transition-shadow sm:p-6",
-        dragOver && "ring-2 ring-primary/40",
+        "rounded-lg border border-dashed border-input bg-card p-5 transition-colors sm:p-6",
+        dragOver && "border-ring bg-accent/40",
       )}
       onDragOver={(e) => {
         e.preventDefault();
@@ -112,32 +109,16 @@ export function UploadPanel({
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      <RoughBox
-        shape="card"
-        seed={`upload:${id}`}
-        stroke={dragOver ? "var(--color-primary)" : "var(--color-card-stroke)"}
-        strokeWidth={1.3}
-        fill={dragOver ? "var(--color-accent)" : "var(--color-card)"}
-        fillStyle="solid"
-        roughness={1.2}
-        bowing={0.9}
-        radius={10}
-      />
-      <div
-        aria-hidden
-        className="bg-paper-grain pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-
-      <div className="relative flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <header className="flex items-center justify-between gap-2">
-          <h2 className="font-heading text-sm font-semibold">Upload</h2>
+          <h2 className="text-sm font-semibold tracking-tight">Upload</h2>
           <span
             className={cn(
-              "font-hand text-base leading-none transition-colors",
-              dragOver ? "text-primary" : "text-muted-foreground/85",
+              "text-xs transition-colors",
+              dragOver ? "text-accent-foreground" : "text-muted-foreground",
             )}
           >
-            {dragOver ? "drop it!" : "drag a .zip, folder, or files here"}
+            {dragOver ? "Drop to upload" : "Drag a .zip, folder, or files here"}
           </span>
         </header>
 
@@ -171,7 +152,7 @@ export function UploadPanel({
           </Button>
         </div>
 
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-[0.6875rem] leading-relaxed text-muted-foreground">
           Uploading a <code className="font-mono">.zip</code> replaces the entire bundle. Uploading
           individual files or a folder merges into the existing bundle.
         </p>

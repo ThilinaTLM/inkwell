@@ -9,10 +9,10 @@
 // fetched, the result is cached in-memory and the browser's font cache
 // keeps subsequent reads off the network.
 //
-// Manrope is intentionally NOT lazy — `src/index.css` imports it
-// eagerly because it's the chrome heading typeface used by every
-// route (folder grid, dialogs, save status, etc.). Calling
-// `loadNotesFont("manrope")` is therefore a no-op.
+// Inter and JetBrains Mono are intentionally NOT lazy — `src/index.css`
+// imports them eagerly because they are the app's UI and mono
+// typefaces used by every route (dashboard, dialogs, save status,
+// etc.). Calling `loadNotesFont` for either is therefore a no-op.
 
 import type { NotesEditorFont } from "./preferences";
 
@@ -27,10 +27,10 @@ export function loadNotesFont(font: NotesEditorFont): Promise<void> {
   const task = (async () => {
     switch (font) {
       case "inter":
-        await import("@fontsource-variable/inter/index.css");
+        // Already shipped eagerly by `src/index.css`; nothing to load.
         break;
       case "manrope":
-        // Already shipped eagerly by `src/index.css`; nothing to load.
+        await import("@fontsource-variable/manrope/index.css");
         break;
       case "geist":
         await import("@fontsource-variable/geist/index.css");
@@ -42,7 +42,7 @@ export function loadNotesFont(font: NotesEditorFont): Promise<void> {
         await import("@fontsource-variable/source-serif-4/index.css");
         break;
       case "jetbrains-mono":
-        await import("@fontsource-variable/jetbrains-mono/index.css");
+        // Already shipped eagerly by `src/index.css`; nothing to load.
         break;
     }
     loaded.add(font);

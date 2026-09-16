@@ -5,9 +5,13 @@
 // users can scan-spot the HTML pages, the stylesheet, the script, the
 // images at a glance instead of having to read ten near-identical
 // monospace strings. Colours come from the existing `--color-tag-1..5`
-// decoration tokens (already theme-aware in `src/index.css`), with
-// folder/manila and muted neutrals as fallbacks so we never run out
-// of slots.
+// swatches (already theme-aware in `src/index.css`), plus the
+// static-site kind accent and muted neutrals as fallbacks so we never
+// run out of slots.
+//
+// Chip foregrounds use `--color-card`, which inverts with the theme:
+// white on the saturated light-theme swatches, near-black on the
+// lighter dark-theme swatches.
 //
 // Pure module — no React. Consumed by `FileRow.tsx`.
 
@@ -31,43 +35,43 @@ const TABLE: Record<AssetKind, KindDescriptor> = {
     label: "HTML page",
     abbr: "HT",
     color: "var(--color-tag-2)",
-    fg: "#1c1814",
+    fg: "var(--color-card)",
   },
   // Blue — stylesheets.
   css: {
     label: "Stylesheet",
     abbr: "CS",
     color: "var(--color-tag-4)",
-    fg: "#1c1814",
+    fg: "var(--color-card)",
   },
   // Yellow — scripts.
   js: {
     label: "Script",
     abbr: "JS",
     color: "var(--color-tag-1)",
-    fg: "#1c1814",
+    fg: "var(--color-card)",
   },
   // Green — images / vector assets.
   image: {
     label: "Image",
     abbr: "IM",
     color: "var(--color-tag-3)",
-    fg: "#1c1814",
+    fg: "var(--color-card)",
   },
   // Purple — fonts.
   font: {
     label: "Font",
     abbr: "FN",
     color: "var(--color-tag-5)",
-    fg: "#1c1814",
+    fg: "var(--color-card)",
   },
-  // Manila — data / source-maps. Reuses the folder token so it sits
-  // visually adjacent to the manila site card.
+  // Blue-grey — data / source-maps. Reuses the static-site kind accent
+  // so data files sit visually next to the site card.
   json: {
     label: "Data",
     abbr: "JN",
-    color: "var(--color-folder)",
-    fg: "#1c1814",
+    color: "var(--color-kind-static)",
+    fg: "var(--color-card)",
   },
   // Muted — documents (pdf / md / txt).
   doc: {

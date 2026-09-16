@@ -32,11 +32,11 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        // Warm ink wash, not pure black, so the paper feel doesn't break.
-        // The literal oklch is intentional — there is no inkwell token for
-        // a translucent overlay tint, and reusing --foreground would shift
-        // hue on the dark theme. Sole exception to the no-literal rule.
-        "fixed inset-0 isolate z-50 bg-[oklch(0.18_0.012_60_/_0.55)] duration-150 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // Neutral ink wash, not pure black. The literal oklch is
+        // intentional — there is no inkwell token for a translucent
+        // overlay tint, and reusing --foreground would invert on the dark
+        // theme. Sole exception to the no-literal rule.
+        "fixed inset-0 isolate z-50 bg-[oklch(0.18_0_0_/_0.5)] duration-150 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -58,11 +58,10 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          // A sheet of paper laid on the desk: popover fill, hairline ring,
-          // soft offset shadow, slight tilt-on-open animation. The shadow
-          // literal is preserved — it mixes the warm ink colour and there
-          // is no token utility for it.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-5 font-sans text-sm text-popover-foreground ring-1 ring-border shadow-[0_24px_60px_-20px_rgba(28,24,20,0.45)] duration-150 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Elevated surface: popover fill, hairline ring, soft offset
+          // shadow, subtle zoom-on-open. The shadow literal is kept —
+          // there is no token utility for this specific elevation.
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-5 font-sans text-sm text-popover-foreground ring-1 ring-border shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] duration-150 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

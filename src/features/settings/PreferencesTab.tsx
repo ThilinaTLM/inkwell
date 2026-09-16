@@ -7,7 +7,6 @@
 // `src/lib/preferences.ts` and `src/lib/theme.tsx` for the underlying
 // hooks.
 
-import { ElevatedCard } from "@/components/ElevatedCard";
 import { Separator } from "@/components/ui/separator";
 import { type DrawioStylePref, useDrawioStylePref } from "@/lib/preferences";
 import { type ThemeMode, useTheme } from "@/lib/theme";
@@ -42,8 +41,8 @@ export function PreferencesTab() {
   const [drawioStyle, setDrawioStyle] = useDrawioStylePref();
 
   return (
-    <ElevatedCard>
-      <div className="flex flex-col gap-6 px-6 py-6">
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex flex-col gap-6 p-5">
         <PreferenceGroup title="Appearance" description="How Inkwell renders. Applies immediately.">
           <SegmentedOptions
             ariaLabel="Theme"
@@ -67,7 +66,7 @@ export function PreferencesTab() {
           />
         </PreferenceGroup>
       </div>
-    </ElevatedCard>
+    </section>
   );
 }
 
@@ -81,7 +80,7 @@ function PreferenceGroup({ title, description, children }: PreferenceGroupProps)
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
-        <h3 className="font-heading text-sm font-semibold text-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
       </header>
       {children}

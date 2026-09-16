@@ -103,7 +103,7 @@ function KindChip({
       role="img"
       aria-label={label}
       title={label}
-      className="inline-grid size-[1.125rem] place-items-center rounded-[4px] font-heading text-[8px] font-bold uppercase tracking-tight ring-1 ring-border/40"
+      className="inline-grid size-[1.125rem] place-items-center rounded-[4px] text-[8px] font-bold uppercase tracking-tight ring-1 ring-border/40"
       style={{ backgroundColor: color, color: fg }}
     >
       {abbr}
@@ -111,20 +111,14 @@ function KindChip({
   );
 }
 
-// ─── EntryRibbon ─────────────────────────────────────────────────────
+// ─── EntryBadge ──────────────────────────────────────────────────────
 //
-// A handwritten "entry" washi-tape ribbon, sized to fit inside the
-// row. Inline emulation of `<TapeChip>`'s look without the rough.js
-// roundtrip (which would be wasteful on every list row); the chip
-// itself is a pill with the primary-accent fill and the Caveat hand.
+// Marks the bundle's entry file in the list. Quiet by design: the row
+// stripe already carries the emphasis, this just names the reason.
 
 function EntryRibbon() {
   return (
-    <span
-      aria-hidden
-      className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 font-hand text-sm leading-none text-primary ring-1 ring-primary/30"
-      style={{ transform: "rotate(-1.2deg)" }}
-    >
+    <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-medium leading-none text-primary ring-1 ring-primary/25">
       entry
     </span>
   );

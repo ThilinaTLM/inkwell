@@ -29,10 +29,13 @@ on Cloudflare."**
 
 Features at a glance:
 
-- Multi-file dashboard with **folders** (nested, per-user) and **tags**
+- Multi-file workspace with a persistent sidebar, a **Home/Recent** view,
+  a flat **All files** view, **folders** (nested, per-user) and **tags**
 - Four equal-priority file kinds today (Excalidraw, draw.io, Notes via
   [BlockNote](https://www.blocknotejs.org/), and **Static sites** for
   publishing uploaded HTML/CSS/JS bundles), more later
+- Power-user chrome: **⌘K command palette**, global search, grid/list
+  layouts, sort + type filters, and URL-addressable view state
 - **Share links** for individual files or whole folder subtrees, read or
   read-write, with optional expiry and downloads
 - **Email + password auth**, invitation-only signup, super-admin bootstrap
@@ -61,6 +64,15 @@ Key choices:
   cannot read session cookies or call `/api/*` as the owner. See
   [`worker/services/static-site.ts`](./worker/services/static-site.ts)
   and [`worker/routes/render.ts`](./worker/routes/render.ts).
+- **One design-token layer.** `src/index.css` holds the whole palette as
+  shadcn semantic CSS variables (plus `--tag-*` chips and a `--kind-*`
+  accent per file kind). The Excalidraw and BlockNote blocks at the
+  bottom of that file re-map the same tokens into the editors, so the app
+  reads as one surface and a palette change lands everywhere at once.
+- **File kinds are a registry, not a switch.** `src/lib/file-kinds.ts`
+  describes every kind (label, description, default name, download label,
+  accent). The new-file picker, filters, badges, cards and rows all read
+  from it, so adding a kind is one entry plus its editor.
 - **Optimistic concurrency** via an integer `version` column and `If-Match`.
 - **Client-side SVG thumbnails** (`exportToSvg` on a debounce). No
   server-side rendering required.
@@ -123,6 +135,11 @@ comfortably, and R2 has no egress fees.
 
 ## Limitations
 
+- **Large accounts.** The file-list endpoint returns the 1000 most
+  recently updated files; global search and the All-files view are exact
+  up to that cap. Cursor pagination is the follow-up.
+- **No favourites/starred files.** That needs a D1 column and is not
+  implemented yet.
 - **No real-time collaboration.** Single-writer per file; last-write-wins
   across tabs (with a `version` check that catches the common case).
 - **No password recovery flow.** Admins can re-issue an invite; there is

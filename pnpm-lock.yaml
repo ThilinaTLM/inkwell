@@ -5,9 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@excalidraw/excalidraw@0.18.1':
-    hash: 2af7a455d5bd4dc874d25980dd367713a94e29fb60f6578614ef36f41c6df52c
-    path: patches/@excalidraw__excalidraw@0.18.1.patch
+  '@excalidraw/excalidraw@0.18.1': 2af7a455d5bd4dc874d25980dd367713a94e29fb60f6578614ef36f41c6df52c
 
 importers:
 
@@ -28,9 +26,6 @@ importers:
       '@excalidraw/excalidraw':
         specifier: ^0.18.1
         version: 0.18.1(patch_hash=2af7a455d5bd4dc874d25980dd367713a94e29fb60f6578614ef36f41c6df52c)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@fontsource-variable/caveat':
-        specifier: ^5.2.8
-        version: 5.2.8
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8
@@ -88,9 +83,6 @@ importers:
       react-router-dom:
         specifier: ^7.14.2
         version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      roughjs:
-        specifier: ^4.6.6
-        version: 4.6.6
       shadcn:
         specifier: ^4.6.0
         version: 4.6.0(@types/node@25.6.0)(typescript@6.0.3)
@@ -987,9 +979,6 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
-
-  '@fontsource-variable/caveat@5.2.8':
-    resolution: {integrity: sha512-Iv+G8xn0pKG7RtanBmYGMjIfkO819N13LXZBwmRVcgfJvJwKVom/v3KT9pwANXTSoUbPeRp228twRDK7hcabLw==}
 
   '@fontsource-variable/geist@5.2.8':
     resolution: {integrity: sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw==}
@@ -5852,8 +5841,6 @@ snapshots:
       tabbable: 6.4.0
 
   '@floating-ui/utils@0.2.11': {}
-
-  '@fontsource-variable/caveat@5.2.8': {}
 
   '@fontsource-variable/geist@5.2.8': {}
 

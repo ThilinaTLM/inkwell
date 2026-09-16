@@ -8,8 +8,7 @@ import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ElevatedCard } from "@/components/ElevatedCard";
-import { SectionHeading } from "@/components/SectionHeading";
+import { SectionHeader } from "@/components/layout/PageHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -59,20 +58,18 @@ export function SecurityTab() {
   const busy = changePassword.isPending;
 
   return (
-    <ElevatedCard>
-      <SectionHeading label="Security" />
+    <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5">
+      <SectionHeader
+        title="Security"
+        description="Use at least 8 characters. Sessions on other devices stay signed in."
+      />
       <form
         onSubmit={(e) => {
           e.preventDefault();
           e.stopPropagation();
           void form.handleSubmit();
         }}
-        className="px-6 pb-6"
       >
-        <p className="mb-4 text-sm text-muted-foreground">
-          Use at least 8 characters. Sessions on other devices stay signed in.
-        </p>
-
         <div className="flex flex-col gap-4">
           <form.Field name="current">
             {(field) => (
@@ -138,6 +135,6 @@ export function SecurityTab() {
           </div>
         </div>
       </form>
-    </ElevatedCard>
+    </section>
   );
 }

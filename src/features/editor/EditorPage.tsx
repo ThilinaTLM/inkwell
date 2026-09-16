@@ -17,7 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { downloadLabelForKind } from "@/components/sketch/file-kind-icons";
+import { downloadLabelForKind } from "@/components/file-kinds/file-kind-icons";
 import { useFile, useRenameFile, useSetFileTags } from "@/data/files";
 import { useTags } from "@/data/tags";
 import { useMutationWithToast } from "@/data/useMutationWithToast";
@@ -259,7 +259,7 @@ export function EditorPage() {
   }
 
   if (loaded.meta.kind === "static-site") {
-    // StaticSiteEditor paints its own <PaperSurface> and owns its own
+    // StaticSiteEditor paints its own full-page surface and owns its own
     // scroll container — the wrapper just sizes to the viewport.
     return (
       <div className="h-dvh w-full">

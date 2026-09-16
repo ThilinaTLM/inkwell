@@ -23,7 +23,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { downloadLabelForKind } from "@/components/sketch/file-kind-icons";
+import { downloadLabelForKind } from "@/components/file-kinds/file-kind-icons";
 import { useSharedFile } from "@/data/shares";
 import DrawioEditor from "@/features/editor/DrawioEditor";
 import ExcalidrawEditor from "@/features/editor/ExcalidrawEditor";

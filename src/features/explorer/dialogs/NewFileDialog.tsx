@@ -13,7 +13,7 @@
 // layout scales to additional kinds by appending to `CARDS` and
 // adjusting `grid-cols-*`.
 
-import { FileKindBadge, fileKindLabel } from "@/components/sketch/file-kind-icons";
+import { FileKindBadge, fileKindLabel } from "@/components/file-kinds/file-kind-icons";
 import {
   Dialog,
   DialogContent,

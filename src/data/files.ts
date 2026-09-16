@@ -31,6 +31,24 @@ export function useFiles(query: FilesQuery) {
   });
 }
 
+/** Every file the account owns, newest-updated first.
+ *
+ *  Backed by `GET /api/files` without a folder scope, which the worker
+ *  answers with the owner's files ordered by `updated_at DESC` (capped
+ *  at 1000 rows). Shared by Home, All files, search and the command
+ *  palette so they all hit one cache entry. */
+export function useAllFiles() {
+  return useFiles({});
+}
+
+/** The `n` most recently updated files. Derived from `useAllFiles`, so
+ *  it costs nothing extra once that query is warm. */
+export function useRecentFiles(n = 12) {
+  const q = useAllFiles();
+  const data = q.data ? q.data.slice(0, n) : undefined;
+  return { ...q, data };
+}
+
 export function useFile(id: string) {
   return useQuery<LoadedFile, ApiError>({
     queryKey: keys.files.detail(id),

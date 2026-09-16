@@ -32,7 +32,7 @@
 // a toast + manifest refetch. No autosave loop, no `useSaveLifecycle`
 // scaffolding — those exist for content that's edited in-place.
 //
-// Layout: a `<PaperSurface>` page with a single editor-owned topbar
+// Layout: a full-height page with a single editor-owned topbar
 // and a two-column grid on `lg:` (SiteCard + UploadPanel side by
 // side, FilesList full-width below). On `<lg` the columns stack.
 // Subcomponents live in `./static-site/`.
@@ -49,8 +49,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PaperSurface } from "@/components/PaperSurface";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
+import { FileKindGlyph } from "@/components/file-kinds/file-kind-icons";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -209,9 +208,9 @@ export default function StaticSiteEditor({
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <PaperSurface variant="page" className="flex h-dvh flex-col">
-      {/* Editor topbar — borderless, glass-blur over the paper. Open
-          is the brand CTA; everything else is ghost. */}
+    <div className="flex h-dvh flex-col bg-background text-foreground">
+      {/* Editor topbar — borderless, glass-blur over the page. Open is
+          the brand CTA; everything else is ghost. */}
       <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 bg-background/85 px-3 backdrop-blur sm:px-5 supports-backdrop-filter:bg-background/70">
         {back ? (
           <Button
@@ -225,7 +224,7 @@ export default function StaticSiteEditor({
           </Button>
         ) : null}
         <FileKindGlyph kind="static-site" variant="full" className="size-6 rounded" />
-        <div className="min-w-0 flex-1 truncate font-heading text-sm font-semibold">
+        <div className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">
           {loaded.meta.name}
         </div>
         <div className="hidden items-center gap-1 sm:flex">
@@ -288,7 +287,6 @@ export default function StaticSiteEditor({
         >
           <div className={cn("lg:col-span-7", !writable && "lg:col-span-12")}>
             <SiteCard
-              id={id}
               entry={manifest.entry}
               isEmpty={isEmpty}
               fileCount={manifest.assets.length}
@@ -301,7 +299,6 @@ export default function StaticSiteEditor({
           {writable ? (
             <div className="lg:col-span-5">
               <UploadPanel
-                id={id}
                 isEmpty={isEmpty}
                 filesPending={uploadFilesMutation.isPending}
                 zipPending={uploadZipMutation.isPending}
@@ -313,7 +310,6 @@ export default function StaticSiteEditor({
 
           <div className="lg:col-span-12">
             <FilesList
-              id={id}
               manifest={manifest}
               totalLabel={totalLabel}
               writable={writable}
@@ -324,7 +320,7 @@ export default function StaticSiteEditor({
           </div>
         </div>
       </main>
-    </PaperSurface>
+    </div>
   );
 }
 

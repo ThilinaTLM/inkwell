@@ -1,21 +1,17 @@
-// FilesList — paper-sheet panel listing every asset in a static-site
-// bundle. Wrapped in a rough.js silhouette so the panel reads as a
-// torn-from-the-pad sheet, then overlaid with paper-grain + fibre
-// dots for tooth.
+// FilesList — the panel listing every asset in a static-site bundle.
 //
 // Pure presentation — receives a manifest and a handful of callbacks.
 // Sorts so the entry row appears first (this addresses a real
 // scannability problem: today the entry can sit mid-list when the
 // list is strictly alphabetical, so users hunt for it).
 
+import { File01Icon } from "@hugeicons/core-free-icons";
 import { useMemo } from "react";
-import { RoughBox } from "@/components/rough/RoughBox";
-import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
+import { EmptyState } from "@/components/EmptyState";
 import type { StaticSiteFileBlob } from "@/lib/api/client";
 import { FileRow } from "./FileRow";
 
 export interface FilesListProps {
-  id: string;
   manifest: StaticSiteFileBlob;
   totalLabel: string;
   writable: boolean;
@@ -25,7 +21,6 @@ export interface FilesListProps {
 }
 
 export function FilesList({
-  id,
   manifest,
   totalLabel,
   writable,
@@ -49,57 +44,30 @@ export function FilesList({
   }, [assets, entry]);
 
   return (
-    <section aria-label="Files in bundle" className="relative isolate">
-      <RoughBox
-        shape="card"
-        seed={`files-card:${id}`}
-        stroke="var(--color-card-stroke)"
-        strokeWidth={1.3}
-        fill="var(--color-card)"
-        fillStyle="solid"
-        roughness={0.7}
-        bowing={0.5}
-        radius={10}
-      />
-      {/* Paper tooth — grain + sparse fibre dots. `-z-0` keeps them
-          above the rough.js silhouette but below the content. */}
-      <div
-        aria-hidden
-        className="bg-paper-grain pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-      <div
-        aria-hidden
-        className="bg-paper-dots pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-
-      <header className="relative flex items-center justify-between gap-2 px-4 pt-3 pb-2 sm:px-5">
-        <div className="flex items-center gap-2">
-          <h2 className="font-heading text-sm font-semibold">Files</h2>
-          <span className="font-hand text-base leading-none text-muted-foreground/80">
-            inside the bundle
-          </span>
-        </div>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+    <section
+      aria-label="Files in bundle"
+      className="overflow-hidden rounded-lg border border-border bg-card"
+    >
+      <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+        <h2 className="text-sm font-semibold tracking-tight">Files</h2>
+        <span className="font-mono text-[0.6875rem] tabular-nums text-muted-foreground">
           {totalLabel}
         </span>
       </header>
 
-      <div aria-hidden className="relative mx-4 h-px bg-border/40 sm:mx-5" />
-
       {isEmpty ? (
-        <div className="relative px-4 pb-6 sm:px-5">
-          <EmptyDeskNote
-            seed={`static-empty:${id}`}
-            title="No pages yet"
-            body={
-              writable
-                ? "Drop a .zip on the upload card to publish your first page."
-                : "This bundle is empty."
-            }
-          />
-        </div>
+        <EmptyState
+          icon={File01Icon}
+          size="sm"
+          title="No pages yet"
+          description={
+            writable
+              ? "Drop a .zip or a set of files on the upload card to publish your first page."
+              : "This bundle is empty."
+          }
+        />
       ) : (
-        <ul className="relative divide-y divide-border/30">
+        <ul className="divide-y divide-border/60">
           {sorted.map((a) => (
             <FileRow
               key={a.path}

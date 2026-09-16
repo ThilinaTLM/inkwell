@@ -1,8 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/manrope";
-@import "@fontsource-variable/caveat";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 @import "@excalidraw/excalidraw/index.css";
 
 /* BlockNote (used by NotesEditor) ships utility classes from its
@@ -12,57 +12,34 @@
  * exist in the global CSS bundle. */
 @source "../node_modules/@blocknote/shadcn";
 
-/* ───────────────────────────────────────────────────────────────────────────
-   Excalifont — self-hosted from the woff2 already shipped in
-   @excalidraw/excalidraw/dist/prod/fonts/Excalifont/. We copy two subsets
-   (Latin + Latin-Extended) for our own UI labels because Excalidraw only
-   loads its fonts inside the canvas iframe-ish layout-ui wrapper.
-   ─────────────────────────────────────────────────────────────────────── */
-@font-face {
-  font-family: "Excalifont";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./assets/fonts/Excalifont/Excalifont-Regular-Latin.woff2") format("woff2");
-  unicode-range:
-    U+20-7e, U+a0-a3, U+a5-a6, U+a8-ab, U+ad-b1, U+b4, U+b6-b8,
-    U+ba-ff, U+131, U+152-153, U+2bc, U+2c6, U+2da, U+2dc, U+304, U+308,
-    U+2013-2014, U+2018-201a, U+201c-201e, U+2020, U+2022, U+2024-2026,
-    U+2030, U+2039-203a, U+20ac, U+2122, U+2212;
-}
-@font-face {
-  font-family: "Excalifont";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./assets/fonts/Excalifont/Excalifont-Regular-LatinExt.woff2") format("woff2");
-  unicode-range:
-    U+100-130, U+132-137, U+139-149, U+14c-151, U+154-17e, U+192, U+1fc-1ff, U+218-21b, U+237,
-    U+1e80-1e85, U+1ef2-1ef3, U+2113;
-}
-
 @custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
    Inkwell theme — single canonical palette.
 
-   We expose only the standard shadcn semantic tokens (background, foreground,
-   card, popover, primary, secondary, muted, accent, destructive, border,
-   input, ring, chart-{1..5}, sidebar-*) plus a tiny decoration namespace
-   (folder, folder-soft, card-stroke, tag-{1..5}) for visuals that have no
-   shadcn analog (manila folder silhouette, hand-drawn pen outline, the
-   five tag-chip swatches).
+   Structure is the standard shadcn token set (background, foreground, card,
+   popover, primary, secondary, muted, accent, destructive, border, input,
+   ring, chart-{1..5}, sidebar-*) plus two small extra namespaces:
 
-   The visual identity (burnt-orange brand, paper white, warm-stone neutrals,
-   manila folder, five tag colours) is preserved verbatim — only the names
-   change. Components consume colours exclusively through these tokens.
+     tag-{1..5}   — deterministic tag-chip swatches
+     kind-*       — per-file-kind accent, consumed by the file-kind registry
+                    in `src/lib/file-kinds.ts`. Adding a future kind (kanban,
+                    timeline, …) means adding one variable pair here and one
+                    registry entry — nothing else in the dashboard changes.
+
+   Visual identity: neutral zinc surfaces, a single ink-indigo accent,
+   hairline borders, no texture. Depth comes from surface elevation plus
+   hairline borders, never from grain or drop shadows.
+
+   Components consume colours exclusively through these tokens; the
+   Excalidraw and BlockNote blocks at the bottom of this file re-map the
+   same tokens into the editors so the whole app reads as one surface.
    ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
   /* ─── Fonts ─── */
-  --font-brand: "Excalifont", "Caveat Variable", system-ui, sans-serif;
-  --font-heading: "Manrope Variable", system-ui, sans-serif;
-  --font-sans: "Manrope Variable", system-ui, sans-serif;
-  --font-hand: "Caveat Variable", "Excalifont", cursive;
+  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
+  --font-heading: "Inter Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
 
   /* ─── shadcn semantic tokens (used by every component) ─── */
   --color-background: var(--background);
@@ -99,15 +76,18 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* ─── Decoration namespace (no shadcn analog) ─── */
-  --color-folder: var(--folder);
-  --color-folder-soft: var(--folder-soft);
-  --color-card-stroke: var(--card-stroke);
+  /* ─── Tag chips ─── */
   --color-tag-1: var(--tag-1);
   --color-tag-2: var(--tag-2);
   --color-tag-3: var(--tag-3);
   --color-tag-4: var(--tag-4);
   --color-tag-5: var(--tag-5);
+
+  /* ─── Per-file-kind accents ─── */
+  --color-kind-excalidraw: var(--kind-excalidraw);
+  --color-kind-drawio: var(--kind-drawio);
+  --color-kind-notes: var(--kind-notes);
+  --color-kind-static: var(--kind-static);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -117,120 +97,120 @@
   --radius-3xl: calc(var(--radius) * 2.2);
 }
 
-/* ─── Paper (light) ─────────────────────────────────────────────────────── */
+/* ─── Light ─────────────────────────────────────────────────────────────── */
 :root {
-  /* shadcn semantic tokens */
-  --background: #ffffff;
-  --foreground: #1c1814; /* warm dark "ink" */
+  --background: #f7f7f8;
+  --foreground: #18181b;
 
   --card: #ffffff;
-  --card-foreground: #1c1814;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #1c1814;
+  --popover-foreground: #18181b;
 
-  --primary: #e8731f; /* burnt orange */
-  --primary-foreground: #fdf6e8; /* warm cream — readable on burnt orange */
-  --primary-hover: #b8560f; /* darker burnt orange for primary hover */
+  --primary: #4f46e5; /* ink indigo */
+  --primary-foreground: #ffffff;
+  --primary-hover: #4338ca;
 
-  --secondary: #ececec; /* neutral cool gray surface */
-  --secondary-foreground: #1c1814;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #27272a;
 
-  --muted: #ececec; /* same value as secondary; semantic intent differs */
-  --muted-foreground: #5b5044; /* warm-stone secondary text */
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
 
-  --accent: #fad9b8; /* orange-soft — interactive highlight */
-  --accent-foreground: #b8560f; /* burnt-orange-dark — text on accent */
+  --accent: #eef2ff; /* indigo tint — hover / selected rows */
+  --accent-foreground: #4338ca;
 
-  --destructive: #c0392b; /* red — kept distinct from primary */
-  --destructive-foreground: #fdf6e8;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 
-  --border: oklch(0 0 0 / 12%);
-  --input: oklch(0 0 0 / 18%);
-  --ring: #e8731f;
+  --border: #e4e4e7;
+  --input: #d4d4d8;
+  --ring: #4f46e5;
 
-  --chart-1: #e8731f; /* primary */
-  --chart-2: #3e5f8a; /* graphite (cool ramp) */
-  --chart-3: #c9a659; /* warning / pending ramp */
-  --chart-4: #5b5044; /* muted-foreground */
-  --chart-5: #9bbf7b; /* success / active ramp */
+  --chart-1: #4f46e5;
+  --chart-2: #0d9488;
+  --chart-3: #d97706;
+  --chart-4: #e11d48;
+  --chart-5: #7c3aed;
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1c1814;
-  --sidebar-primary: #e8731f;
-  --sidebar-primary-foreground: #fdf6e8;
-  --sidebar-accent: #ececec;
-  --sidebar-accent-foreground: #1c1814;
-  --sidebar-border: oklch(0 0 0 / 10%);
-  --sidebar-ring: #e8731f;
+  --sidebar: #fbfbfc;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef2ff;
+  --sidebar-accent-foreground: #4338ca;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #4f46e5;
 
-  /* Decoration namespace — used only where no shadcn token applies. */
-  --folder: #e8c77a; /* manila — folder back panel */
-  --folder-soft: #f3e3b6; /* manila-soft — folder front pocket, scene fold corner */
-  --card-stroke: #5b5044; /* hand-drawn outline for RoughBox silhouettes */
+  --tag-1: #4f46e5;
+  --tag-2: #0d9488;
+  --tag-3: #d97706;
+  --tag-4: #e11d48;
+  --tag-5: #7c3aed;
 
-  --tag-1: #f4d77a; /* yellow */
-  --tag-2: #e88484; /* pink */
-  --tag-3: #9bbf7b; /* green */
-  --tag-4: #7fa9d1; /* blue */
-  --tag-5: #b89bd6; /* purple */
+  --kind-excalidraw: #6c5ce7;
+  --kind-drawio: #e2761b;
+  --kind-notes: #0d9488;
+  --kind-static: #2563eb;
 }
 
-/* ─── Chalkboard (dark) ────────────────────────────────────────────────── */
+/* ─── Dark ─────────────────────────────────────────────────────────────── */
 .dark {
-  --background: #121212;
-  --foreground: #efe9dc; /* chalk */
+  --background: #09090b;
+  --foreground: #fafafa;
 
-  --card: #18181c; /* near-black paper, ~6 pts above --background (#121212) */
-  --card-foreground: #efe9dc;
-  --popover: #232329;
-  --popover-foreground: #efe9dc;
+  --card: #131316;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
 
-  --primary: #f5893a; /* burnt orange (brighter on dark) */
-  --primary-foreground: #1c1814;
-  --primary-hover: #ffa05a;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --primary-hover: #818cf8;
 
-  --secondary: #2a2a2e; /* neutral cool dark surface */
-  --secondary-foreground: #efe9dc;
+  --secondary: #1c1c20;
+  --secondary-foreground: #fafafa;
 
-  --muted: #2a2a2e;
-  --muted-foreground: #b9b0a0;
+  --muted: #1c1c20;
+  --muted-foreground: #a1a1aa;
 
-  --accent: #4a2d10; /* orange-soft on dark */
-  --accent-foreground: #fad9b8;
+  --accent: #232044;
+  --accent-foreground: #c7d2fe;
 
-  --destructive: #e74c3c;
-  --destructive-foreground: #1c1814;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-  --border: oklch(1 0 0 / 14%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: #f5893a;
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: #6366f1;
 
-  --chart-1: #f5893a;
-  --chart-2: #7da3cf;
-  --chart-3: #d4b25c;
-  --chart-4: #b9b0a0;
-  --chart-5: #7ea267;
+  --chart-1: #818cf8;
+  --chart-2: #2dd4bf;
+  --chart-3: #fbbf24;
+  --chart-4: #fb7185;
+  --chart-5: #a78bfa;
 
-  --sidebar: #232329;
-  --sidebar-foreground: #efe9dc;
-  --sidebar-primary: #f5893a;
-  --sidebar-primary-foreground: #1c1814;
-  --sidebar-accent: #2a2a2e;
-  --sidebar-accent-foreground: #efe9dc;
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: #f5893a;
+  --sidebar: #0c0c0f;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #232044;
+  --sidebar-accent-foreground: #c7d2fe;
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: #6366f1;
 
-  --folder: #d4b25c; /* manila reads warmer on slate */
-  --folder-soft: #4a3f25;
-  --card-stroke: #d8cdb8; /* brighter chalk-on-slate */
+  --tag-1: #818cf8;
+  --tag-2: #2dd4bf;
+  --tag-3: #fbbf24;
+  --tag-4: #fb7185;
+  --tag-5: #a78bfa;
 
-  --tag-1: #c9ad5c;
-  --tag-2: #c66a6a;
-  --tag-3: #7ea267;
-  --tag-4: #6890b3;
-  --tag-5: #9d83bc;
+  --kind-excalidraw: #a29bfe;
+  --kind-drawio: #f0913f;
+  --kind-notes: #2dd4bf;
+  --kind-static: #60a5fa;
 }
 
 @layer base {
@@ -239,6 +219,8 @@
   }
   html {
     font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   body {
     @apply bg-background text-foreground;
@@ -250,114 +232,15 @@
   h4 {
     font-family: var(--font-heading);
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+  }
+  h1 {
+    letter-spacing: -0.02em;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-}
-
-/* ─── Paper grain overlay (used by <PaperSurface>) ────────────────────────
-   A subtle SVG-noise texture applied via background-image. Kept here so it
-   can be used as a Tailwind utility (.bg-paper-grain) without bundling an
-   image file. Opacity is tuned per theme.
-   ───────────────────────────────────────────────────────────────────── */
-.bg-paper-grain {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.11  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.30 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.10'/></svg>");
-  background-size: 160px 160px;
-  mix-blend-mode: multiply;
-}
-.dark .bg-paper-grain {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.06'/></svg>");
-  mix-blend-mode: screen;
-}
-
-/* ─── Paper-fibre dots (rough-paper specks) ────────────────────────────
-   Same SVG-data-uri trick as `.bg-paper-grain`, but uses an alpha-bias
-   step in `feColorMatrix` to threshold turbulence into discrete specks
-   instead of smooth grain. Stack with `.bg-paper-grain` for a richer,
-   recycled-paper feel on top of any card surface.
-
-   Tuning (sparser fibre flecks, not sandpaper):
-     - Larger pattern tile (320×320) so specks repeat less densely.
-     - Tighter alpha bias (`... 18 -10`) — fewer turbulence pixels
-       survive the threshold, so flecks read as paper inclusions.
-     - Lower rect opacity (0.30 light / 0.20 dark) keeps them subtle.
-   ───────────────────────────────────────────────────────────────────── */
-.bg-paper-dots {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.10  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 18 -10'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.30'/></svg>");
-  background-size: 320px 320px;
-  mix-blend-mode: multiply;
-}
-.dark .bg-paper-dots {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><filter id='d'><feTurbulence type='turbulence' baseFrequency='1.4' numOctaves='1' seed='9'/><feColorMatrix type='matrix' values='0 0 0 0 0.94  0 0 0 0 0.90  0 0 0 0 0.82  0 0 0 18 -10'/></filter><rect width='100%' height='100%' filter='url(%23d)' opacity='0.20'/></svg>");
-  mix-blend-mode: screen;
-}
-
-/* ─── FolderCard / SceneCard glyph animations ────────────────────────
-   Flat-design hover animations that change the SVG itself, not chrome.
-   - Folder: inner papers always peek above the pocket lip; on hover
-             they fan out (back-left, mid-up, front-right) and the
-             front pocket tilts slightly forward.
-   - Scene:  two back sheets fan out from behind the front sheet.
-   Tailwind v4 escapes `/` in `group/folder` selectors as `group\/folder`.
-   ────────────────────────────────────────────────────────────────── */
-.ink-folder__back,
-.ink-folder__front,
-.ink-folder__inner,
-.ink-folder__inner--back,
-.ink-folder__inner--mid,
-.ink-folder__inner--front {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
-  will-change: transform;
-}
-.ink-folder__front {
-  /* 3D rotation around the top edge — "opening" the pocket. */
-  transform-origin: 50% 0%;
-  transform: rotateX(0deg);
-}
-/* Rest state — every available preview peeks above the pocket lip
-   (y=38) by a different amount thanks to its starting y position
-   (front=38, mid=42, back=46). A uniform -14 translate cascades to
-   ~14 / 10 / 6 viewbox units of visible top edge, with the most
-   recent (front) showing the most. */
-.ink-folder__inner--back {
-  transform: translate(0, -14px);
-}
-.ink-folder__inner--mid {
-  transform: translate(0, -14px);
-}
-.ink-folder__inner--front {
-  transform: translate(0, -14px);
-}
-/* Hover state — fan: back swings left, mid pushes further straight
-   up, front swings right. Rotation pivot is bottom-center of each
-   rect (set on the shared selector above) so the parts deep in the
-   pocket act as a hinge and the visible tops swing widely. */
-.group\/folder:hover .ink-folder__inner--back,
-.group\/folder:focus-within .ink-folder__inner--back {
-  transform: translate(-10px, -22px) rotate(-10deg);
-}
-.group\/folder:hover .ink-folder__inner--mid,
-.group\/folder:focus-within .ink-folder__inner--mid {
-  transform: translate(0, -30px) rotate(0deg);
-}
-.group\/folder:hover .ink-folder__inner--front,
-.group\/folder:focus-within .ink-folder__inner--front {
-  transform: translate(10px, -22px) rotate(10deg);
-}
-/* Reduced front-pocket tilt — the fan does the heavy lifting now,
-   the pocket only nudges out of the way. */
-.group\/folder:hover .ink-folder__front,
-.group\/folder:focus-within .ink-folder__front {
-  transform: rotateX(-14deg);
-}
-.group\/folder:hover .ink-folder__back,
-.group\/folder:focus-within .ink-folder__back {
-  transform: translateY(-2px);
 }
 
 /* Thumbnail images on explorer cards. In dark mode we invert + rotate
@@ -372,37 +255,13 @@
 .dark .ink-thumb-img {
   filter: invert(1) hue-rotate(180deg);
 }
-
-.ink-file__back {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  opacity: 0;
-  transition:
-    transform 360ms cubic-bezier(0.2, 0.7, 0.2, 1),
-    opacity 220ms ease-out;
-  will-change: transform, opacity;
-}
-.ink-file__back--l {
-  transform: rotate(0deg) translate(0, 0);
-}
-.ink-file__back--r {
-  transform: rotate(0deg) translate(0, 0);
-}
-.group\/file:hover .ink-file__back--l,
-.group\/file:focus-within .ink-file__back--l {
-  opacity: 1;
-  /* Lower magnitude than the original draft — the back-stack rects are
-     now inset 8px from the front sheet, so they only need to fan out
-     ~half the previous distance to peek from behind the front. */
-  transform: rotate(-4deg) translate(-3px, -1px);
-}
-.group\/file:hover .ink-file__back--r,
-.group\/file:focus-within .ink-file__back--r {
-  opacity: 1;
-  transform: rotate(4deg) translate(3px, -1px);
+@media (prefers-reduced-motion: reduce) {
+  .ink-thumb-img {
+    transition: none;
+  }
 }
 
-/* ─── Inkwell mark — sketch-stroke draw animation ───────────────────
+/* ─── Inkwell mark — stroke draw animation ──────────────────────────
    Drives the inner stroke of `<InkwellMark animate />` in a continuous
    draw → hold → erase loop, used in place of a generic spinner on the
    boot splash and the editor loading state. The path uses
@@ -431,36 +290,6 @@
   .ink-sketch-anim {
     animation: none;
     stroke-dashoffset: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ink-folder__back,
-  .ink-folder__front,
-  .ink-folder__inner,
-  .ink-folder__inner--back,
-  .ink-folder__inner--mid,
-  .ink-folder__inner--front,
-  .ink-file__back,
-  .ink-thumb-img {
-    transition: none;
-  }
-  /* Collapse hover state to the rest peek — no fan, no extra lift —
-     so reduced-motion users still see the always-on preview tease
-     without any animation between rest and hover. */
-  .group\/folder:hover .ink-folder__inner--back,
-  .group\/folder:hover .ink-folder__inner--mid,
-  .group\/folder:hover .ink-folder__inner--front {
-    transform: translate(0, -14px);
-  }
-  .group\/folder:hover .ink-folder__front,
-  .group\/folder:hover .ink-folder__back,
-  .group\/file:hover .ink-file__back--l,
-  .group\/file:hover .ink-file__back--r {
-    transform: none;
-  }
-  .group\/file:hover .ink-file__back {
-    opacity: 0.6;
   }
 }
 
