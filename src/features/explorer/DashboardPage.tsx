@@ -212,9 +212,9 @@ export function DashboardPage() {
         open={!!importTarget}
         folderId={importTarget?.parentId ?? null}
         onOpenChange={(o) => !o && setImportTarget(null)}
-        onImported={(meta) => {
+        onImported={(fileId) => {
           setImportTarget(null);
-          navigate(`/f/${meta.id}`);
+          navigate(`/f/${fileId}`);
         }}
       />
 

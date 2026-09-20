@@ -125,7 +125,7 @@ function ImportCardButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      aria-label="Import an Excalidraw file"
+      aria-label="Import Excalidraw files"
       className={cn(
         "group flex w-full items-center gap-3 rounded-xl border border-border/60 border-dashed",
         "bg-card/40 p-4 text-left transition",
@@ -141,10 +141,10 @@ function ImportCardButton({ onClick }: { onClick: () => void }) {
       </span>
       <span className="min-w-0">
         <span className="block font-heading text-sm font-semibold text-foreground">
-          Import Excalidraw file
+          Import Excalidraw files
         </span>
         <span className="block text-xs text-muted-foreground">
-          Open an existing <code className="font-mono">.excalidraw</code> scene.
+          Open existing <code className="font-mono">.excalidraw</code> scenes.
         </span>
       </span>
     </button>
