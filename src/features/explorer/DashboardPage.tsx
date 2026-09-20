@@ -39,6 +39,7 @@ import { FolderCreateDialog } from "./dialogs/FolderCreateDialog";
 import { FolderDeleteDialog } from "./dialogs/FolderDeleteDialog";
 import { FolderMoveDialog } from "./dialogs/FolderMoveDialog";
 import { FolderRenameDialog } from "./dialogs/FolderRenameDialog";
+import { ImportExcalidrawDialog } from "./dialogs/ImportExcalidrawDialog";
 import { NewFileDialog } from "./dialogs/NewFileDialog";
 
 type ShareTarget = { kind: "file"; file: FileMeta } | { kind: "folder"; folder: FolderMeta };
@@ -87,8 +88,11 @@ export function DashboardPage() {
   // new file. Every "New file" entry point — header button,
   // empty-state CTA, and both context-menu variants — opens this
   // picker; only after the user clicks a card does `newFile()`
-  // actually run.
+  // actually run. It also fronts the `.excalidraw` import flow, which
+  // is not a kind: picking the import card closes this dialog and
+  // opens `importExcalidraw` with the same destination folder.
   const [newFilePicker, setNewFilePicker] = useState<{ parentId: string | null } | null>(null);
+  const [importTarget, setImportTarget] = useState<{ parentId: string | null } | null>(null);
 
   const runCreateFile = useMutationWithToast(createFile, {
     success: (m) => `Created "${m.name}".`,
@@ -196,6 +200,21 @@ export function DashboardPage() {
           const target = newFilePicker;
           setNewFilePicker(null);
           if (target) void newFile(target.parentId, kind);
+        }}
+        onImport={() => {
+          const target = newFilePicker;
+          setNewFilePicker(null);
+          if (target) setImportTarget(target);
+        }}
+      />
+
+      <ImportExcalidrawDialog
+        open={!!importTarget}
+        folderId={importTarget?.parentId ?? null}
+        onOpenChange={(o) => !o && setImportTarget(null)}
+        onImported={(meta) => {
+          setImportTarget(null);
+          navigate(`/f/${meta.id}`);
         }}
       />
 

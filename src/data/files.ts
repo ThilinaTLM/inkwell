@@ -52,6 +52,14 @@ export function useCreateFile() {
   });
 }
 
+export function useImportExcalidraw() {
+  const qc = useQueryClient();
+  return useMutation<FileMeta, ApiError, { file: Blob; name: string; folderId: string | null }>({
+    mutationFn: ({ file, name, folderId }) => files.importExcalidraw(file, { name, folderId }),
+    onSuccess: () => invalidations.fileMutated(qc),
+  });
+}
+
 export function useRenameFile() {
   const qc = useQueryClient();
   return useMutation<FileMeta, ApiError, { id: string; name: string }>({

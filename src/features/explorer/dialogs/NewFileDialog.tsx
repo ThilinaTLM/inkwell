@@ -13,6 +13,9 @@
 // layout scales to additional kinds by appending to `CARDS` and
 // adjusting `grid-cols-*`.
 
+import { FileUploadIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
 import { FileKindBadge, fileKindLabel } from "@/components/sketch/file-kind-icons";
 import {
   Dialog,
@@ -28,6 +31,10 @@ interface NewFileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (kind: FileKind) => void;
+  /** Opens the `.excalidraw` import dialog. Import is not a file kind
+   *  — it lands an existing scene in an `excalidraw` file — so it gets
+   *  its own card rather than a fifth `CARDS` entry. */
+  onImport: () => void;
 }
 
 interface KindCard {
@@ -62,7 +69,7 @@ const CARDS: ReadonlyArray<KindCard> = [
   },
 ];
 
-export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps) {
+export function NewFileDialog({ open, onOpenChange, onPick, onImport }: NewFileDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -73,13 +80,16 @@ export function NewFileDialog({ open, onOpenChange, onPick }: NewFileDialogProps
         {/* Base UI's Dialog moves focus to the first focusable
          *  element on open, so the first card receives focus
          *  naturally without an explicit `autoFocus` attribute. */}
-        {/* Four cards — stacked single column on the narrowest screens,
-         *  then a 2x2 grid from `sm` upward so the picker stays compact. */}
+        {/* Four kinds — stacked single column on the narrowest screens,
+         *  then a 2x2 grid from `sm` upward so the picker stays compact.
+         *  The import entry sits below the grid because it produces no
+         *  new file kind. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {CARDS.map((c) => (
             <KindCardButton key={c.kind} card={c} onPick={() => onPick(c.kind)} />
           ))}
         </div>
+        <ImportCardButton onClick={onImport} />
       </DialogContent>
     </Dialog>
   );
@@ -103,6 +113,40 @@ function KindCardButton({ card, onPick }: { card: KindCard; onPick: () => void }
       <FileKindBadge kind={card.kind} className="size-9" />
       <div className="font-heading text-sm font-semibold text-foreground">{card.title}</div>
       <div className="text-xs text-muted-foreground">{card.description}</div>
+    </button>
+  );
+}
+
+/** The import entry: same card framing as a kind card, but the badge is
+ *  the Excalidraw mark with an upload glyph layered on so it reads as
+ *  "bring one in" rather than "start a blank one". */
+function ImportCardButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Import an Excalidraw file"
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-xl border border-border/60 border-dashed",
+        "bg-card/40 p-4 text-left transition",
+        "hover:border-border hover:bg-card hover:-translate-y-px",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      )}
+    >
+      <span className="relative inline-flex shrink-0">
+        <FileKindBadge kind="excalidraw" className="size-9" />
+        <span className="absolute -bottom-1 -right-1 grid size-4 place-items-center rounded-full bg-background ring-1 ring-border/60">
+          <HugeiconsIcon icon={FileUploadIcon} strokeWidth={2} className="size-2.5" />
+        </span>
+      </span>
+      <span className="min-w-0">
+        <span className="block font-heading text-sm font-semibold text-foreground">
+          Import Excalidraw file
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          Open an existing <code className="font-mono">.excalidraw</code> scene.
+        </span>
+      </span>
     </button>
   );
 }

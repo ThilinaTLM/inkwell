@@ -342,6 +342,15 @@ function buildFilesUrl(q: FilesQuery): string {
   return url.pathname + (url.search || "");
 }
 
+// The import body is the `.excalidraw` file itself, so the name and
+// destination folder travel as query params.
+function buildImportUrl(opts: { name: string; folderId?: string | null }): string {
+  const url = new URL("/api/files/import", location.origin);
+  url.searchParams.set("name", opts.name);
+  if (opts.folderId) url.searchParams.set("folderId", opts.folderId);
+  return url.pathname + url.search;
+}
+
 // ─── Files ────────────────────────────────────────────────────────────
 export const files = {
   list: (query: FilesQuery = {}) =>
@@ -349,6 +358,17 @@ export const files = {
   create: (
     body: { name?: string; folderId?: string | null; tags?: string[]; kind?: FileKind } = {},
   ) => postJson<FileMeta>("/api/files", body),
+
+  /** Creates an `excalidraw` file whose initial blob is the uploaded
+   *  scene. `file` is the picked `.excalidraw` file sent verbatim — the
+   *  worker parses and normalizes it, so the client never has to
+   *  reproduce the stored blob shape. */
+  importExcalidraw: (file: Blob, opts: { name: string; folderId?: string | null }) =>
+    request<FileMeta>(buildImportUrl(opts), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: file,
+    }),
   rename: (id: string, name: string) => patchJson<FileMeta>(`/api/files/${id}`, { name }),
   /** Move a file. `folderId === null` moves to the root level. */
   move: (id: string, folderId: string | null) =>

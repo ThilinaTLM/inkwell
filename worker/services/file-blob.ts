@@ -38,8 +38,6 @@ export const MAX_THUMB_BYTES = 1 * 1024 * 1024;
 //      writes the canonical manifest. The other kinds need no extra
 //      R2 writes — the manifest IS the seed blob.
 //
-// `seedBlobForKind` is preserved as a back-compat alias; new code
-// should prefer `seedManifestForKind` for clarity.
 export function seedManifestForKind(kind: FileKind, name: string): FileBlob {
   switch (kind) {
     case "drawio":
@@ -56,8 +54,6 @@ export function seedManifestForKind(kind: FileKind, name: string): FileBlob {
       return assertNever(kind);
   }
 }
-
-export const seedBlobForKind = seedManifestForKind;
 
 function emptyDrawioXml(name: string): string {
   const safeName = escapeXml(name || "Page-1");
@@ -109,6 +105,74 @@ export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | 
     default:
       return assertNever(kind);
   }
+}
+
+// ─── `.excalidraw` import ───────────────────────────────────────────
+//
+// An uploaded `.excalidraw` file carries an export envelope
+// (`type`/`version`/`source`) that the stored blob does not: the seed
+// from `seedManifestForKind` — and every autosave the editor writes —
+// is just `{elements, appState, files}`. Normalizing here means the
+// imported blob is byte-shape-identical to one the editor would have
+// produced, so nothing downstream (download, rename mirroring, share
+// rendering) needs an import-specific branch.
+//
+// Both shapes are accepted, because `GET /api/files/:id/download`
+// hands the user back Inkwell's own envelope-free form.
+//
+// Returns the canonical blob, or an error message string (mirroring
+// `validateBlobForKind`).
+export function normalizeImportedExcalidraw(
+  parsed: unknown,
+  name: string,
+): ExcalidrawFileBlob | string {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return "expected a .excalidraw JSON object";
+  }
+  const raw = parsed as Record<string, unknown>;
+  // `type` is absent from Inkwell's own downloads, so only a *present*
+  // and *conflicting* value is a rejection.
+  if (raw.type !== undefined && raw.type !== "excalidraw") {
+    return "not an Excalidraw file";
+  }
+  if (!Array.isArray(raw.elements)) return "elements must be an array";
+  // Element *contents* are otherwise deliberately unvalidated — Excalidraw
+  // owns that schema and changes it between versions, so the stored blob
+  // round-trips whatever the editor wrote (see `validateBlobForKind`).
+  // That reasoning holds for the autosave PUT, which only ever receives
+  // editor-produced blobs. It does not hold here: this route accepts a
+  // file from disk, so the shape is arbitrary. A `null` entry throws
+  // inside Excalidraw's render path and leaves the editor a blank page
+  // with no error UI, so reject anything that isn't an object. Measured
+  // against Excalidraw 0.18.1: `null` crashes; other non-objects (`42`,
+  // `"s"`, `true`) render harmlessly but are never valid elements, so
+  // they are rejected too rather than silently dropped.
+  if (raw.elements.some((el) => typeof el !== "object" || el === null)) {
+    return "elements must be objects";
+  }
+
+  const appState = raw.appState;
+  if (appState !== undefined && (typeof appState !== "object" || appState === null)) {
+    return "appState must be an object";
+  }
+  const files = raw.files;
+  if (files !== undefined && (typeof files !== "object" || files === null)) {
+    return "files must be an object";
+  }
+
+  // `theme` is dropped for the same reason the editor's
+  // `pickPersistableAppState` drops it on every save: theme is an
+  // app-level preference controlled via Excalidraw's `theme` prop, and
+  // persisting it on the blob would let an imported scene fight the
+  // app. `name` is overwritten with the D1 row name, which is the
+  // canonical scene name (same invariant `mirrorRenameIntoExcalidrawBlob`
+  // maintains on rename).
+  const { theme: _theme, ...restAppState } = (appState ?? {}) as Record<string, unknown>;
+  return {
+    elements: raw.elements,
+    appState: { ...restAppState, name },
+    files: (files ?? {}) as Record<string, unknown>,
+  };
 }
 
 // ─── R2 writes ──────────────────────────────────────────────────────
@@ -194,14 +258,25 @@ export async function putFileBlob(env: Env, row: FileRow, req: Request): Promise
   } satisfies FileMeta);
 }
 
-// Create a new file inside an explicit folder. Used by folder-share
-// write endpoints (the share's `owner` is the file's `owner`).
-export async function createFileInFolder(
+// Create a file: one R2 seed blob plus the D1 row, in that order.
+//
+// Used by the owner create endpoint, the owner `.excalidraw` import
+// endpoint, and the folder-share write endpoint (where the share's
+// `owner` is the file's `owner`). `folderId === null` creates at the
+// root level.
+export async function createFile(
   env: Env,
   owner: string,
-  folderId: string,
+  folderId: string | null,
   name: string,
   kind: FileKind = "excalidraw",
+  opts: {
+    /** Store this blob instead of the empty per-kind seed. The import
+     *  route passes the uploaded scene here. */
+    seed?: FileBlob;
+    /** Applied in the same call so the returned meta carries them. */
+    tags?: string[];
+  } = {},
 ): Promise<FileMeta> {
   const id = newId();
   const ts = now();
@@ -216,7 +291,7 @@ export async function createFileInFolder(
     const seeded = await writeSeedSite(env, id, safe);
     totalBytes = seeded.bytes;
   } else {
-    const seed = seedManifestForKind(kind, safe);
+    const seed = opts.seed ?? seedManifestForKind(kind, safe);
     const seedBytes = new TextEncoder().encode(JSON.stringify(seed));
     await writeR2Blob(env, id, seedBytes);
     totalBytes = seedBytes.byteLength;
@@ -235,12 +310,15 @@ export async function createFileInFolder(
     created_at: ts,
     updated_at: ts,
   });
+
+  const tags = opts.tags ? await tagsRepo.replaceForEntity(env, owner, "file", id, opts.tags) : [];
+
   return {
     id,
     folderId,
     name: safe,
     kind,
-    tags: [],
+    tags,
     version: 1,
     sizeBytes: totalBytes,
     hasThumb: false,

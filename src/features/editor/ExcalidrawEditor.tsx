@@ -17,7 +17,7 @@
 // MainMenu hamburger relocation. See `useSaveLifecycle` for the
 // shared contract with `DrawioEditor`.
 
-import { Excalidraw, exportToSvg } from "@excalidraw/excalidraw";
+import { Excalidraw } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
@@ -33,6 +33,7 @@ import {
 import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
 import { ExcalidrawTopLeftStrip } from "./ExcalidrawTopLeftStrip";
+import { renderExcalidrawThumbSvg } from "./excalidrawThumb";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import type { EditorSaveStatus } from "./lifecycle/types";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
@@ -190,23 +191,7 @@ export default function ExcalidrawEditor({
       if (!snap) return;
       thumb.request(saved.fp, async () => {
         if (snap.elements.length === 0) return null;
-        const svg = await exportToSvg({
-          elements: normalizeImagesForExport(snap.elements, snap.files),
-          appState: {
-            ...snap.appState,
-            // Transparent export: the dashboard's card body provides
-            // the paper, and dark mode applies a CSS invert filter on
-            // top of this SVG so dark strokes read as light strokes
-            // on the dark card. Baking a white background here would
-            // defeat both.
-            exportBackground: false,
-          } as AppState,
-          files: snap.files,
-          exportPadding: 12,
-        });
-        svg.setAttribute("width", "640");
-        svg.removeAttribute("height");
-        return svg.outerHTML;
+        return renderExcalidrawThumbSvg(snap.elements, snap.appState, snap.files);
       });
     },
     onReload: (fresh) => {
@@ -472,20 +457,4 @@ function pickPersistableAppState(
     ...rest
   } = appState as unknown as Record<string, unknown>;
   return { ...rest, name: (rest.name as string | undefined) || fallbackName };
-}
-
-// Excalidraw won't render embedded images during export until their `status`
-// flips to "saved". Patch a copy before exporting the thumbnail. (Pattern
-// borrowed from ExcaliDash.)
-function normalizeImagesForExport(
-  elements: readonly ExcalidrawElement[],
-  files: BinaryFiles,
-): ExcalidrawElement[] {
-  return elements.map((el) => {
-    if (el.type !== "image" || typeof el.fileId !== "string") return el;
-    const file = files[el.fileId as keyof typeof files] as { dataURL?: string } | undefined;
-    const hasData = !!file?.dataURL?.startsWith?.("data:image/");
-    if (!hasData || (el as { status?: string }).status === "saved") return el;
-    return { ...el, status: "saved" } as ExcalidrawElement;
-  });
 }

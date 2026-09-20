@@ -18,7 +18,7 @@ import * as filesRepo from "../db/repos/files";
 import * as foldersRepo from "../db/repos/folders";
 import * as sharesRepo from "../db/repos/shares";
 import * as tagsRepo from "../db/repos/tags";
-import { newId, ownerRenderPayload, signRender } from "../lib/crypto";
+import { ownerRenderPayload, signRender } from "../lib/crypto";
 import {
   errorResponse,
   jsonResponse,
@@ -33,11 +33,12 @@ import { parseJson, parseJsonOrEmpty } from "../middleware/body";
 import type { AppEnv } from "../middleware/types";
 import { deleteFileCascade } from "../services/delete-cascade";
 import {
+  createFile,
+  MAX_FILE_BYTES,
   MAX_THUMB_BYTES,
   mirrorRenameIntoExcalidrawBlob,
+  normalizeImportedExcalidraw,
   putFileBlob,
-  seedManifestForKind,
-  writeR2Blob,
 } from "../services/file-blob";
 import {
   applyDelete,
@@ -56,7 +57,6 @@ import {
   StaticSiteError,
   validateAssetPath,
   writePendingAssets,
-  writeSeedSite,
 } from "../services/static-site";
 import type { FileKind, FileMeta, FileRow, StaticSiteFileBlob } from "../types";
 import { normalizeFileKind, rowToMeta } from "../types";
@@ -149,57 +149,56 @@ r.post("/", async (c) => {
     }
   }
 
-  const id = newId();
-  const ts = now();
-  const name = (body.name || "Untitled").slice(0, 200);
-  const kind = normalizeFileKind(body.kind);
+  const meta = await createFile(
+    c.env,
+    owner,
+    folderId,
+    body.name || "Untitled",
+    normalizeFileKind(body.kind),
+    { tags: Array.isArray(body.tags) ? body.tags : undefined },
+  );
+  return jsonResponse(meta);
+});
 
-  // Static-site uses a two-phase seed (R2 asset + manifest); the other
-  // kinds bundle everything into one JSON blob. See
-  // worker/services/file-blob.ts for the contract.
-  let seedBytes: number;
-  if (kind === "static-site") {
-    const seeded = await writeSeedSite(c.env, id, name);
-    seedBytes = seeded.bytes;
-  } else {
-    const seed = seedManifestForKind(kind, name);
-    const seedBuf = new TextEncoder().encode(JSON.stringify(seed));
-    await writeR2Blob(c.env, id, seedBuf);
-    seedBytes = seedBuf.byteLength;
+// ─── Import ──────────────────────────────────────────────────────────
+//
+// POST /api/files/import?name=<name>&folderId=<id>
+//
+// Body: the raw `.excalidraw` file, byte-for-byte as the user picked
+// it. Creates an `excalidraw` file whose *initial* blob is the uploaded
+// scene. Doing it in one request is the point: the create-then-PUT
+// alternative would leave an empty file in the explorer whenever the
+// PUT failed.
+//
+// The scene is normalized to Inkwell's stored blob shape (see
+// `normalizeImportedExcalidraw`) so every downstream reader — download,
+// rename mirroring, share rendering — sees the same shape the editor
+// writes.
+r.post("/import", async (c) => {
+  const owner = c.get("session").userId;
+  const params = new URL(c.req.url).searchParams;
+
+  const folderId = params.get("folderId") || null;
+  if (folderId !== null && !(await foldersRepo.existsForOwner(c.env, owner, folderId))) {
+    return errorResponse(404, "folder not found");
   }
 
-  await filesRepo.insert(c.env, {
-    id,
-    owner,
-    folder_id: folderId,
-    name,
-    kind,
-    version: 1,
-    size_bytes: seedBytes,
-    has_thumb: false,
-    thumb_updated_at: 0,
-    created_at: ts,
-    updated_at: ts,
-  });
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength === 0) return errorResponse(400, "empty body");
+  if (buf.byteLength > MAX_FILE_BYTES) return errorResponse(413, "file too large");
 
-  const tags = Array.isArray(body.tags)
-    ? await tagsRepo.replaceForEntity(c.env, owner, "file", id, body.tags)
-    : [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(buf));
+  } catch {
+    return errorResponse(400, "invalid JSON");
+  }
 
-  const meta: FileMeta = {
-    id,
-    folderId,
-    name,
-    kind,
-    tags,
-    version: 1,
-    sizeBytes: seedBytes,
-    hasThumb: false,
-    thumbUpdatedAt: 0,
-    activeShareCount: 0,
-    createdAt: ts,
-    updatedAt: ts,
-  };
+  const name = (params.get("name") || "Untitled drawing").slice(0, 200);
+  const blob = normalizeImportedExcalidraw(parsed, name);
+  if (typeof blob === "string") return errorResponse(400, blob);
+
+  const meta = await createFile(c.env, owner, folderId, name, "excalidraw", { seed: blob });
   return jsonResponse(meta);
 });
 
