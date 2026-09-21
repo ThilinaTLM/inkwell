@@ -24,7 +24,7 @@ import { parseJsonOrEmpty } from "../middleware/body";
 import { requireShareToken } from "../middleware/share-token";
 import type { AppEnv } from "../middleware/types";
 import { deleteFileCascade } from "../services/delete-cascade";
-import { createFileInFolder, putFileBlob } from "../services/file-blob";
+import { createFile, putFileBlob } from "../services/file-blob";
 import type { FilePreview, FolderRow, ShareRow } from "../types";
 import { normalizeFileKind, rowToFolderMeta, rowToMeta } from "../types";
 
@@ -153,7 +153,7 @@ r.post(
     if (!(await foldersRepo.folderInSubtree(c.env, tk.owner, targetFolder, tk.target_id))) {
       return errorResponse(403, "folder not in shared subtree");
     }
-    const meta = await createFileInFolder(
+    const meta = await createFile(
       c.env,
       tk.owner,
       targetFolder,

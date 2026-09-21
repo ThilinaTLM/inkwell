@@ -11,3 +11,6 @@ worker-configuration.d.ts
 public/drawio/
 .zed/
 .vscode/
+
+.codegraph
+graphify-out
