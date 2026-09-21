@@ -113,6 +113,12 @@ export function ImportExcalidrawDialog({
   // it, closing mid-import still navigated the user into the editor of
   // whichever file finished last.
   const abortedRef = useRef(false);
+  // Bumped by `reset()`. `onPickFiles` awaits a byte read plus a SHA-256
+  // digest per file, and the dialog can be closed inside that window — so
+  // its `setPicked` is guarded against a selection that has since been
+  // discarded. Without the guard, closing mid-read repopulated the list
+  // afterwards and reopening offered to import the cancelled files.
+  const selectionGenRef = useRef(0);
   const [picked, setPicked] = useState<PickedFile[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -124,6 +130,9 @@ export function ImportExcalidrawDialog({
   const singleFile = picked.length === 1 && picked[0].scene !== null;
 
   function reset() {
+    // Invalidate any pick still being read: every clearing path (close,
+    // successful import) must also drop a selection that lands later.
+    selectionGenRef.current += 1;
     setPicked([]);
     setName("");
     setProgress(null);
@@ -150,12 +159,20 @@ export function ImportExcalidrawDialog({
     e.currentTarget.value = "";
     if (files.length === 0) return;
 
+    // Capture before awaiting: `reset()` bumps this if the dialog closes
+    // while the files below are still being read.
+    const gen = selectionGenRef.current;
+
     const entries = await Promise.all(
       files.map(async (file) => {
         const { scene, error, identity } = await readScene(file);
         return { key: nextKey.current++, file, scene, error, identity };
       }),
     );
+
+    // The selection was discarded while we were reading it — drop the
+    // result instead of repopulating a closed dialog's list.
+    if (gen !== selectionGenRef.current) return;
 
     // Append rather than replace, so one selection can be assembled from
     // several folders; skip files already queued.
