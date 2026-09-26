@@ -2,28 +2,17 @@
 //   /share/:token                  → file-share (loads /api/share/:token)
 //   /share/:token/files/:fileId    → folder-share file (loads /api/share/:token/files/:fileId)
 //
-// Like Editor, this is a zero-chrome canvas page. File name + save / read-only
-// status are rendered in the patched-in top-left slot via ExcalidrawEditor's
-// internal `renderTopLeftUI` wiring (see `ExcalidrawTopLeftStrip`). The
-// dedicated back icon button in that strip handles "back to folder" on
-// folder-share file routes; on a top-level file-share token there's no parent
-// and the back button is hidden. The MainMenu hamburger (relocated to the
-// top-right next to Library by our Excalidraw patch) surfaces a reduced
-// action set:
-//   • Share-permission sub-label ("Shared · can edit" / "Shared · view only")
-//   • Download (only when the share grants downloads)
-//   • Default Excalidraw items (theme, save-as-image, help)
-// Read-only shares get the canvas in view mode; the top-left strip surfaces
-// the read-only state via the EyeIcon variant. Visitors never see
-// rename/share-from-share since they don't own the file.
+// Same layout as the owner editor: `<EditorHeader>` in visitor mode
+// (no owner actions; "Shared · View only / Can edit"; Download when the
+// link allows it) above the editor surface. The header's back button
+// returns to the shared folder on folder-share file routes; on a
+// top-level file-share token there's no parent and it's hidden.
+// Read-only shares get the canvas in view mode.
 
 import { MainMenu } from "@excalidraw/excalidraw";
-import { Download01Icon, EyeIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { downloadLabelForKind } from "@/components/sketch/file-kind-icons";
 import { useSharedFile } from "@/data/shares";
 import DrawioEditor from "@/features/editor/DrawioEditor";
 import ExcalidrawEditor from "@/features/editor/ExcalidrawEditor";
@@ -34,6 +23,8 @@ import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
+import { EditorHeader } from "./EditorHeader";
+import type { RenderEditorHeader } from "./editorHeaderBridge";
 import { SharedStaticSitePreviewRedirect } from "./StaticSitePreviewRedirect";
 
 interface SharedEditorProps {
@@ -52,6 +43,9 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   const fileQuery = useSharedFile(preloaded ? "" : token, fileId);
 
   const [loaded, setLoaded] = useState<LoadedFile | null>(preloaded ?? null);
+  // Non-blocking conflict banner after a 409 → reload (see EditorPage).
+  const [conflict, setConflict] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   // Seed working copy on first arrival; thereafter the editor owns it.
@@ -68,6 +62,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
       staleTime: 0,
     });
     setLoaded(ls);
+    setConflict(true);
     return ls;
   }, [qc, token, fileId]);
 
@@ -132,28 +127,57 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
     );
   }
 
+  const renderHeader: RenderEditorHeader = (bridge) => (
+    <EditorHeader
+      bridge={bridge}
+      file={{
+        id: loaded.meta.id,
+        name: loaded.meta.name,
+        kind: loaded.meta.kind,
+        version: loaded.meta.version,
+        folderId: null,
+      }}
+      onBack={fileId ? () => navigate(`/share/${token}`) : null}
+      backLabel="Back to shared folder"
+      visitor={{
+        permission: loaded.permission,
+        allowDownload: loaded.allowDownload,
+        onDownload: () => {
+          void bridge.flush().then(() => {
+            window.location.href = downloadHref;
+          });
+        },
+      }}
+      conflict={
+        conflict
+          ? {
+              onReload: () => {
+                bridge.discard();
+                setConflict(false);
+                setEditorKey((k) => k + 1);
+              },
+              onDismiss: () => setConflict(false),
+            }
+          : null
+      }
+    />
+  );
+
+  const common = {
+    loaded,
+    save: writable ? save : async () => ({ version: loaded.meta.version }),
+    // No thumbnail uploads from share-token sessions — only the
+    // owner's saves should advance the canonical thumb.
+    saveThumb: null,
+    reload,
+    onReload: (ls: LoadedFile) => setLoaded(ls),
+    renderHeader,
+  };
+
   if (loaded.meta.kind === "drawio") {
     return (
       <div className="h-dvh w-full overflow-hidden bg-background">
-        <DrawioEditor
-          loaded={loaded}
-          save={writable ? save : async () => ({ version: loaded.meta.version })}
-          reload={reload}
-          onReload={(ls) => setLoaded(ls)}
-          back={fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back" } : null}
-          // Shared sessions surface only Download (Tags / Share belong
-          // to the file owner). The File-menu helper omits entries
-          // whose handler is undefined, and gates Download on
-          // `loaded.allowDownload`.
-          fileMenuExtras={{
-            loaded,
-            onDownload: loaded.allowDownload
-              ? () => {
-                  window.location.href = downloadHref;
-                }
-              : undefined,
-          }}
-        />
+        <DrawioEditor key={editorKey} {...common} />
       </div>
     );
   }
@@ -161,25 +185,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   if (loaded.meta.kind === "notes") {
     return (
       <div className="h-dvh w-full overflow-hidden bg-background">
-        <NotesEditor
-          loaded={loaded}
-          save={writable ? save : async () => ({ version: loaded.meta.version })}
-          // No thumbnail uploads from share-token sessions — only the
-          // owner's saves should advance the canonical thumb.
-          saveThumb={null}
-          reload={reload}
-          onReload={(ls) => setLoaded(ls)}
-          back={
-            fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
-          }
-          // Visitors don't own the file, so rename / tags / share are
-          // omitted (the chrome hides those rows when handlers are
-          // null). Download is gated on the share's allowDownload bit.
-          onDownload={() => {
-            window.location.href = downloadHref;
-          }}
-          allowDownload={loaded.allowDownload}
-        />
+        <NotesEditor key={editorKey} {...common} />
       </div>
     );
   }
@@ -187,52 +193,11 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
   return (
     <div className="h-dvh w-full overflow-hidden bg-background">
       <ExcalidrawEditor
-        loaded={loaded}
-        save={writable ? save : async () => ({ version: loaded.meta.version })}
-        saveThumb={null}
-        reload={reload}
-        onReload={(ls) => setLoaded(ls)}
-        back={
-          fileId ? { onClick: () => navigate(`/share/${token}`), label: "Back to folder" } : null
-        }
+        key={editorKey}
+        {...common}
         chrome={
           <MainMenu>
-            {/* File name + save status / read-only state render in the
-                top-left strip. Here we keep just the share-permission
-                line, which clarifies the *source* of any "Read-only"
-                indicator users see in that strip. */}
-            <MainMenu.ItemCustom>
-              <div className="px-2 pb-2 pt-1">
-                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
-                  {writable ? (
-                    <>
-                      <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={1.8} className="size-3" />
-                      Shared · can edit
-                    </>
-                  ) : (
-                    <>
-                      <HugeiconsIcon icon={EyeIcon} strokeWidth={1.8} className="size-3" />
-                      Shared · view only
-                    </>
-                  )}
-                </span>
-              </div>
-            </MainMenu.ItemCustom>
-            <MainMenu.Separator />
-
-            {/* "Back to folder" is now exposed as the dedicated back icon
-                button in the top-left strip, so we don't duplicate it as a
-                menu entry. */}
-            {loaded.allowDownload && (
-              <MainMenu.ItemLink
-                href={downloadHref}
-                icon={<HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />}
-              >
-                {downloadLabelForKind(loaded.meta.kind)}
-              </MainMenu.ItemLink>
-            )}
-
-            <MainMenu.Separator />
+            {/* Share permission, back and download live in the header. */}
             <MainMenu.DefaultItems.ToggleTheme
               allowSystemTheme
               theme={themeMode}

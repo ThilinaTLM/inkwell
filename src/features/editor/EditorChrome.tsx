@@ -6,10 +6,8 @@
 // part of ExcalidrawEditor itself. Lifted out of EditorPage so SharedEditor
 // can reuse them.
 //
-// The previous "back to files" floating pill lived here too; it has
-// been replaced by a native `MainMenu.Item` ("Back to dashboard") in
-// each consumer page, so there's no longer a chrome pill component
-// for this file to host.
+// The in-editor chrome itself (back, breadcrumb, name, save state,
+// actions) is `EditorHeader`.
 
 import { Alert02Icon, ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -41,7 +39,7 @@ export function EditorErrorState({ message }: { message: string }) {
           <div className="font-heading text-lg font-semibold">Couldn't load this file</div>
           <p className="text-sm text-muted-foreground">{message}</p>
         </div>
-        <Button variant="outline" size="sm" render={<Link to="/" />}>
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/" />}>
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           Back to dashboard
         </Button>
