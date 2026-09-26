@@ -9,12 +9,13 @@ import { MAX_DEPTH } from "../db/repos/folders";
 import * as sharesRepo from "../db/repos/shares";
 import * as tagsRepo from "../db/repos/tags";
 import { newId } from "../lib/crypto";
+import { checkFolderMove } from "../lib/items";
 import { errorResponse, jsonResponse } from "../lib/responses";
 import { now } from "../lib/util";
 import { requireSession } from "../middleware/auth";
 import { parseJson } from "../middleware/body";
 import type { AppEnv } from "../middleware/types";
-import { deleteFolderCascade } from "../services/delete-cascade";
+import { trashItems } from "../services/trash";
 import type { FolderMeta, FolderRow } from "../types";
 import { rowToFolderMeta } from "../types";
 
@@ -77,6 +78,9 @@ r.post("/", async (c) => {
     name,
     created_at: ts,
     updated_at: ts,
+    deleted_at: null,
+    trashed_via: null,
+    starred_at: null,
   };
   await foldersRepo.insert(c.env, row);
 
@@ -118,15 +122,14 @@ r.patch("/:id", async (c) => {
     if (newParent !== null) {
       const target = await foldersRepo.findById(c.env, owner, newParent);
       if (!target) return errorResponse(404, "parent folder not found");
-      // Cycle check.
-      const descendants = await foldersRepo.descendantIds(c.env, owner, id);
-      if (descendants.includes(newParent)) {
+      // Cycle + depth checks, shared with `POST /api/items/move` (which
+      // answers a cycle with 409; this endpoint keeps its historical 400).
+      const parentOf = await foldersRepo.liveParentMap(c.env, owner);
+      const problem = checkFolderMove(parentOf, id, newParent, MAX_DEPTH);
+      if (problem === "cycle") {
         return errorResponse(400, "cannot move a folder into its own descendant");
       }
-      // Depth check.
-      const targetDepth = await foldersRepo.depthOf(c.env, owner, newParent);
-      const subtree = await foldersRepo.maxSubtreeDepth(c.env, owner, id);
-      if (targetDepth + subtree > MAX_DEPTH) {
+      if (problem === "depth") {
         return errorResponse(400, `max nesting depth is ${MAX_DEPTH}`);
       }
     }
@@ -161,13 +164,16 @@ r.patch("/:id", async (c) => {
   );
 });
 
-// ─── Delete ──────────────────────────────────────────────────────────
+// ─── Delete (→ Trash) ────────────────────────────────────────────────
+// Kept for compatibility; now a soft delete of the whole subtree (it
+// used to hard-delete the folder and promote its children). Permanent
+// deletion goes through Trash (`/api/items/purge`, `/api/trash`).
 r.delete("/:id", async (c) => {
   const owner = c.get("session").userId;
   const id = c.req.param("id");
   const folder = await foldersRepo.findById(c.env, owner, id);
   if (!folder) return errorResponse(404, "folder not found");
-  await deleteFolderCascade(c.env, owner, folder);
+  await trashItems(c.env, owner, [{ type: "folder", id }]);
   return jsonResponse({ ok: true });
 });
 

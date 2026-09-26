@@ -85,7 +85,10 @@ r.get("/invites", async (c) => {
 
 interface CreateInviteBody {
   expiresInHours?: number | null;
+  note?: string | null;
 }
+
+const MAX_INVITE_NOTE = 200;
 
 r.post("/invites", async (c) => {
   const session = c.get("session");
@@ -100,6 +103,17 @@ r.post("/invites", async (c) => {
     expiresAt = Date.now() + Math.floor(hours * 60 * 60 * 1000);
   }
 
+  // Optional free-form note; blank collapses to null.
+  let note: string | null = null;
+  if (body.note !== null && body.note !== undefined) {
+    if (typeof body.note !== "string") return errorResponse(400, "invalid note");
+    const trimmed = body.note.trim();
+    if (trimmed.length > MAX_INVITE_NOTE) {
+      return errorResponse(400, `note must be at most ${MAX_INVITE_NOTE} characters`);
+    }
+    note = trimmed || null;
+  }
+
   const token = newToken();
   const ts = now();
   await invitesRepo.insert(c.env, {
@@ -107,6 +121,7 @@ r.post("/invites", async (c) => {
     created_by: session.userId,
     created_at: ts,
     expires_at: expiresAt,
+    note,
   });
 
   // Origin used to construct the share URL. Falls back to the request's
@@ -114,7 +129,7 @@ r.post("/invites", async (c) => {
   // it down (e.g. proxied behind a reverse proxy that strips host).
   const origin = new URL(c.req.url).origin || c.req.header("origin") || null;
   const url = origin ? `${origin}/invite/${token}` : `/invite/${token}`;
-  return jsonResponse({ token, url, expiresAt, createdAt: ts });
+  return jsonResponse({ token, url, expiresAt, createdAt: ts, note });
 });
 
 r.delete("/invites/:token", async (c) => {

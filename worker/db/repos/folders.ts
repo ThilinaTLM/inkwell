@@ -3,15 +3,34 @@
 // Subtree walks are recursive CTEs (Drizzle's $with builder is awkward
 // for `WITH RECURSIVE` and the SQL is correct as-is). Drizzle still
 // parameterizes the bound values automatically.
+//
+// Every read here excludes trashed rows (`notTrashed` / `deleted_at IS
+// NULL` in the raw CTEs) unless the name says `…IncludingTrashed`. See
+// `db/filters.ts` for the invariant that makes a per-row check enough.
 
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import type { Env, FileKind, FilePreview, FileRow, FolderRow } from "../../types";
 import { getDb, t } from "../client";
+import { inIds, notTrashed } from "../filters";
 
 export const MAX_DEPTH = 8;
 
 // ─── Lookups ──────────────────────────────────────────────────────────
 export async function findById(env: Env, owner: string, id: string): Promise<FolderRow | null> {
+  const db = getDb(env);
+  const row = await db
+    .select()
+    .from(t.folders)
+    .where(and(eq(t.folders.id, id), eq(t.folders.owner, owner), notTrashed(t.folders)))
+    .get();
+  return row ?? null;
+}
+
+export async function findByIdIncludingTrashed(
+  env: Env,
+  owner: string,
+  id: string,
+): Promise<FolderRow | null> {
   const db = getDb(env);
   const row = await db
     .select()
@@ -26,7 +45,7 @@ export async function existsForOwner(env: Env, owner: string, id: string): Promi
   const r = await db
     .select({ id: t.folders.id })
     .from(t.folders)
-    .where(and(eq(t.folders.id, id), eq(t.folders.owner, owner)))
+    .where(and(eq(t.folders.id, id), eq(t.folders.owner, owner), notTrashed(t.folders)))
     .get();
   return !!r;
 }
@@ -36,9 +55,22 @@ export async function listForOwner(env: Env, owner: string): Promise<FolderRow[]
   return await db
     .select()
     .from(t.folders)
-    .where(eq(t.folders.owner, owner))
+    .where(and(eq(t.folders.owner, owner), notTrashed(t.folders)))
     .orderBy(sql`${t.folders.name} COLLATE NOCASE ASC`)
     .all();
+}
+
+// id → parent_id for every live folder of `owner`. Feeds the in-memory
+// tree helpers in `lib/items.ts` (move validation, ancestor dedupe) so a
+// bulk request costs one query instead of a CTE per item.
+export async function liveParentMap(env: Env, owner: string): Promise<Map<string, string | null>> {
+  const db = getDb(env);
+  const rows = await db
+    .select({ id: t.folders.id, parent_id: t.folders.parent_id })
+    .from(t.folders)
+    .where(and(eq(t.folders.owner, owner), notTrashed(t.folders)))
+    .all();
+  return new Map(rows.map((r) => [r.id, r.parent_id]));
 }
 
 // ─── Tree walks ───────────────────────────────────────────────────────
@@ -46,12 +78,13 @@ export async function ancestorChain(env: Env, owner: string, startId: string): P
   const db = getDb(env);
   const rows = await db.all<{ id: string }>(sql`
     WITH RECURSIVE up(id, parent_id, depth) AS (
-      SELECT id, parent_id, 1 FROM folders WHERE id = ${startId} AND owner = ${owner}
+      SELECT id, parent_id, 1 FROM folders
+      WHERE id = ${startId} AND owner = ${owner} AND deleted_at IS NULL
       UNION ALL
       SELECT f.id, f.parent_id, up.depth + 1
       FROM folders f
       JOIN up ON f.id = up.parent_id
-      WHERE f.owner = ${owner} AND up.depth < 32
+      WHERE f.owner = ${owner} AND f.deleted_at IS NULL AND up.depth < 32
     )
     SELECT id FROM up
   `);
@@ -62,10 +95,10 @@ export async function descendantIds(env: Env, owner: string, rootId: string): Pr
   const db = getDb(env);
   const rows = await db.all<{ id: string }>(sql`
     WITH RECURSIVE down(id) AS (
-      SELECT id FROM folders WHERE id = ${rootId} AND owner = ${owner}
+      SELECT id FROM folders WHERE id = ${rootId} AND owner = ${owner} AND deleted_at IS NULL
       UNION ALL
       SELECT f.id FROM folders f JOIN down ON f.parent_id = down.id
-      WHERE f.owner = ${owner}
+      WHERE f.owner = ${owner} AND f.deleted_at IS NULL
     )
     SELECT id FROM down
   `);
@@ -81,11 +114,11 @@ export async function maxSubtreeDepth(env: Env, owner: string, rootId: string): 
   const db = getDb(env);
   const row = await db.get<{ d: number | null }>(sql`
     WITH RECURSIVE down(id, depth) AS (
-      SELECT id, 1 FROM folders WHERE id = ${rootId} AND owner = ${owner}
+      SELECT id, 1 FROM folders WHERE id = ${rootId} AND owner = ${owner} AND deleted_at IS NULL
       UNION ALL
       SELECT f.id, down.depth + 1
       FROM folders f JOIN down ON f.parent_id = down.id
-      WHERE f.owner = ${owner}
+      WHERE f.owner = ${owner} AND f.deleted_at IS NULL
     )
     SELECT MAX(depth) AS d FROM down
   `);
@@ -98,10 +131,10 @@ export async function loadSubtree(env: Env, owner: string, rootId: string): Prom
   const db = getDb(env);
   const idRows = await db.all<{ id: string }>(sql`
     WITH RECURSIVE down(id) AS (
-      SELECT id FROM folders WHERE id = ${rootId} AND owner = ${owner}
+      SELECT id FROM folders WHERE id = ${rootId} AND owner = ${owner} AND deleted_at IS NULL
       UNION ALL
       SELECT f.id FROM folders f JOIN down ON f.parent_id = down.id
-      WHERE f.owner = ${owner}
+      WHERE f.owner = ${owner} AND f.deleted_at IS NULL
     )
     SELECT id FROM down
   `);
@@ -110,7 +143,7 @@ export async function loadSubtree(env: Env, owner: string, rootId: string): Prom
   return await db
     .select()
     .from(t.folders)
-    .where(and(eq(t.folders.owner, owner), inArray(t.folders.id, ids)))
+    .where(and(eq(t.folders.owner, owner), inIds(t.folders.id, ids), notTrashed(t.folders)))
     .orderBy(sql`${t.folders.name} COLLATE NOCASE`)
     .all();
 }
@@ -126,7 +159,7 @@ export async function fileInSubtree(
   const file = await db
     .select({ folder_id: t.files.folder_id })
     .from(t.files)
-    .where(and(eq(t.files.id, fileId), eq(t.files.owner, owner)))
+    .where(and(eq(t.files.id, fileId), eq(t.files.owner, owner), notTrashed(t.files)))
     .get();
   if (!file?.folder_id) return false;
   if (file.folder_id === folderId) return true;
@@ -156,7 +189,7 @@ export async function loadFilesInFolders(
   return await db
     .select()
     .from(t.files)
-    .where(and(eq(t.files.owner, owner), inArray(t.files.folder_id, folderIds)))
+    .where(and(eq(t.files.owner, owner), inIds(t.files.folder_id, folderIds), notTrashed(t.files)))
     .orderBy(desc(t.files.updated_at))
     .limit(1000)
     .all();
@@ -175,13 +208,21 @@ export async function loadListAggregates(env: Env, owner: string): Promise<Folde
   const fileCountsP = db
     .select({ id: t.files.folder_id, n: count() })
     .from(t.files)
-    .where(and(eq(t.files.owner, owner), sql`${t.files.folder_id} IS NOT NULL`))
+    .where(
+      and(eq(t.files.owner, owner), sql`${t.files.folder_id} IS NOT NULL`, notTrashed(t.files)),
+    )
     .groupBy(t.files.folder_id)
     .all();
   const subCountsP = db
     .select({ id: t.folders.parent_id, n: count() })
     .from(t.folders)
-    .where(and(eq(t.folders.owner, owner), sql`${t.folders.parent_id} IS NOT NULL`))
+    .where(
+      and(
+        eq(t.folders.owner, owner),
+        sql`${t.folders.parent_id} IS NOT NULL`,
+        notTrashed(t.folders),
+      ),
+    )
     .groupBy(t.folders.parent_id)
     .all();
   const tagRowsP = db
@@ -210,7 +251,7 @@ export async function loadListAggregates(env: Env, owner: string): Promise<Folde
         thumb_updated_at,
         ROW_NUMBER() OVER (PARTITION BY folder_id ORDER BY updated_at DESC, id DESC) AS rn
       FROM files
-      WHERE owner = ${owner} AND folder_id IS NOT NULL
+      WHERE owner = ${owner} AND folder_id IS NOT NULL AND deleted_at IS NULL
     )
     SELECT folder_id, id, kind, has_thumb, thumb_updated_at, rn FROM ranked WHERE rn <= 3
   `);
@@ -259,12 +300,14 @@ export async function childCounts(
   const fileCountRow = await db
     .select({ n: count() })
     .from(t.files)
-    .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, folderId)))
+    .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, folderId), notTrashed(t.files)))
     .get();
   const subCountRow = await db
     .select({ n: count() })
     .from(t.folders)
-    .where(and(eq(t.folders.owner, owner), eq(t.folders.parent_id, folderId)))
+    .where(
+      and(eq(t.folders.owner, owner), eq(t.folders.parent_id, folderId), notTrashed(t.folders)),
+    )
     .get();
   return {
     fileCount: fileCountRow?.n ?? 0,

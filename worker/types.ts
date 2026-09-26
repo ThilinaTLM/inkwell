@@ -51,17 +51,20 @@ export function rowToUserPublic(r: UserRow): UserPublic {
   };
 }
 
-// Admin-list rows include an aggregated file count.
-export type AdminUserRow = UserRow & { file_count: number };
+// Admin-list rows include an aggregated file count (live files only) and
+// storage use (trashed files included — they still occupy R2).
+export type AdminUserRow = UserRow & { file_count: number; storage_bytes: number };
 
 export interface AdminUserPublic extends UserPublic {
   fileCount: number;
+  storageBytes: number;
 }
 
 export function rowToAdminUserPublic(r: AdminUserRow): AdminUserPublic {
   return {
     ...rowToUserPublic(r),
     fileCount: r.file_count,
+    storageBytes: r.storage_bytes,
   };
 }
 
@@ -81,6 +84,7 @@ export interface InvitePublic {
   usedByEmail?: string | null; // joined for admin listing
   usedAt: number | null;
   revokedAt: number | null;
+  note: string | null;
 }
 
 export function inviteStatus(r: InviteRow, nowMs: number): InviteStatus {
@@ -107,6 +111,7 @@ export function rowToInvitePublic(r: InviteRow | InviteAdminRow, nowMs: number):
     usedByUserId: r.used_by_user_id,
     usedAt: r.used_at,
     revokedAt: r.revoked_at,
+    note: r.note ?? null,
   };
   if ("created_by_email" in r) {
     out.createdByEmail = r.created_by_email ?? undefined;
@@ -156,6 +161,8 @@ export interface FolderMeta {
    *  visitor (folder-share) responses so recipients can't infer how many
    *  other shares the owner has. */
   activeShareCount: number;
+  /** unix-ms when the owner starred this item; `null` if not starred. */
+  starredAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -179,6 +186,7 @@ export function rowToFolderMeta(
     subfolderCount: extras.subfolderCount ?? 0,
     previews: extras.previews ?? [],
     activeShareCount: extras.activeShareCount ?? 0,
+    starredAt: r.starred_at ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -206,6 +214,8 @@ export interface FileMeta {
    *  visitor responses (folder-share listing) so recipients can't infer
    *  how many other shares the owner has. */
   activeShareCount: number;
+  /** unix-ms when the owner starred this item; `null` if not starred. */
+  starredAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -226,9 +236,41 @@ export function rowToMeta(
     hasThumb: r.has_thumb,
     thumbUpdatedAt: r.thumb_updated_at,
     activeShareCount: extras.activeShareCount ?? 0,
+    starredAt: r.starred_at ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+// ─── Trash ────────────────────────────────────────────────────────────────────
+// Wire shapes for `/api/trash` and `/api/items/restore`. Mirrors
+// `TrashItem` / `RestoredItem` / `MovePrevious` in src/lib/api/client.ts.
+export interface TrashItemPublic {
+  type: "file" | "folder";
+  id: string;
+  name: string;
+  kind?: FileKind;
+  /** e.g. "Home / A / B" — where the item lived when it was trashed. */
+  originalPath: string;
+  originalParentId: string | null;
+  deletedAt: number;
+  purgeAt: number;
+  /** Folders only: files + folders trashed along with it. */
+  itemCount?: number;
+  sizeBytes?: number;
+}
+
+export interface RestoredItemPublic {
+  type: "file" | "folder";
+  id: string;
+  parentId: string | null;
+  relocatedToRoot: boolean;
+}
+
+export interface MovePreviousPublic {
+  type: "file" | "folder";
+  id: string;
+  parentId: string | null;
 }
 
 // ─── Tags ─────────────────────────────────────────────────────────────

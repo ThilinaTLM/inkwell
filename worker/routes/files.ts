@@ -31,7 +31,6 @@ import { now } from "../lib/util";
 import { requireSession } from "../middleware/auth";
 import { parseJson, parseJsonOrEmpty } from "../middleware/body";
 import type { AppEnv } from "../middleware/types";
-import { deleteFileCascade } from "../services/delete-cascade";
 import {
   createFile,
   MAX_FILE_BYTES,
@@ -58,6 +57,7 @@ import {
   validateAssetPath,
   writePendingAssets,
 } from "../services/static-site";
+import { trashItems } from "../services/trash";
 import type { FileKind, FileMeta, FileRow, StaticSiteFileBlob } from "../types";
 import { normalizeFileKind, rowToMeta } from "../types";
 
@@ -74,10 +74,26 @@ r.use("*", requireSession);
 //                       (ignored with folderId=root)
 //   tag=<name>        — repeatable, AND-intersect by tag names
 //   q=<text>          — case-insensitive name LIKE
-// No `folderId` param returns every file the caller owns.
+//   starred=1         — only starred files, ordered by `starred_at DESC`
+//   limit=<1..1000>   — max rows returned (applied after q/tag filters)
+// No `folderId` param returns every file the caller owns. Trashed files
+// never appear (the repo reads filter them out).
+const MAX_LIST_LIMIT = 1000;
+
 r.get("/", async (c) => {
   const owner = c.get("session").userId;
   const params = new URL(c.req.url).searchParams;
+
+  let limit = MAX_LIST_LIMIT;
+  const limitParam = params.get("limit");
+  if (limitParam !== null) {
+    const n = Number(limitParam);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_LIST_LIMIT) {
+      return errorResponse(400, `limit must be an integer between 1 and ${MAX_LIST_LIMIT}`);
+    }
+    limit = n;
+  }
+  const starred = params.get("starred") === "1";
 
   const folderParam = params.get("folderId");
   const recursive = params.get("recursive") === "1";
@@ -86,6 +102,9 @@ r.get("/", async (c) => {
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean);
   const q = (params.get("q") || "").trim();
+  // Without post-filters the repo can apply `limit` in SQL; otherwise
+  // fetch the capped set and trim after filtering.
+  const sqlLimit = q || tagFilters.length > 0 ? MAX_LIST_LIMIT : limit;
 
   let rows: FileRow[];
   if (folderParam === "root") {
@@ -98,7 +117,13 @@ r.get("/", async (c) => {
       rows = await filesRepo.listInFolder(c.env, owner, folderParam);
     }
   } else {
-    rows = await filesRepo.listForOwner(c.env, owner);
+    rows = await filesRepo.listForOwner(c.env, owner, { starred, limit: sqlLimit });
+  }
+
+  if (starred && folderParam) {
+    rows = rows
+      .filter((r) => r.starred_at !== null)
+      .sort((a, b) => (b.starred_at ?? 0) - (a.starred_at ?? 0));
   }
 
   if (q) {
@@ -117,6 +142,7 @@ r.get("/", async (c) => {
       return tagFilters.every((needle) => t.includes(needle));
     });
   }
+  if (rows.length > limit) rows = rows.slice(0, limit);
 
   const shareMap = await sharesRepo.countActiveByTarget(
     c.env,
@@ -315,13 +341,15 @@ r.put("/:id/tags", async (c) => {
   return jsonResponse({ id, tags, updatedAt: ts });
 });
 
-// ─── Delete ──────────────────────────────────────────────────────────
+// ─── Delete (→ Trash) ────────────────────────────────────────────────
+// Kept for compatibility; now a soft delete. Permanent deletion goes
+// through Trash (`/api/items/purge`, `/api/trash`, the daily cron).
 r.delete("/:id", async (c) => {
   const owner = c.get("session").userId;
   const id = c.req.param("id");
   const row = await filesRepo.findById(c.env, owner, id);
   if (!row) return errorResponse(404, "file not found");
-  await deleteFileCascade(c.env, owner, id);
+  await trashItems(c.env, owner, [{ type: "file", id }]);
   return jsonResponse({ ok: true });
 });
 
@@ -361,12 +389,13 @@ r.put("/:id/thumb", async (c) => {
 // can store it in the Cloudflare edge cache. New content => new URL =>
 // cold path runs again exactly once.
 //
-// Pre-existing soft leak: this handler does not re-verify ownership of
-// `id` against the caller's session. It's safe today because file IDs
-// are unguessable and the session gate runs upstream — but a strict
-// owner check would be the principled fix. Documented for follow-up.
+// The row lookup re-verifies ownership and hides thumbnails of trashed
+// files (one indexed PK read ahead of the edge-cache lookup).
 r.get("/:id/thumb", async (c) => {
+  const owner = c.get("session").userId;
   const id = c.req.param("id");
+  const row = await filesRepo.findById(c.env, owner, id);
+  if (!row) return errorResponse(404, "file not found");
   return await serveR2WithCache(c.env, c.executionCtx ?? null, c.req.raw, r2ThumbKey(id));
 });
 
@@ -429,6 +458,7 @@ async function siteResponse(
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
     activeShareCount: shareMap.get(row.id) ?? 0,
+    starredAt: row.starred_at ?? null,
     createdAt: row.created_at,
     updatedAt: committed.updatedAt,
   };

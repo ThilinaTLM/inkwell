@@ -57,3 +57,10 @@ ALLOWED_ORIGINS = ""
 #                        consulted again if no row exists for that email.
 # SUPER_ADMIN_PASSWORD : initial password for the bootstrap super-admin.
 # SESSION_SECRET       : random 32+ byte string used to HMAC session cookies.
+
+# Daily at 04:00 UTC: purge Trash entries older than 30 days
+# (`scheduled` handler in worker/index.ts → services/trash.ts#purgeExpired).
+# Test locally with `wrangler dev --test-scheduled` and
+#   curl "http://localhost:8888/__scheduled?cron=0+4+*+*+*"
+[triggers]
+crons = ["0 4 * * *"]

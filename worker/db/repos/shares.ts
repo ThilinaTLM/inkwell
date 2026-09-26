@@ -5,6 +5,7 @@ import { now } from "../../lib/util";
 import type { Env, SharePublic, ShareRow, ShareTargetType } from "../../types";
 import { isShareActive, rowToSharePublic } from "../../types";
 import { getDb, t } from "../client";
+import { notTrashed } from "../filters";
 
 export async function findByToken(env: Env, token: string): Promise<ShareRow | null> {
   const db = getDb(env);
@@ -12,12 +13,28 @@ export async function findByToken(env: Env, token: string): Promise<ShareRow | n
   return row ?? null;
 }
 
-// Token resolution for public endpoints: the token must exist and be active.
+// Token resolution for public endpoints: the token must exist, be active,
+// and its target must exist and not be in Trash. Every public share and
+// `/shared/*` render path goes through here, so this one check is what
+// makes links to trashed items (or into trashed subtrees — their rows
+// are marked too) 404. Restoring the item revives the link.
 export async function findActive(env: Env, token: string): Promise<ShareRow | null> {
   const row = await findByToken(env, token);
   if (!row) return null;
   if (!isShareActive(row, Date.now())) return null;
+  if (!(await targetIsLive(env, row))) return null;
   return row;
+}
+
+async function targetIsLive(env: Env, row: ShareRow): Promise<boolean> {
+  const db = getDb(env);
+  const table = row.target_type === "file" ? t.files : t.folders;
+  const hit = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.id, row.target_id), eq(table.owner, row.owner), notTrashed(table)))
+    .get();
+  return !!hit;
 }
 
 // Owner-scoped token lookup.
@@ -75,7 +92,16 @@ export async function listAllForOwnerWithTarget(env: Env, owner: string): Promis
       t.folders,
       and(eq(t.shares.target_type, "folder"), eq(t.folders.id, t.shares.target_id)),
     )
-    .where(and(eq(t.shares.owner, owner), isNull(t.shares.revoked_at)))
+    // Hide shares whose target is in Trash (they 404 publicly anyway and
+    // come back when the item is restored). COALESCE keeps the old
+    // behaviour for dangling targets (both joins NULL).
+    .where(
+      and(
+        eq(t.shares.owner, owner),
+        isNull(t.shares.revoked_at),
+        sql`COALESCE(${t.files.deleted_at}, ${t.folders.deleted_at}) IS NULL`,
+      ),
+    )
     .orderBy(desc(t.shares.created_at))
     .all();
   return rows.map((r) => rowToSharePublic(r.share, r.target_name ?? undefined));

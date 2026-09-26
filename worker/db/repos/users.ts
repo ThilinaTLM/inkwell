@@ -20,7 +20,12 @@ export async function findByEmail(env: Env, email: string): Promise<UserRow | nu
   return row ?? null;
 }
 
-// Admin list: every user with their owned-file count.
+// `file_count` excludes Trash (it's what the user sees); `storage_bytes`
+// includes it (trashed blobs still occupy R2 until purged).
+const fileCountSql = sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id} AND ${t.files.deleted_at} IS NULL), 0)`;
+const storageBytesSql = sql<number>`COALESCE((SELECT SUM(${t.files.size_bytes}) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`;
+
+// Admin list: every user with their owned-file count and storage use.
 export async function listAllAdmin(env: Env): Promise<AdminUserRow[]> {
   const db = getDb(env);
   const rows = await db
@@ -35,7 +40,8 @@ export async function listAllAdmin(env: Env): Promise<AdminUserRow[]> {
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
+      file_count: fileCountSql,
+      storage_bytes: storageBytesSql,
     })
     .from(t.users)
     .orderBy(asc(t.users.created_at))
@@ -57,7 +63,8 @@ export async function findByIdAdmin(env: Env, id: string): Promise<AdminUserRow 
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
+      file_count: fileCountSql,
+      storage_bytes: storageBytesSql,
     })
     .from(t.users)
     .where(eq(t.users.id, id))

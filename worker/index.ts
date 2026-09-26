@@ -4,6 +4,8 @@
 // `worker/routes/*.ts` module; this file is just the composition root:
 // it wires CORS, mounts the per-resource routers, and falls through to
 // the static-asset binding (the built React SPA) for everything else.
+// It also exports the `scheduled` (cron) handler that purges expired
+// Trash — see the `[triggers]` block in wrangler.toml.
 
 import { Hono } from "hono";
 import { cors } from "./middleware/cors";
@@ -13,11 +15,14 @@ import authRoutes from "./routes/auth";
 import filesRoutes from "./routes/files";
 import foldersRoutes from "./routes/folders";
 import invitesRoutes from "./routes/invites";
+import itemsRoutes from "./routes/items";
 import meRoutes from "./routes/me";
 import publicShareRoutes from "./routes/public-share";
 import { ownerSites, sharedSites } from "./routes/render";
 import { fileSharesNested, folderSharesNested, sharesRoot } from "./routes/shares";
 import tagsRoutes from "./routes/tags";
+import trashRoutes from "./routes/trash";
+import { purgeExpired } from "./services/trash";
 
 const app = new Hono<AppEnv>();
 
@@ -35,6 +40,8 @@ app.route("/api/admin", adminRoutes);
 app.route("/api/folders", foldersRoutes);
 app.route("/api/files", filesRoutes);
 app.route("/api/tags", tagsRoutes);
+app.route("/api/items", itemsRoutes);
+app.route("/api/trash", trashRoutes);
 app.route("/api/shares", sharesRoot);
 app.route("/api/share", publicShareRoutes);
 // Static-site asset serving (signature-gated, session-less). Mounted
@@ -85,5 +92,18 @@ export default {
     }
     // Everything else — serve the SPA via the ASSETS binding.
     return env.ASSETS.fetch(req);
+  },
+
+  // Daily cron (`0 4 * * *`): permanently delete Trash entries older than
+  // the 30-day retention window. `waitUntil` lets the purge (D1 + R2)
+  // finish after the handler returns.
+  async scheduled(
+    _event: ScheduledController,
+    env: AppEnv["Bindings"],
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    ctx.waitUntil(
+      purgeExpired(env, Date.now()).catch((e) => console.error("purgeExpired failed", e)),
+    );
   },
 };

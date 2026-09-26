@@ -25,6 +25,7 @@ export async function listAllAdmin(env: Env, limit = 500): Promise<InviteAdminRo
       used_by_user_id: t.invites.used_by_user_id,
       used_at: t.invites.used_at,
       revoked_at: t.invites.revoked_at,
+      note: t.invites.note,
       created_by_email: cu.email,
       used_by_email: uu.email,
     })
@@ -39,7 +40,13 @@ export async function listAllAdmin(env: Env, limit = 500): Promise<InviteAdminRo
 
 export async function insert(
   env: Env,
-  row: { token: string; created_by: string; created_at: number; expires_at: number | null },
+  row: {
+    token: string;
+    created_by: string;
+    created_at: number;
+    expires_at: number | null;
+    note: string | null;
+  },
 ): Promise<void> {
   const db = getDb(env);
   await db.insert(t.invites).values(row).run();

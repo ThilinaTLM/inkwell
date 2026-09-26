@@ -23,8 +23,8 @@ import {
 import { parseJsonOrEmpty } from "../middleware/body";
 import { requireShareToken } from "../middleware/share-token";
 import type { AppEnv } from "../middleware/types";
-import { deleteFileCascade } from "../services/delete-cascade";
 import { createFile, putFileBlob } from "../services/file-blob";
+import { trashItems } from "../services/trash";
 import type { FilePreview, FolderRow, ShareRow } from "../types";
 import { normalizeFileKind, rowToFolderMeta, rowToMeta } from "../types";
 
@@ -178,7 +178,7 @@ r.get(
     );
     const out = folders.map((f) =>
       rowToFolderMeta(
-        { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id },
+        { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id, starred_at: null },
         { tags: folderTags.get(f.id) ?? [] },
       ),
     );
@@ -257,7 +257,9 @@ r.delete("/:token/files/:fileId", requireShareToken({ needsWrite: true }), async
   if (!(await ensureFolderShareCoversFile(c.env, tk, fileId))) {
     return errorResponse(404, "file not in shared folder");
   }
-  await deleteFileCascade(c.env, tk.owner, fileId);
+  // Soft delete, same as the owner endpoint: a write-share visitor's
+  // delete lands in the owner's Trash, where the owner can restore it.
+  await trashItems(c.env, tk.owner, [{ type: "file", id: fileId }]);
   return jsonResponse({ ok: true });
 });
 
@@ -311,7 +313,7 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
   const folderOut = folders.map((f) => {
     const parent = f.id === rootId ? null : f.parent_id;
     return rowToFolderMeta(
-      { ...f, parent_id: parent },
+      { ...f, parent_id: parent, starred_at: null },
       {
         tags: folderTags.get(f.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === f.id).length,
@@ -329,7 +331,7 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
       label: tk.label,
     },
     root: rowToFolderMeta(
-      { ...rootRow, parent_id: null },
+      { ...rootRow, parent_id: null, starred_at: null },
       {
         tags: folderTags.get(rootRow.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === rootRow.id).length,
@@ -338,7 +340,8 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
       },
     ),
     folders: folderOut,
-    files: files.map((s) => rowToMeta(s, fileTags.get(s.id) ?? [])),
+    // Stars are the owner's private state: visitors always see `null`.
+    files: files.map((s) => rowToMeta({ ...s, starred_at: null }, fileTags.get(s.id) ?? [])),
   });
 }
 
