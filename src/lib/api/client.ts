@@ -22,6 +22,8 @@ export interface AdminUser extends User {
   updatedAt: number;
   lastLoginAt: number | null;
   fileCount: number;
+  /** Sum of `size_bytes` of every file the user owns, including trashed. */
+  storageBytes: number;
 }
 
 export type InviteStatus = "pending" | "used" | "revoked" | "expired";
@@ -37,6 +39,8 @@ export interface Invite {
   usedByEmail?: string | null;
   usedAt: number | null;
   revokedAt: number | null;
+  /** Free-form admin note attached at creation time. */
+  note: string | null;
 }
 
 export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site";
@@ -59,6 +63,8 @@ export interface FileMeta {
    *  responses (folder-share listing) so recipients can't infer how
    *  many other shares the owner has. */
   activeShareCount: number;
+  /** unix-ms when the owner starred this item, `null` if not starred. */
+  starredAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -88,9 +94,58 @@ export interface FolderMeta {
    *  responses so recipients can't infer how many other shares the
    *  owner has. */
   activeShareCount: number;
+  /** unix-ms when the owner starred this item, `null` if not starred. */
+  starredAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
+
+/** Polymorphic reference used by bulk item endpoints and the client
+ *  selection model. */
+export type ItemType = "file" | "folder";
+export interface ItemRef {
+  type: ItemType;
+  id: string;
+}
+
+/** A top-level row in the Trash listing. Descendants of a trashed
+ *  folder are not listed separately (they travel with the folder). */
+export interface TrashItem {
+  type: ItemType;
+  id: string;
+  name: string;
+  /** Only for files. */
+  kind?: FileKind;
+  /** Human-readable original location, e.g. "Home / Architecture". */
+  originalPath: string;
+  /** Original parent folder id (`null` = root). */
+  originalParentId: string | null;
+  deletedAt: number;
+  /** When the daily purge will permanently delete this item. */
+  purgeAt: number;
+  /** Folders only: number of files + folders trashed with it. */
+  itemCount?: number;
+  sizeBytes?: number;
+}
+
+export interface MovePrevious {
+  type: ItemType;
+  id: string;
+  /** Parent folder before the move (`null` = root). */
+  parentId: string | null;
+}
+
+export interface RestoredItem {
+  type: ItemType;
+  id: string;
+  parentId: string | null;
+  /** True when the original parent was gone/trashed and the item was
+   *  restored to the root instead. */
+  relocatedToRoot: boolean;
+}
+
+/** Max refs accepted by any `/api/items/*` endpoint (413 above). */
+export const MAX_BULK_ITEMS = 500;
 
 export interface Tag {
   id: string;
@@ -277,11 +332,14 @@ export const admin = {
   deleteUser: (id: string) => request<{ ok: true }>(`/api/admin/users/${id}`, { method: "DELETE" }),
 
   listInvites: () => request<{ invites: Invite[] }>("/api/admin/invites").then((r) => r.invites),
-  createInvite: (expiresInHours: number | null) =>
-    postJson<{ token: string; url: string; expiresAt: number | null; createdAt: number }>(
-      "/api/admin/invites",
-      { expiresInHours },
-    ),
+  createInvite: (expiresInHours: number | null, note?: string | null) =>
+    postJson<{
+      token: string;
+      url: string;
+      expiresAt: number | null;
+      createdAt: number;
+      note: string | null;
+    }>("/api/admin/invites", { expiresInHours, note: note ?? null }),
   revokeInvite: (token: string) =>
     request<{ ok: true }>(`/api/admin/invites/${token}`, { method: "DELETE" }),
 };
@@ -331,6 +389,10 @@ export interface FilesQuery {
   recursive?: boolean;
   tags?: string[];
   q?: string;
+  /** Only starred files (ordered by `starredAt DESC`). */
+  starred?: boolean;
+  /** Max rows (server default and cap: 1000). */
+  limit?: number;
 }
 
 function buildFilesUrl(q: FilesQuery): string {
@@ -339,6 +401,8 @@ function buildFilesUrl(q: FilesQuery): string {
   if (q.recursive) url.searchParams.set("recursive", "1");
   for (const t of q.tags || []) url.searchParams.append("tag", t);
   if (q.q) url.searchParams.set("q", q.q);
+  if (q.starred) url.searchParams.set("starred", "1");
+  if (q.limit) url.searchParams.set("limit", String(q.limit));
   return url.pathname + (url.search || "");
 }
 
@@ -698,3 +762,34 @@ async function readFileResponse(
     allowDownload,
   };
 }
+
+// ─── Bulk item operations (files + folders) ──────────────────────────
+// All endpoints accept at most `MAX_BULK_ITEMS` refs and run as one D1
+// batch. Folder operations apply to the whole subtree.
+export const items = {
+  /** Move into `targetFolderId` (`null` = root). 409 on a folder cycle. */
+  move: (refs: ItemRef[], targetFolderId: string | null) =>
+    postJson<{ previous: MovePrevious[] }>("/api/items/move", { items: refs, targetFolderId }),
+  /** Soft delete (moves to Trash). */
+  trash: (refs: ItemRef[]) => postJson<{ trashed: ItemRef[] }>("/api/items/trash", { items: refs }),
+  restore: (refs: ItemRef[]) =>
+    postJson<{ restored: RestoredItem[] }>("/api/items/restore", { items: refs }),
+  /** Permanently delete already-trashed items. */
+  purge: (refs: ItemRef[]) => postJson<{ ok: true }>("/api/items/purge", { items: refs }),
+  star: (refs: ItemRef[], starred: boolean) =>
+    postJson<{ ok: true }>("/api/items/star", { items: refs, starred }),
+  /** Copies (recursively for folders) into `targetFolderId`, or next
+   *  to the original when omitted. Names get a " (copy)" suffix. */
+  duplicate: (refs: ItemRef[], targetFolderId?: string | null) =>
+    postJson<{ files: FileMeta[]; folders: FolderMeta[] }>("/api/items/duplicate", {
+      items: refs,
+      ...(targetFolderId !== undefined ? { targetFolderId } : {}),
+    }),
+};
+
+// ─── Trash ────────────────────────────────────────────────────────────
+export const trash = {
+  list: () => request<{ items: TrashItem[] }>("/api/trash").then((r) => r.items),
+  /** Permanently deletes everything in Trash. */
+  empty: () => request<{ purged: number }>("/api/trash", { method: "DELETE" }),
+};

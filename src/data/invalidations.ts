@@ -77,4 +77,18 @@ export const invalidations = {
     qc.invalidateQueries({ queryKey: keys.files.all });
     qc.invalidateQueries({ queryKey: keys.folders.all });
   },
+
+  /**
+   * Bulk item operations (`/api/items/*`, `/api/trash`): move, trash,
+   * restore, purge, star, duplicate. These can touch files, folders,
+   * the trash listing and share visibility (trashed targets disappear
+   * from shares), so everything item-shaped is invalidated.
+   */
+  itemsMutated(qc: QueryClient) {
+    qc.invalidateQueries({ queryKey: keys.files.all });
+    qc.invalidateQueries({ queryKey: keys.folders.all });
+    qc.invalidateQueries({ queryKey: keys.trash.all });
+    qc.invalidateQueries({ queryKey: keys.sharesAll });
+    qc.invalidateQueries({ queryKey: keys.tags.all });
+  },
 };
