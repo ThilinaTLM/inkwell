@@ -3,8 +3,15 @@
 // Pages no longer take `user` / `onAuthed` / `onLogout` props — they
 // read auth state via `useMe()` from `@/data/auth`. The route
 // table only owns path-to-component mapping and the admin guard.
+//
+// Signed-in app pages live under the `AppShell` layout route (top bar,
+// sidebar, details column, global overlays, keyboard shortcuts).
+// Editors (`/f/:id`), public share pages and auth pages stay outside
+// the shell so they keep their own chrome and never receive the
+// single-key shortcuts.
 
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { AppShell } from "@/components/shell/AppShell";
 import { useMe } from "@/data/auth";
 import { UsersPage } from "@/features/admin/UsersPage";
 import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
@@ -16,14 +23,38 @@ import { StaticSitePreviewRedirect } from "@/features/editor/StaticSitePreviewRe
 import { DashboardPage } from "@/features/explorer/DashboardPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
+import {
+  RecentPlaceholder,
+  StarredPlaceholder,
+  TagPlaceholder,
+  TrashPlaceholder,
+} from "./placeholders";
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
-      <Route path="/" element={<DashboardPage />} />
-      <Route path="/folders/:folderId" element={<DashboardPage />} />
+
+      <Route element={<AppShell />}>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/folders/:folderId" element={<DashboardPage />} />
+        <Route path="/recent" element={<RecentPlaceholder />} />
+        <Route path="/starred" element={<StarredPlaceholder />} />
+        <Route path="/trash" element={<TrashPlaceholder />} />
+        <Route path="/tags/:tag" element={<TagPlaceholder />} />
+        <Route path="/shares" element={<SharesPage />} />
+        <Route path="/settings/:section?" element={<SettingsPage />} />
+        <Route
+          path="/users/:tab?"
+          element={
+            <RequireAdmin>
+              <UsersPage />
+            </RequireAdmin>
+          }
+        />
+      </Route>
+
       <Route path="/f/:id" element={<EditorPage />} />
       {/* Owner-facing stable preview URL for static-site files. The
           component mints a fresh signed `/sites/:id/:sig/...` URL on
@@ -33,19 +64,9 @@ export function AppRoutes() {
       {/* Legacy: pre-rebrand `/s/:id` URLs (bookmarks, browser history,
           tabs) redirect to the canonical /f/:id form. */}
       <Route path="/s/:id" element={<LegacyFileRedirect />} />
-      <Route path="/settings" element={<SettingsPage />} />
       {/* Legacy: pre-rebrand `/account` URLs redirect to the renamed
           `/settings` route so bookmarks and the back stack stay clean. */}
       <Route path="/account" element={<LegacyAccountRedirect />} />
-      <Route path="/shares" element={<SharesPage />} />
-      <Route
-        path="/users"
-        element={
-          <RequireAdmin>
-            <UsersPage />
-          </RequireAdmin>
-        }
-      />
       <Route path="/share/:token" element={<SharedTokenLandingPage />} />
       <Route path="/share/:token/files/:fileId" element={<SharedEditorPage />} />
       {/* Legacy folder-share child URLs (`.../scenes/:sceneId`) redirect

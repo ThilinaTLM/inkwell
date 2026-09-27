@@ -17,6 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { PaperSurface } from "@/components/PaperSurface";
+import { useInShell } from "@/components/shell/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/api/client";
@@ -49,6 +50,19 @@ export function AppPage({
   mainClassName,
   maxWidth = "max-w-5xl",
 }: AppPageProps) {
+  // Inside the AppShell the shell owns the top bar and the page
+  // background; render only a scrolling, centered column.
+  const inShell = useInShell();
+  if (inShell) {
+    return (
+      <div className={cn("min-h-0 flex-1 overflow-y-auto", className)}>
+        <div className={cn("mx-auto w-full px-4 py-6 sm:px-6 sm:py-8", maxWidth, mainClassName)}>
+          {actions ? <div className="mb-4 flex justify-end gap-2">{actions}</div> : null}
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <PaperSurface variant="page" className={cn("flex flex-col", className)}>
       <Topbar user={user} actions={actions} />
@@ -89,9 +103,11 @@ export function AppPageHeader({
   actions,
   className,
 }: AppPageHeaderProps) {
+  // The shell sidebar already provides navigation; drop the back link.
+  const inShell = useInShell();
   return (
     <header className={cn("mb-5 sm:mb-7", className)}>
-      {backTo ? (
+      {backTo && !inShell ? (
         <Button
           variant="ghost"
           size="sm"
