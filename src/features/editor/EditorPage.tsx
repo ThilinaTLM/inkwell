@@ -193,6 +193,7 @@ export function EditorPage() {
         permission: "write",
         allowDownload: true,
         sharedBy: null,
+        shareExpiresAt: null,
       };
       setLoaded(nextLoaded);
       qc.setQueryData(keys.files.detail(id), nextLoaded);

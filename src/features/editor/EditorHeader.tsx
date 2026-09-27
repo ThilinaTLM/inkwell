@@ -71,6 +71,7 @@ import { useMe } from "@/data/auth";
 import { useFolders } from "@/data/folders";
 import { folderPath } from "@/features/folders/FolderTree";
 import type { FileKind } from "@/lib/api/client";
+import { expiresPhrase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { EditorHeaderBridge } from "./editorHeaderBridge";
 
@@ -86,6 +87,8 @@ export interface EditorHeaderVisitor {
   /** Display name of the sharer when known (the share API doesn't
    *  expose it yet — falls back to "Shared"). */
   sharedBy?: string | null;
+  /** Link expiry (unix-ms) or `null`. */
+  expiresAt?: number | null;
   permission: "read" | "write";
   allowDownload: boolean;
   onDownload?: () => void;
@@ -583,6 +586,7 @@ function VisitorChip({ visitor }: { visitor: EditorHeaderVisitor }) {
         "Shared ·"
       )}{" "}
       {canEdit ? "Can edit" : "View only"}
+      {visitor.expiresAt ? ` · link ${expiresPhrase(visitor.expiresAt)}` : null}
     </span>
   );
 }

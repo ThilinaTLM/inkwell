@@ -225,6 +225,9 @@ export interface LoadedFile {
   /** Share-token loads: the owner's display name (never email). `null`
    *  for owner loads or when the owner has no name set. */
   sharedBy: SharedBy | null;
+  /** Share-token loads: link expiry (`x-share-expires-at`), `null` = never
+   *  or owner load. */
+  shareExpiresAt: number | null;
 }
 
 export interface SharedBy {
@@ -255,6 +258,8 @@ export interface FolderSharePayload {
     allowDownload: boolean;
     label: string | null;
     sharedBy: SharedBy | null;
+    /** unix-ms when the link stops working; `null` = never. */
+    expiresAt: number | null;
   };
   root: FolderMeta;
   folders: FolderMeta[];
@@ -770,6 +775,8 @@ async function readFileResponse(
   const starredHeader = resp.headers.get("x-file-starred-at");
   const starredAt = starredHeader ? Number(starredHeader) : null;
   const sharedBy = parseSharedBy(resp.headers.get("x-share-shared-by"));
+  const expHeader = resp.headers.get("x-share-expires-at");
+  const shareExpiresAt = expHeader ? Number(expHeader) : null;
   const blob = (await resp.json()) as FileBlob;
   return {
     meta: { id, name, kind, version, updatedAt, folderId, hasThumb, starredAt },
@@ -777,6 +784,7 @@ async function readFileResponse(
     permission,
     allowDownload,
     sharedBy,
+    shareExpiresAt,
   };
 }
 

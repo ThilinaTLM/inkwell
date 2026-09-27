@@ -65,6 +65,17 @@ export function BulkBar({
   const ctx = useCommandContext();
   const docked = useShellState((s) => s.isMobile);
   if (sel.scope !== scope || sel.items.length < (docked ? 1 : min)) return null;
+  const clearButton = (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      aria-label="Clear selection"
+      onClick={() => clearSelection(scope)}
+    >
+      <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+    </Button>
+  );
+
   return (
     <div
       role="toolbar"
@@ -78,6 +89,8 @@ export function BulkBar({
         className,
       )}
     >
+      {/* Docked (phone): clear sits first so it is never scrolled off-screen. */}
+      {docked ? clearButton : null}
       <span className="px-2.5 text-[13px] font-bold whitespace-nowrap text-accent-foreground">
         {sel.items.length} selected
       </span>
@@ -96,6 +109,8 @@ export function BulkBar({
             onClick={() => runCommand(id)}
             className={cn(
               "h-7 gap-1.5 px-2 text-xs",
+              // Phone: icon-over-label tiles that share the width evenly.
+              docked && "h-auto min-w-11 flex-1 flex-col gap-0.5 px-1 py-1 text-[10.5px]",
               cmd.destructive && "text-destructive hover:text-destructive",
             )}
           >
@@ -107,14 +122,7 @@ export function BulkBar({
           </Button>
         );
       })}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="Clear selection"
-        onClick={() => clearSelection(scope)}
-      >
-        <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-      </Button>
+      {docked ? null : clearButton}
     </div>
   );
 }

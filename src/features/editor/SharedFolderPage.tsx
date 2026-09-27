@@ -77,6 +77,7 @@ import { shares } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { requestQuickLook } from "@/lib/commands/signals";
 import { errorMessage } from "@/lib/errors";
+import { expiresPhrase } from "@/lib/format";
 import { parseRefKey } from "@/lib/selection";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
@@ -453,6 +454,12 @@ function SharedFolderExplorer({ token, payload }: { token: string; payload: Fold
             {writable ? "Can edit" : "View only"}
           </span>
           {share.label ? <span className="text-muted-foreground"> · “{share.label}”</span> : null}
+          {expiresPhrase(share.expiresAt ?? null) ? (
+            <span className="text-muted-foreground">
+              {" "}
+              · link {expiresPhrase(share.expiresAt ?? null)}
+            </span>
+          ) : null}
         </span>
         {writable ? <span className="text-muted-foreground">· open a file to edit it</span> : null}
       </div>

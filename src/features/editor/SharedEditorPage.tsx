@@ -89,6 +89,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
         permission: prev?.permission ?? "write",
         allowDownload: prev?.allowDownload ?? true,
         sharedBy: prev?.sharedBy ?? null,
+        shareExpiresAt: prev?.shareExpiresAt ?? null,
       };
       setLoaded(nextLoaded);
       qc.setQueryData(keys.publicShare.token(token, fileId), nextLoaded);
@@ -136,6 +137,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
       onBack={fileId ? () => navigate(`/share/${token}`) : null}
       backLabel="Back to shared folder"
       visitor={{
+        expiresAt: loaded.shareExpiresAt,
         sharedBy: loaded.sharedBy
           ? `${loaded.sharedBy.firstName} ${loaded.sharedBy.lastName}`.trim() || null
           : null,

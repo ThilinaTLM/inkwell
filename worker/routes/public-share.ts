@@ -213,6 +213,7 @@ r.get("/:token/files/:fileId", requireShareToken(), async (c) => {
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
   setSharedByHeader(merged, await usersRepo.displayName(c.env, tk.owner));
+  setExpiresHeader(merged, tk);
   return new Response(resp.body, { status: resp.status, headers: merged });
 });
 
@@ -278,12 +279,18 @@ function setSharedByHeader(headers: Headers, sharedBy: SharedBy): void {
   if (sharedBy) headers.set("x-share-shared-by", encodeURIComponent(JSON.stringify(sharedBy)));
 }
 
+// `x-share-expires-at`: unix-ms when the link stops working, "" = never.
+function setExpiresHeader(headers: Headers, tk: ShareRow): void {
+  headers.set("x-share-expires-at", tk.expires_at === null ? "" : String(tk.expires_at));
+}
+
 function mergeShareHeaders(resp: Response, tk: ShareRow, sharedBy: SharedBy): Response {
   const merged = new Headers(resp.headers);
   merged.set("x-share-target-type", tk.target_type);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
   setSharedByHeader(merged, sharedBy);
+  setExpiresHeader(merged, tk);
   return new Response(resp.body, { status: resp.status, headers: merged });
 }
 
@@ -348,6 +355,7 @@ async function renderFolderShareListing(
       allowDownload: tk.allow_download,
       label: tk.label,
       sharedBy,
+      expiresAt: tk.expires_at,
     },
     root: rowToFolderMeta(
       { ...rootRow, parent_id: null, starred_at: null },
