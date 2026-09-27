@@ -56,16 +56,11 @@ export function useInvites() {
 export function useCreateInvite() {
   const qc = useQueryClient();
   return useMutation<
-    {
-      token: string;
-      url: string;
-      expiresAt: number | null;
-      createdAt: number;
-    },
+    Awaited<ReturnType<typeof admin.createInvite>>,
     ApiError,
-    number | null
+    { expiresInHours: number | null; note?: string | null }
   >({
-    mutationFn: (expiresInHours) => admin.createInvite(expiresInHours),
+    mutationFn: ({ expiresInHours, note }) => admin.createInvite(expiresInHours, note),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.admin.invites() });
     },

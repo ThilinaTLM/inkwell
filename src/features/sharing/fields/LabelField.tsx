@@ -1,30 +1,38 @@
-// Optional human-readable label for a share link. The 200-char ceiling
-// matches the worker's column constraint; trimming + null-coalescing
-// (empty string → null) is the caller's responsibility because the
-// create and edit forms differ on what an empty value means.
+// Optional human-readable label for a share link (max 200 chars — the
+// worker's column limit). Trimming / empty → null is the caller's job.
+// `onCommit` fires on blur and ↵ (used by the autosaving details panel).
 
-import { useId } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export function LabelField({
   value,
   onChange,
+  onCommit,
+  id,
+  autoFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
+  onCommit?: () => void;
+  id?: string;
+  autoFocus?: boolean;
 }) {
-  const id = useId();
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>Label (optional)</Label>
-      <Input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. Q4 review"
-        maxLength={200}
-      />
-    </div>
+    <Input
+      id={id}
+      value={value}
+      autoFocus={autoFocus}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={() => onCommit?.()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && onCommit) {
+          e.preventDefault();
+          onCommit();
+        }
+      }}
+      placeholder="optional, e.g. Client review"
+      maxLength={200}
+      className="h-8 text-[13px]"
+    />
   );
 }

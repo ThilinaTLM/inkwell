@@ -1,40 +1,29 @@
-// Allow-download checkbox for a share form.
-//
-// Write shares always allow download (the worker enforces this on the
-// server side too); the checkbox is visually checked + disabled in that
-// case so the user can see why the toggle is unavailable. The parent
-// still owns the local `allowDownload` state and is expected to coerce
-// to `true` when permission is "write" before sending to the API.
+// Allow-downloads switch. Edit links always allow downloads (the worker
+// enforces this too), so the switch shows on + disabled for "write".
 
-import { useId } from "react";
+import { Toggle } from "@/features/settings/controls";
 import type { SharePermission } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
 
 export function AllowDownloadField({
   permission,
   value,
   onChange,
+  id,
 }: {
   permission: SharePermission;
   value: boolean;
   onChange: (next: boolean) => void;
+  id?: string;
 }) {
-  const id = useId();
   const isWrite = permission === "write";
   return (
-    <label
-      htmlFor={id}
-      className={cn("flex items-center gap-2 text-sm", isWrite && "text-muted-foreground")}
-    >
-      <input
-        id={id}
-        type="checkbox"
-        className="size-4"
-        checked={isWrite ? true : value}
-        disabled={isWrite}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      Allow download
-    </label>
+    <Toggle
+      id={id}
+      label="Allow downloads"
+      checked={isWrite ? true : value}
+      disabled={isWrite}
+      title={isWrite ? "Edit links always allow downloads" : undefined}
+      onChange={onChange}
+    />
   );
 }
