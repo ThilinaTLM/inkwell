@@ -20,15 +20,13 @@ import { EditorPage } from "@/features/editor/EditorPage";
 import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
 import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
 import { StaticSitePreviewRedirect } from "@/features/editor/StaticSitePreviewRedirect";
-import { DashboardPage } from "@/features/explorer/DashboardPage";
+import { ExplorerPage } from "@/features/explorer/ExplorerPage";
+import { RecentPage } from "@/features/library/RecentPage";
+import { StarredPage } from "@/features/library/StarredPage";
+import { TagPage } from "@/features/library/TagPage";
+import { TrashPage } from "@/features/library/TrashPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
-import {
-  RecentPlaceholder,
-  StarredPlaceholder,
-  TagPlaceholder,
-  TrashPlaceholder,
-} from "./placeholders";
 
 export function AppRoutes() {
   return (
@@ -37,12 +35,12 @@ export function AppRoutes() {
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
       <Route element={<AppShell />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/folders/:folderId" element={<DashboardPage />} />
-        <Route path="/recent" element={<RecentPlaceholder />} />
-        <Route path="/starred" element={<StarredPlaceholder />} />
-        <Route path="/trash" element={<TrashPlaceholder />} />
-        <Route path="/tags/:tag" element={<TagPlaceholder />} />
+        <Route path="/" element={<ExplorerPage />} />
+        <Route path="/folders/:folderId" element={<ExplorerPage />} />
+        <Route path="/recent" element={<RecentPage />} />
+        <Route path="/starred" element={<StarredPage />} />
+        <Route path="/trash" element={<TrashPage />} />
+        <Route path="/tags/:tag" element={<TagPage />} />
         <Route path="/shares" element={<SharesPage />} />
         <Route path="/settings/:section?" element={<SettingsPage />} />
         <Route

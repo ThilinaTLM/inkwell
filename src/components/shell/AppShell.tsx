@@ -31,7 +31,7 @@ import { useMe } from "@/data/auth";
 import { registerAppCommands, setCommandNavigate } from "@/features/actions/itemCommands";
 import { bindItemActionsRuntime } from "@/features/actions/useItemActions";
 import { DialogHost } from "@/features/dialogs/DialogHost";
-import { UploadTray } from "@/features/upload";
+import { UploadTray, useGlobalFileDrop } from "@/features/upload";
 import { setCommandContext } from "@/lib/commands/registry";
 import { useGlobalHotkeys } from "@/lib/commands/useGlobalHotkeys";
 import { clearSelection, selectionStore } from "@/lib/selection";
@@ -106,6 +106,8 @@ export function AppShell() {
   }, [pathname]);
 
   useGlobalHotkeys();
+  // OS file drops onto any [data-drop-folder] (sidebar, crumbs, panes) on every page.
+  useGlobalFileDrop();
 
   const sidebarOpen = useShellState((s) => s.sidebarOpen);
   const mobileSidebarOpen = useShellState((s) => s.mobileSidebarOpen);
