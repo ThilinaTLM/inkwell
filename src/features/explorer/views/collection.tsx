@@ -206,7 +206,6 @@ export function Collection(props: CollectionProps) {
   // Drop selected keys that disappeared (moved, trashed, filtered out).
   useEffect(() => {
     if (getSelection().scope !== scope) return;
-    console.warn("DBG prune", scope, items.length, items.map((i) => i.name).join(","));
     dispatchSelection(scope, { type: "prune", order: items.map((i) => i.key) });
   }, [items, scope]);
 

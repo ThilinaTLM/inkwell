@@ -128,7 +128,6 @@ export function ExplorerPage() {
   useEffect(() => {
     if (loading) return; // wait for the listing
     const pending = takePendingSelection();
-    console.warn("DBG pending", scope, pending, selectParam);
     const keys =
       pending ??
       (selectParam ? selectParam.split(",").filter((k) => parseRefKey(k) !== null) : null);
