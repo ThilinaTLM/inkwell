@@ -2,10 +2,13 @@
 // of `scope` is selected; every button is a registry command so labels,
 // guards and shortcuts stay in sync with menus and the palette.
 // Place inside a `relative` container (the page's main column).
+// Below 768px it docks full-width at the bottom of the screen and shows
+// from a single selected item (touch selection mode, screen 23).
 
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { KeyCombo } from "@/components/shell/Kbd";
+import { useShellState } from "@/components/shell/shellStore";
 import { Button } from "@/components/ui/button";
 import {
   commandLabel,
@@ -60,14 +63,18 @@ export function BulkBar({
   useRegistryVersion();
   const sel = useSelection();
   const ctx = useCommandContext();
-  if (sel.scope !== scope || sel.items.length < min) return null;
+  const docked = useShellState((s) => s.isMobile);
+  if (sel.scope !== scope || sel.items.length < (docked ? 1 : min)) return null;
   return (
     <div
       role="toolbar"
       aria-label="Selection actions"
       data-no-marquee=""
+      data-docked={docked || undefined}
       className={cn(
-        "absolute bottom-11 left-1/2 z-20 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-xl border border-border bg-popover p-1.5 shadow-2xl",
+        docked
+          ? "fixed inset-x-0 bottom-0 z-30 flex items-center gap-1 overflow-x-auto border-t border-border bg-popover px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] shadow-[0_-12px_30px_-18px_rgba(28,24,20,0.45)]"
+          : "absolute bottom-11 left-1/2 z-20 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-xl border border-border bg-popover p-1.5 shadow-2xl",
         className,
       )}
     >
@@ -96,7 +103,7 @@ export function BulkBar({
               <HugeiconsIcon icon={cmd.icon} strokeWidth={2} className="size-3.5" />
             ) : null}
             {SHORT_LABELS[id] ?? commandLabel(cmd, ctx)}
-            {keys && SHOW_KEYS.has(id) ? <KeyCombo binding={keys} /> : null}
+            {keys && SHOW_KEYS.has(id) && !docked ? <KeyCombo binding={keys} /> : null}
           </Button>
         );
       })}

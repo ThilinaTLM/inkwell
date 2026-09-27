@@ -2,6 +2,11 @@
 // breadcrumb (every crumb a drop target, "…" collapses ancestors into a
 // dropdown), filter, New folder, Upload ▾, sort, view switcher, details
 // toggle.
+//
+// Below 768px (screen 23) a compact row is rendered instead: Up,
+// breadcrumb, a filter toggle and a ⋯ menu holding the secondary actions
+// (back/forward, new folder, upload, sort, view, details). The FAB on
+// the explorer page covers New / Upload as the primary touch entry.
 
 import {
   ArrowDown01Icon,
@@ -9,6 +14,7 @@ import {
   ArrowRight01Icon,
   ArrowUp01Icon,
   ArrowUp02Icon,
+  FilterIcon,
   FolderAddIcon,
   FolderUploadIcon,
   GridViewIcon,
@@ -16,11 +22,13 @@ import {
   LayoutThreeColumnIcon,
   LeftToRightListBulletIcon,
   Menu01Icon,
+  MoreHorizontalIcon,
   SidebarRightIcon,
   SortingAZ02Icon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useShell } from "@/components/shell/AppShell";
 import { ToolbarSearch } from "@/components/shell/page";
@@ -125,6 +133,19 @@ export function ExplorerToolbar({
   const shell = useShell();
   const [sort, setSort] = useExplorerPref("sort");
   const [foldersFirst, setFoldersFirst] = useExplorerPref("foldersFirst");
+
+  if (shell.isMobile) {
+    return (
+      <MobileToolbar
+        folderId={folderId}
+        path={path}
+        filter={filter}
+        onFilter={onFilter}
+        view={view}
+        onView={onView}
+      />
+    );
+  }
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-3">
@@ -276,6 +297,155 @@ export function ExplorerToolbar({
         onClick={() => shell.toggleDetails()}
       />
     </div>
+  );
+}
+
+// ─── Mobile toolbar ─────────────────────────────────────────────────────
+
+function MobileToolbar({
+  folderId,
+  path,
+  filter,
+  onFilter,
+  view,
+  onView,
+}: {
+  folderId: string | null;
+  path: FolderMeta[];
+  filter: string;
+  onFilter: (v: string) => void;
+  view: ExplorerView;
+  onView: (v: ExplorerView) => void;
+}) {
+  const shell = useShell();
+  const [sort, setSort] = useExplorerPref("sort");
+  const [foldersFirst, setFoldersFirst] = useExplorerPref("foldersFirst");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const showFilter = filterOpen || filter !== "";
+
+  return (
+    <>
+      <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Up one folder"
+          disabled={folderId === null}
+          onClick={() => runCommand("nav.parent")}
+        >
+          <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={1.9} className="size-4" />
+        </Button>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Breadcrumb path={path} />
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Filter"
+          aria-pressed={showFilter}
+          onClick={() => {
+            if (showFilter) {
+              onFilter("");
+              setFilterOpen(false);
+            } else setFilterOpen(true);
+          }}
+          className={cn(showFilter && "bg-muted")}
+        >
+          <HugeiconsIcon icon={FilterIcon} strokeWidth={1.9} className="size-4" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="More actions"
+                data-testid="explorer-more"
+              />
+            }
+          >
+            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={1.9} className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem onClick={() => history.back()}>
+              <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+              Back
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => history.forward()}>
+              <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
+              Forward
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => itemActions.newFolder(folderId)}>
+              <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+              New folder
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openUploadPicker({ folderId })}>
+              <HugeiconsIcon icon={Upload01Icon} strokeWidth={2} />
+              Upload files…
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openUploadPicker({ folderId, directory: true })}>
+              <HugeiconsIcon icon={FolderUploadIcon} strokeWidth={2} />
+              Upload folder…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>View</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={view} onValueChange={(v) => onView(v as ExplorerView)}>
+              {VIEWS.filter((v) => v.view !== "columns").map((v) => (
+                <DropdownMenuRadioItem key={v.view} value={v.view}>
+                  {v.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={sort.key}
+              onValueChange={(v) => {
+                const key = v as SortKey;
+                setSort({ key, dir: key === "name" || key === "kind" ? "asc" : "desc" });
+              }}
+            >
+              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                <DropdownMenuRadioItem key={k} value={k}>
+                  {SORT_LABELS[k]}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuItem
+              onClick={() => setSort({ ...sort, dir: sort.dir === "asc" ? "desc" : "asc" })}
+            >
+              <HugeiconsIcon
+                icon={sort.dir === "asc" ? ArrowUp01Icon : ArrowDown01Icon}
+                strokeWidth={2}
+              />
+              {sort.dir === "asc" ? "Ascending" : "Descending"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFoldersFirst(!foldersFirst)}>
+              <span className="grid size-4 place-items-center text-xs" aria-hidden>
+                {foldersFirst ? "✓" : ""}
+              </span>
+              Folders first
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => shell.toggleDetails()}>
+              <HugeiconsIcon icon={SidebarRightIcon} strokeWidth={2} />
+              {shell.detailsOpen ? "Hide details" : "Show details"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {showFilter ? (
+        <div className="shrink-0 border-b border-border px-2 py-1.5">
+          <ToolbarSearch
+            value={filter}
+            onChange={onFilter}
+            placeholder={path.length ? "Filter this folder" : "Filter Home"}
+            className="w-full"
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
 

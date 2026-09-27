@@ -9,18 +9,42 @@
 //
 // `?select=file:<id>[,folder:<id>…]` selects + reveals items once the
 // listing has loaded (editor back button, palette "reveal").
+//
+// Below 768px (wireframe screen 23): List is the default view unless the
+// folder has its own remembered view (Columns falls back to List), a tap
+// opens, a long-press enters selection mode (further taps toggle; the
+// bulk bar docks at the bottom), and a FAB offers New / Upload. The
+// desktop code paths are unchanged.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Add01Icon, FileAddIcon, FolderAddIcon, Upload01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { PageFrame, StatusBar } from "@/components/shell/page";
+import { useShellState } from "@/components/shell/shellStore";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFiles } from "@/data/files";
 import { useFolders } from "@/data/folders";
 import { useItemActions } from "@/features/actions/useItemActions";
 import { folderPath } from "@/features/folders/FolderTree";
-import { DropOverlay, dragHasFiles } from "@/features/upload";
+import { DropOverlay, dragHasFiles, openUploadPicker } from "@/features/upload";
 import type { FileKind } from "@/lib/api/client";
-import { type SortKey, useExplorerPref, useFolderView } from "@/lib/explorerPrefs";
+import { hasFolderView, type SortKey, useExplorerPref, useFolderView } from "@/lib/explorerPrefs";
 import { parseRefKey } from "@/lib/selection";
 import { BulkBar } from "./BulkBar";
 import { EmptyFolder } from "./EmptyFolder";
@@ -64,7 +88,12 @@ export function ExplorerPage() {
   const scope = `explorer:${folderId ?? "root"}`;
   const foldersQ = useFolders();
   const filesQ = useFiles({ folderId: folderId ?? "root" });
-  const [view, setView] = useFolderView(folderId);
+  const [storedView, setView] = useFolderView(folderId);
+  const isMobile = useShellState((st) => st.isMobile);
+  // Phones: List unless this folder has its own remembered view; the
+  // Columns view needs width, so it falls back to List too.
+  const view =
+    isMobile && (storedView === "columns" || !hasFolderView(folderId)) ? "list" : storedView;
   const [prefSort, setPrefSort] = useExplorerPref("sort");
   const [foldersFirst] = useExplorerPref("foldersFirst");
   const [localSorts, setLocalSorts] = useState<ItemSort[] | null>(null);
@@ -178,6 +207,107 @@ export function ExplorerPage() {
   const filtered = !!(text || kinds.length || tag);
   const open = useMemo(() => defaultOpen(navigate), [navigate]);
 
+  // ─── Touch: tap opens, long-press → selection mode (mobile only) ──────
+  const [selectMode, setSelectMode] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on folder change only
+  useEffect(() => setSelectMode(false), [folderId]);
+  useEffect(() => {
+    if (selKeys.length === 0) setSelectMode(false);
+  }, [selKeys.length]);
+  const press = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    x: number;
+    y: number;
+    fired: boolean;
+    touch: boolean;
+  }>({ timer: null, x: 0, y: 0, fired: false, touch: false });
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const cancelPress = () => {
+    if (press.current.timer) clearTimeout(press.current.timer);
+    press.current.timer = null;
+  };
+  useEffect(
+    () => () => {
+      if (press.current.timer) clearTimeout(press.current.timer);
+    },
+    [],
+  );
+  const itemKeyOf = (t: EventTarget) =>
+    (t as Element).closest?.<HTMLElement>("[data-item]")?.dataset.key ?? null;
+  const touchHandlers = isMobile
+    ? {
+        onPointerDownCapture: (e: ReactPointerEvent<HTMLDivElement>) => {
+          press.current.touch = e.pointerType === "touch";
+          if (!press.current.touch) return;
+          const key = itemKeyOf(e.target);
+          if (!key) return;
+          // Touch selection is driven here, not by the item's own
+          // pointer-down (which would single-select on every tap).
+          e.stopPropagation();
+          cancelPress();
+          press.current = {
+            timer: setTimeout(() => {
+              press.current.timer = null;
+              press.current.fired = true;
+              setSelectMode(true);
+              dispatchSelection(scope, {
+                type: "click",
+                key,
+                mod: true,
+                order: itemsRef.current.map((i) => i.key),
+              });
+              navigator.vibrate?.(10);
+            }, 450),
+            x: e.clientX,
+            y: e.clientY,
+            fired: false,
+            touch: true,
+          };
+        },
+        onPointerMoveCapture: (e: ReactPointerEvent<HTMLDivElement>) => {
+          if (!press.current.timer) return;
+          if (Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10) {
+            cancelPress();
+          }
+        },
+        onPointerUpCapture: cancelPress,
+        onPointerCancelCapture: cancelPress,
+        // The long-press menu (browser `contextmenu` + base-ui's touch
+        // timer) would fight selection mode; touch users get the bulk bar.
+        onTouchStartCapture: (e: ReactTouchEvent<HTMLDivElement>) => {
+          if (itemKeyOf(e.target)) e.stopPropagation();
+        },
+        onContextMenuCapture: (e: ReactMouseEvent<HTMLDivElement>) => {
+          if (!press.current.touch) return;
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        onClickCapture: (e: ReactMouseEvent<HTMLDivElement>) => {
+          if (!press.current.touch) return;
+          const key = itemKeyOf(e.target);
+          if (!key || (e.target as Element).closest("[data-inline-rename]")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (press.current.fired) {
+            press.current.fired = false;
+            return;
+          }
+          if (selectMode) {
+            dispatchSelection(scope, {
+              type: "click",
+              key,
+              mod: true,
+              order: itemsRef.current.map((i) => i.key),
+            });
+            return;
+          }
+          const item = itemsRef.current.find((i) => i.key === key);
+          if (item) open(item);
+        },
+      }
+    : {};
+
   const common = {
     items,
     scope,
@@ -221,7 +351,7 @@ export function ExplorerPage() {
           sortLabel={sortLabel}
         />
       ) : null}
-      <div ref={paneRef} className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={paneRef} className="relative flex min-h-0 flex-1 flex-col" {...touchHandlers}>
         {loading ? (
           <div className="px-4 py-3.5">
             <SkeletonGrid />
@@ -270,6 +400,7 @@ export function ExplorerPage() {
         }
       />
       <BulkBar scope={scope} />
+      {isMobile && selKeys.length === 0 ? <MobileFab folderId={folderId} /> : null}
       <ExplorerDetails
         scope={scope}
         items={items}
@@ -279,5 +410,40 @@ export function ExplorerPage() {
       />
       <QuickLook items={items} scope={scope} onOpen={open} />
     </PageFrame>
+  );
+}
+
+/** Phones: floating New / Upload button (wireframe screen 23). */
+function MobileFab({ folderId }: { folderId: string | null }) {
+  const actions = useItemActions();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label="New or upload"
+            data-testid="mobile-fab"
+            className="fixed right-4 bottom-[calc(3rem+env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_10px_30px_-8px_rgba(28,24,20,0.55)] outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-95"
+          />
+        }
+      >
+        <HugeiconsIcon icon={Add01Icon} strokeWidth={2.2} className="size-6" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-56">
+        <DropdownMenuItem onClick={() => void actions.newFile(folderId)}>
+          <HugeiconsIcon icon={FileAddIcon} strokeWidth={2} />
+          New file…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => actions.newFolder(folderId)}>
+          <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+          New folder
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openUploadPicker({ folderId })}>
+          <HugeiconsIcon icon={Upload01Icon} strokeWidth={2} />
+          Upload files…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
