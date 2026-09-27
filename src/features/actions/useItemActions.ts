@@ -511,7 +511,9 @@ async function restore(refs: ItemRef[]) {
       },
       {
         description: relocated
-          ? `${plural(relocated, "item")} restored to Home because the original folder is gone.`
+          ? relocated === 1
+            ? "1 item was restored to Home because its original folder is unavailable."
+            : `${relocated} items were restored to Home because their original folders are unavailable.`
           : undefined,
       },
     );

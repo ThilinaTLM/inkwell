@@ -52,3 +52,14 @@ describe("helpers", () => {
     expect(viewKeyFor({ currentFolderId: undefined, route: "/recent" })).toBe("route:/recent");
   });
 });
+
+import { getFolderView, hasFolderView, setFolderView } from "./explorerPrefs";
+
+describe("folder view memory", () => {
+  it("reports whether a view was remembered", () => {
+    expect(hasFolderView("route:/recent-test")).toBe(false);
+    setFolderView("route:/recent-test", "list");
+    expect(hasFolderView("route:/recent-test")).toBe(true);
+    expect(getFolderView("route:/recent-test")).toBe("list");
+  });
+});

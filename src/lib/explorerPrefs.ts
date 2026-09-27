@@ -32,6 +32,7 @@
 //       `viewKey` = folder id, `null` = Home; library pages use `route:/recent` etc.
 //       (see `viewKeyFor(ctx)`).
 //   getFolderView(viewKey) / setFolderView(viewKey, view)
+//   hasFolderView(viewKey): boolean – true when the user picked a view for this key
 //   viewKeyFor({ currentFolderId, route }): string
 //   THUMB_SIZES (ordered) / stepThumbSize(size, +1 | -1)
 //   lruSet(entries, key, value, max) – pure helper (tested)
@@ -253,6 +254,11 @@ export function getFolderView(viewKey: string | null): ExplorerView {
   const k = normViewKey(viewKey);
   const hit = readFolderViews().find(([id]) => id === k);
   return hit ? hit[1] : getExplorerPref("defaultView");
+}
+
+export function hasFolderView(viewKey: string | null): boolean {
+  const k = normViewKey(viewKey);
+  return readFolderViews().some(([id]) => id === k);
 }
 
 export function setFolderView(viewKey: string | null, view: ExplorerView): void {

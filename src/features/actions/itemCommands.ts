@@ -27,6 +27,9 @@
 //             view.thumbBigger (mod+=) · view.thumbSmaller (mod+-) · view.details (i) ·
 //             view.sidebar (mod+\)
 //   app:      app.undo (mod+z) · app.shortcuts (?)
+//
+// Scopes: everything is app-scoped; EDITOR_USABLE ids (+ file.new.*) are
+// also usable from the editor palette (scopes ["app","editor"]).
 
 import {
   ArrowTurnBackwardIcon,
@@ -129,6 +132,35 @@ const VIEW_ITEMS: Array<{ view: ExplorerView; label: string; key: string; icon: 
     { view: "list", label: "Details view", key: "3", icon: LeftToRightListBulletIcon },
     { view: "columns", label: "Columns view", key: "4", icon: LayoutThreeColumnIcon },
   ];
+
+/** App commands that also make sense from the editor's palette (they act
+ *  on the open file, which EditorOverlays sets as the focused item, or
+ *  just navigate). Their app keys are NOT active in editors, so the
+ *  editor shortcut sheet doesn't list them; editor key handling is
+ *  described by EditorOverlays' editor-only overrides. */
+const EDITOR_USABLE = new Set([
+  "nav.home",
+  "nav.recent",
+  "nav.starred",
+  "nav.shares",
+  "nav.trash",
+  "nav.settings",
+  "nav.shortcutSettings",
+  "nav.users",
+  "item.reveal",
+  "item.share",
+  "item.copyLink",
+  "item.download",
+  "item.rename",
+  "item.star",
+  "item.tags",
+  "item.move",
+  "item.duplicate",
+  "item.trash",
+  "file.newFile",
+  "file.newFolder",
+  "app.undo",
+]);
 
 export const ITEM_MENU_IDS = [
   "item.open",
@@ -330,8 +362,12 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       icon: CheckmarkSquare02Icon,
       keys: ["mod+a"],
       group: "select",
+      // Pages listen for the signal (explorer, library lists, Shared links,
+      // Users table) so ⌘A works without the list having focus.
       when: (ctx) =>
-        ctx.currentFolderId !== undefined || /^\/(recent|starred|trash|tags)/.test(ctx.route),
+        ctx.currentFolderId !== undefined ||
+        /^\/(recent|starred|trash|tags|shares)/.test(ctx.route) ||
+        /^\/users\/?(users)?$/.test(ctx.route),
       run: () => emitCommandSignal("select.all"),
     },
     {
@@ -641,7 +677,13 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       run: () => openShortcutSheet(),
     },
   ];
-  return registerCommands(cmds);
+  return registerCommands(
+    cmds.map((c) =>
+      EDITOR_USABLE.has(c.id) || c.id.startsWith("file.new.")
+        ? { ...c, scopes: ["app", "editor"] }
+        : c,
+    ),
+  );
 }
 
 function findFolderMetaSafe(id: string) {

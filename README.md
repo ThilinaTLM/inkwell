@@ -29,13 +29,37 @@ on Cloudflare."**
 
 Features at a glance:
 
+- A file-manager-style **app shell**: top bar, sidebar (Library, folder
+  tree, tags, Settings, Users), a details panel and a status bar on every
+  signed-in page
+- **Explorer views**: Grid, Compact, Details (sortable list with column
+  chooser) and Columns (Miller). The view is remembered per folder.
+  Multi-select (click, ⌘/Ctrl-click, ⇧-click, rubber band, ⌘A), inline
+  rename, quick look, drag-and-drop move (onto folders, breadcrumbs, the
+  sidebar tree or Trash; hold ⌥/Alt to duplicate), cut/copy/paste
+- **Keyboard first**: every action is available from a button, a context
+  menu and a shortcut. The **command palette** (⌘K / Ctrl+K) searches files,
+  folders, tags and commands. The **shortcut sheet** (`?`) lists every
+  binding, and shortcuts can be rebound in *Settings → Shortcuts*.
+  Moves, renames, tag edits, stars and trashing can be undone (⌘Z or the
+  toast's *Undo* button).
+- **Trash** with restore, *Delete forever*, *Empty trash* and an automatic
+  purge after 30 days. **Starred** and **Recent** views, and tag pages.
+- **Duplicate** files and whole folders (including R2 blobs, thumbnails and
+  static-site assets)
+- **Uploads for every file kind**: drop files or folders from the desktop, or
+  use Upload / `U`. `.excalidraw`, `.drawio`/`.xml`, Markdown/text (converted
+  to Notes) and `.zip`/HTML bundles (Static sites) are supported, with
+  conflict handling (keep both / replace / skip) and an upload tray.
 - Multi-file dashboard with **folders** (nested, per-user) and **tags**
 - Four equal-priority file kinds today (Excalidraw, draw.io, Notes via
   [BlockNote](https://www.blocknotejs.org/), and **Static sites** for
   publishing uploaded HTML/CSS/JS bundles), more later
 - **Share links** for individual files or whole folder subtrees, read or
-  read-write, with optional expiry and downloads
-- **Email + password auth**, invitation-only signup, super-admin bootstrap
+  read-write, with optional expiry and downloads, managed from one filterable
+  *Shared links* page
+- **Email + password auth**, invitation-only signup (invites can carry a
+  note), super-admin bootstrap
 - Client-rendered SVG thumbnails, debounced autosave, optimistic concurrency
 
 ## Architecture
@@ -66,6 +90,29 @@ Key choices:
   server-side rendering required.
 - **Static SPA served by the Worker via the `[assets]` binding.** One
   deploy unit, one URL.
+- **Trash is a soft delete.** `files` and `folders` carry `deleted_at` and
+  `trashed_via`. Trashing a folder marks its whole subtree, and every read
+  path filters trashed rows, so share links to trashed items return 404.
+  Restoring puts an item back in its original folder. If that folder is
+  gone, is itself trashed, or the move would exceed the maximum folder
+  depth, the item goes to Home instead. A daily cron (`0 4 * * *`, the
+  `scheduled` handler in `worker/index.ts`) permanently purges items that
+  were trashed more than 30 days ago, cleaning up R2 first.
+- **Stars** are a `starred_at` timestamp on files and folders.
+- **Bulk item API** for mixed file/folder selections:
+  `POST /api/items/{move,trash,restore,purge,star,duplicate}` (at most 500
+  refs per request; each request runs as one D1 batch), plus
+  `GET`/`DELETE /api/trash`.
+- **Uploads use the existing endpoints.** Files are classified in the
+  browser. Excalidraw goes through `/api/files/import`; draw.io and Notes
+  are created and then saved; static sites use the assets/zip endpoints.
+  There is no dedicated upload endpoint.
+- **Front end:** a single command registry (`src/lib/commands/`) drives the
+  keyboard shortcuts, context menus, the command palette and the shortcut
+  sheet. Item operations are implemented once, in
+  `src/features/actions/useItemActions.ts`, with optimistic cache updates
+  and undo. App-wide dialogs are mounted once, in `src/features/dialogs/`.
+  Device-local explorer preferences live in `src/lib/explorerPrefs.ts`.
 
 The API surface lives under `/api/*` in [`worker/`](./worker); the SPA
 lives in [`src/`](./src). Routes and schemas are the source of truth — see
@@ -115,6 +162,43 @@ build or deploy that needs draw.io editing.
 
 See [`package.json`](./package.json) for the full script list.
 
+### Tests
+
+```bash
+pnpm test     # vitest: keymap, fuzzy matcher, selection, upload classifier, naming, trash maths…
+pnpm smoke    # Playwright end-to-end smoke against a running `pnpm dev` + `pnpm dev:worker`
+```
+
+`pnpm smoke` logs in with `SMOKE_EMAIL` / `SMOKE_PASSWORD` (falling back to
+the super-admin credentials in `.dev.vars`). It targets `SMOKE_BASE_URL`,
+which defaults to `http://localhost:3838`. It creates its own fixtures and
+purges them afterwards; the invite check needs an admin account. On the
+first run, install the browser with `pnpm exec playwright install chromium`.
+
+## Upgrading to the redesign (migration 0003)
+
+Migration `drizzle/0003_trash_stars.sql` adds `deleted_at`, `trashed_via`
+and `starred_at` to `files` and `folders` and `note` to `invites`, plus
+their indexes. It only adds columns, but back up production before applying
+it:
+
+```bash
+pnpm db:migrate:local                                   # try it locally first
+wrangler d1 export inkwell --remote --output backup-$(date +%F).sql
+pnpm db:migrate:remote
+pnpm deploy                                             # new Worker needs the new columns
+```
+
+Apply the migration **before** deploying the new Worker. The old Worker
+ignores the new columns, but the new one requires them. The deploy also
+registers the daily purge cron from `wrangler.toml`.
+
+**Behaviour change:** deleting a folder used to delete the folder and move
+its children up to the parent. Now the **whole subtree goes to Trash**, and
+it can be restored for 30 days. `DELETE /api/files/:id` and
+`DELETE /api/folders/:id` also move items to Trash rather than deleting them
+permanently.
+
 ## Costs
 
 For a personal instance (hundreds of files, infrequent saves), expected
@@ -127,6 +211,8 @@ comfortably, and R2 has no egress fees.
   across tabs (with a `version` check that catches the common case).
 - **No password recovery flow.** Admins can re-issue an invite; there is
   no email-bound reset.
+- **No touch drag-and-drop.** On touch devices, use the Move dialog or the
+  bulk bar. Starred items can't be reordered manually.
 
 ## License
 

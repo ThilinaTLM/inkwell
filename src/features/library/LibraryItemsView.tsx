@@ -18,7 +18,7 @@ import { fileToItem, folderToItem } from "@/features/explorer/model";
 import { CompactView, GridView } from "@/features/explorer/views";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys } from "@/lib/commands/registry";
-import { type ExplorerView, useFolderView, viewKeyFor } from "@/lib/explorerPrefs";
+import { type ExplorerView, hasFolderView, useFolderView, viewKeyFor } from "@/lib/explorerPrefs";
 import { cn } from "@/lib/utils";
 import { type ItemColumn, ItemTable, LIBRARY_ITEM_MENU_IDS } from "./ItemTable";
 import type { SortState } from "./ListTable";
@@ -26,25 +26,13 @@ import type { LibraryItem, LibrarySortKey } from "./libraryItems";
 
 export type LibraryView = "grid" | "compact" | "list";
 
-/** True when the user picked a view for `viewKey` (explorerPrefs has no
- *  public "has" accessor; this reads its LRU storage key).
- *  TODO(shell): replace with a `hasFolderView(viewKey)` export. */
-function hasRememberedView(viewKey: string): boolean {
-  try {
-    const raw = JSON.parse(localStorage.getItem("inkwell.explorer.folderViews") ?? "[]");
-    return Array.isArray(raw) && raw.some((e) => Array.isArray(e) && e[0] === viewKey);
-  } catch {
-    return false;
-  }
-}
-
 /** `fallback` applies until the user picks a view on this page (Recent
  *  defaults to Details so its day groups and location column show). */
 export function useLibraryView(fallback?: LibraryView): [LibraryView, (v: ExplorerView) => void] {
   const { pathname } = useLocation();
   const key = viewKeyFor({ currentFolderId: undefined, route: pathname }) ?? pathname;
   const [stored, setView] = useFolderView(key);
-  const view = fallback && !hasRememberedView(key) ? fallback : stored;
+  const view = fallback && !hasFolderView(key) ? fallback : stored;
   return [view === "grid" || view === "compact" ? view : "list", setView];
 }
 

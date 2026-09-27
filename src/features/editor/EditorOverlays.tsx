@@ -63,13 +63,27 @@ export function EditorOverlays({ file, overrides }: EditorOverlaysProps) {
     // Proxy each override through the ref so handler identity changes
     // don't re-register (which would reorder the registry).
     const live = (id: string) => overridesRef.current.find((o) => o.id === id);
-    const proxied: Command[] = overridesRef.current.map((c) => ({
+    // Tagged editor-only: the palette/sheet treat their `keys` as the
+    // editor's real bindings (see Command.scopes in the registry).
+    const palette: Command = {
+      id: "app.palette",
+      label: "Command palette",
+      keys: ["mod+k"],
+      group: "navigate",
+      palette: false,
+      run: () => openPalette(),
+    };
+    const base = overridesRef.current.some((o) => o.id === palette.id)
+      ? overridesRef.current
+      : [...overridesRef.current, palette];
+    const proxied: Command[] = base.map((c) => ({
       ...c,
+      scopes: ["editor"],
       label: (ctx) => {
         const l = live(c.id)?.label ?? c.label;
         return typeof l === "function" ? l(ctx) : l;
       },
-      run: (ctx) => live(c.id)?.run(ctx),
+      run: (ctx) => (live(c.id) ?? c).run(ctx),
     }));
     const offOverrides = registerCommands(proxied);
     return () => {

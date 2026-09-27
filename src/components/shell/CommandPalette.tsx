@@ -41,6 +41,7 @@ import {
   getCommand,
   getEffectiveKeys,
   isCommandAvailable,
+  isEditorOnly,
   runCommand,
   useCommandContext,
   useCommandList,
@@ -184,7 +185,9 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
     label: commandLabel(c, ctx),
     positions,
     icon: c.icon ? <Icon icon={c.icon} /> : <span className="size-4" />,
-    shortcut: formatKeys(getEffectiveKeys(c.id)),
+    // App keys aren't active inside editors; only show editor bindings there.
+    shortcut:
+      ctx.scope === "editor" && !isEditorOnly(c) ? undefined : formatKeys(getEffectiveKeys(c.id)),
     run: () => finish(() => runCommand(c.id, actionsFor ? ctx : undefined)),
   });
 
@@ -197,6 +200,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
         focused: actionsFor.ref,
         currentFolderId: undefined,
         route: "/palette",
+        scope: baseCtx.scope,
       };
       const cmds = ITEM_MENU_IDS.filter((id) => id !== "-")
         .map((id) => getCommand(id))
@@ -291,6 +295,9 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
         run: () => finish(() => navigate(`/tags/${encodeURIComponent(h.item.name)}`)),
       });
     }
+    // Offer "Create …" only once the search has settled, so a fast ↵
+    // opens the hit instead of creating a duplicate.
+    if (debouncedQ !== q || search.isFetching) return out;
     out.push({
       key: "create",
       group: "Commands",

@@ -14,6 +14,7 @@ import {
   type CommandGroup,
   commandLabel,
   getEffectiveKeys,
+  isEditorOnly,
   useCommandContext,
   useCommandList,
 } from "@/lib/commands/registry";
@@ -36,11 +37,14 @@ export function ShortcutSheet() {
 function SheetBody() {
   const commands = useCommandList();
   const ctx = useCommandContext({ selection: [{ type: "file", id: "_" }] });
+  const editor = ctx.scope === "editor";
   const [q, setQ] = useState("");
 
   const groups = useMemo(() => {
     const by = new Map<CommandGroup, Array<{ id: string; label: string; keys: string[] }>>();
     for (const c of commands) {
+      // Editor: only the editor's own bindings. App: app-scoped commands.
+      if (editor ? !isEditorOnly(c) : !(c.scopes ?? ["app"]).includes("app")) continue;
       const keys = getEffectiveKeys(c.id);
       if (!keys.length) continue;
       let label: string;
@@ -58,7 +62,7 @@ function SheetBody() {
       group: g,
       rows: by.get(g) ?? [],
     }));
-  }, [commands, ctx, q]);
+  }, [commands, ctx, q, editor]);
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -116,8 +120,9 @@ function SheetBody() {
         ) : null}
       </div>
       <div className="border-t border-border px-5 py-2.5 text-[11.5px] text-muted-foreground">
-        Single-key shortcuts only fire when focus isn't in a text field. Arrow keys, ⇧-click and
-        rubber-band selection work in every view.
+        {editor
+          ? "In editors only these chords are global; the canvas / document keeps its own shortcuts. Everything else is in the command palette."
+          : "Single-key shortcuts only fire when focus isn't in a text field. Arrow keys, ⇧-click and rubber-band selection work in every view."}
       </div>
     </div>
   );

@@ -10,7 +10,17 @@
 //     focused: ItemRef | null;
 //     currentFolderId: string | null | undefined;  // undefined = not on an explorer route; null = Home
 //     route: string;                   // location.pathname
+//     scope?: CommandScope;            // "editor" on /f/* routes, else "app" (derived)
 //   }
+//
+//   type CommandScope = "app" | "editor"
+//   Command.scopes?: CommandScope[]    // where the command is usable; default ["app"].
+//     - palette / menus / hotkeys hide commands whose scopes exclude ctx.scope
+//     - the shortcut sheet in the editor lists only editor-only commands
+//       (scopes === ["editor"]); those are the editor overrides whose `keys`
+//       describe what the editor really handles (user key overrides are not
+//       applied to them — see getEffectiveKeys)
+//   scopeForRoute(pathname) / isEditorOnly(cmd)
 //
 //   interface Command {
 //     id: string;                      // e.g. "item.move"
@@ -58,11 +68,18 @@ export const COMMAND_GROUP_LABELS: Record<CommandGroup, string> = {
   app: "App",
 };
 
+export type CommandScope = "app" | "editor";
+
 export interface CommandContext {
   selection: ItemRef[];
   focused: ItemRef | null;
   currentFolderId: string | null | undefined;
   route: string;
+  scope?: CommandScope;
+}
+
+export function scopeForRoute(pathname: string): CommandScope {
+  return /^\/f\/[^/]+\/?$/.test(pathname) ? "editor" : "app";
 }
 
 export interface Command {
@@ -77,6 +94,11 @@ export interface Command {
   singleKey?: boolean;
   palette?: boolean;
   destructive?: boolean;
+  scopes?: CommandScope[];
+}
+
+export function isEditorOnly(cmd: Command): boolean {
+  return !!cmd.scopes && cmd.scopes.length === 1 && cmd.scopes[0] === "editor";
 }
 
 // ─── Registry store ────────────────────────────────────────────────────
@@ -124,6 +146,10 @@ export function getCommands(): Command[] {
 }
 
 export function getEffectiveKeys(id: string): string[] {
+  const cmd = getCommand(id);
+  // Editor-only registrations describe hard-wired editor keys; user
+  // rebinds (Settings → Shortcuts) apply to the app keymap only.
+  if (cmd && isEditorOnly(cmd)) return cmd.keys ?? [];
   const o = getKeyOverrides()[id];
   if (o) return o;
   return getCommand(id)?.keys ?? [];
@@ -190,6 +216,7 @@ export function getCommandContext(override?: Partial<CommandContext>): CommandCo
     currentFolderId: base.currentFolderId,
     route: base.route,
     ...override,
+    scope: override?.scope ?? scopeForRoute(override?.route ?? base.route),
   };
 }
 
@@ -202,6 +229,7 @@ export function useCommandContext(override?: Partial<CommandContext>): CommandCo
     currentFolderId: base.currentFolderId,
     route: base.route,
     ...override,
+    scope: override?.scope ?? scopeForRoute(override?.route ?? base.route),
   };
 }
 
@@ -210,6 +238,8 @@ export function commandLabel(cmd: Command, ctx: CommandContext): string {
 }
 
 export function isCommandAvailable(cmd: Command, ctx: CommandContext): boolean {
+  const scope = ctx.scope ?? scopeForRoute(ctx.route);
+  if (!(cmd.scopes ?? ["app"]).includes(scope)) return false;
   try {
     return cmd.when ? cmd.when(ctx) : true;
   } catch {

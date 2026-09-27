@@ -107,7 +107,8 @@ export function UsersTab({ selfId, query }: { selfId: string; query: string }) {
   }, [all, query, role, status, sort]);
 
   const order = useMemo(() => rows.map((u) => u.id), [rows]);
-  const selection = useListSelection(order, useLocalSelState());
+  // ⌘A anywhere on the page (not only with the table focused).
+  const selection = useListSelection(order, useLocalSelState(), { listenSelectAll: true });
   const byId = useMemo(() => new Map(all.map((u) => [u.id, u])), [all]);
   const selected = useMemo(
     () => selection.selectedKeys.map((id) => byId.get(id)).filter((u): u is AdminUser => !!u),

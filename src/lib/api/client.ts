@@ -139,8 +139,9 @@ export interface RestoredItem {
   type: ItemType;
   id: string;
   parentId: string | null;
-  /** True when the original parent was gone/trashed and the item was
-   *  restored to the root instead. */
+  /** True when the item was restored to the root instead of its original
+   *  parent: the parent is gone/trashed, or restoring there would exceed
+   *  the maximum folder depth. */
   relocatedToRoot: boolean;
 }
 

@@ -160,7 +160,8 @@ export function SharesPage() {
   }, [rows, groupBy, resolve]);
 
   const order = useMemo(() => groups.flatMap((g) => g.rows.map((s) => s.token)), [groups]);
-  const selection = useListSelection(order, useLocalSelState());
+  // ⌘A anywhere on the page (not only with the table focused).
+  const selection = useListSelection(order, useLocalSelState(), { listenSelectAll: true });
   const byToken = useMemo(() => new Map(all.map((s) => [s.token, s])), [all]);
   const selected = useMemo(
     () => selection.selectedKeys.map((t) => byToken.get(t)).filter((s): s is Share => !!s),

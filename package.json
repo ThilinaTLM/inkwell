@@ -27,7 +27,8 @@
     "check": "biome check --write .",
     "check:ci": "biome ci .",
     "prepare": "simple-git-hooks",
-    "test": "vitest run"
+    "test": "vitest run",
+    "smoke": "node scripts/smoke-redesign.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -72,6 +73,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "drizzle-kit": "^0.31.10",
+    "playwright": "1.62.1",
     "simple-git-hooks": "^2.14.0",
     "typescript": "^6.0.3",
     "vite": "^8.3.0",
