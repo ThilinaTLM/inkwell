@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import * as filesRepo from "../db/repos/files";
 import * as foldersRepo from "../db/repos/folders";
 import * as tagsRepo from "../db/repos/tags";
+import * as usersRepo from "../db/repos/users";
 import { shareRenderPayload, signRender } from "../lib/crypto";
 import {
   errorResponse,
@@ -42,14 +43,15 @@ const r = new Hono<AppEnv>();
 // Folder-share: render the subtree listing with the same headers.
 r.get("/:token", requireShareToken(), async (c) => {
   const tk = c.get("share");
+  const sharedBy = await usersRepo.displayName(c.env, tk.owner);
   if (tk.target_type === "file") {
     const file = await filesRepo.findByIdAnyOwner(c.env, tk.target_id);
     if (!file) return errorResponse(404, "file not found");
     const resp = await streamFileResponse(c.env, file);
-    return mergeShareHeaders(resp, tk);
+    return mergeShareHeaders(resp, tk, sharedBy);
   }
-  const resp = await renderFolderShareListing(c.env, tk);
-  return mergeShareHeaders(resp, tk);
+  const resp = await renderFolderShareListing(c.env, tk, sharedBy);
+  return mergeShareHeaders(resp, tk, sharedBy);
 });
 
 // File-share write.
@@ -210,6 +212,7 @@ r.get("/:token/files/:fileId", requireShareToken(), async (c) => {
   const merged = new Headers(resp.headers);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
+  setSharedByHeader(merged, await usersRepo.displayName(c.env, tk.owner));
   return new Response(resp.body, { status: resp.status, headers: merged });
 });
 
@@ -265,15 +268,30 @@ r.delete("/:token/files/:fileId", requireShareToken({ needsWrite: true }), async
 
 // ─── helpers ─────────────────────────────────────────────────────────
 
-function mergeShareHeaders(resp: Response, tk: ShareRow): Response {
+type SharedBy = { firstName: string; lastName: string } | null;
+
+// "Shared by" travels as `x-share-shared-by`: URI-encoded JSON
+// `{"firstName","lastName"}` (names may be non-ASCII, same encoding as
+// `x-file-name`). Omitted when the owner has no display name. Never
+// carries the email.
+function setSharedByHeader(headers: Headers, sharedBy: SharedBy): void {
+  if (sharedBy) headers.set("x-share-shared-by", encodeURIComponent(JSON.stringify(sharedBy)));
+}
+
+function mergeShareHeaders(resp: Response, tk: ShareRow, sharedBy: SharedBy): Response {
   const merged = new Headers(resp.headers);
   merged.set("x-share-target-type", tk.target_type);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
+  setSharedByHeader(merged, sharedBy);
   return new Response(resp.body, { status: resp.status, headers: merged });
 }
 
-async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): Promise<Response> {
+async function renderFolderShareListing(
+  env: AppEnv["Bindings"],
+  tk: ShareRow,
+  sharedBy: SharedBy,
+): Promise<Response> {
   const owner = tk.owner;
   const rootId = tk.target_id;
   const folders = await foldersRepo.loadSubtree(env, owner, rootId);
@@ -329,6 +347,7 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
       permission: tk.permission,
       allowDownload: tk.allow_download,
       label: tk.label,
+      sharedBy,
     },
     root: rowToFolderMeta(
       { ...rootRow, parent_id: null, starred_at: null },

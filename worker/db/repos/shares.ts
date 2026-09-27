@@ -1,11 +1,11 @@
 // Share repository: pure data access for `shares`.
 
-import { and, count, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { now } from "../../lib/util";
 import type { Env, SharePublic, ShareRow, ShareTargetType } from "../../types";
 import { isShareActive, rowToSharePublic } from "../../types";
 import { getDb, t } from "../client";
-import { notTrashed } from "../filters";
+import { inIds, notTrashed } from "../filters";
 
 export async function findByToken(env: Env, token: string): Promise<ShareRow | null> {
   const db = getDb(env);
@@ -164,7 +164,7 @@ export async function countActiveByTarget(
       and(
         eq(t.shares.owner, owner),
         eq(t.shares.target_type, targetType),
-        inArray(t.shares.target_id, ids),
+        inIds(t.shares.target_id, ids),
         isNull(t.shares.revoked_at),
         or(isNull(t.shares.expires_at), gt(t.shares.expires_at, nowMs)),
       ),

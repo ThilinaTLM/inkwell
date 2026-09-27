@@ -29,13 +29,17 @@
 import { and, eq, isNotNull, isNull, lte, type SQL, sql } from "drizzle-orm";
 import { type BatchStatement, type DB, getDb, runBatch, t } from "../db/client";
 import { inIds } from "../db/filters";
+import { MAX_DEPTH } from "../db/repos/folders";
 import {
+  chainUp,
   childrenMap,
+  depthOf,
   type ItemRef,
   locationPath,
   type ParentMap,
   purgeAtFor,
   purgeCutoff,
+  subtreeDepth,
 } from "../lib/items";
 import { now } from "../lib/util";
 import type { Env, FileKind, RestoredItemPublic, TrashItemPublic } from "../types";
@@ -165,12 +169,45 @@ export async function restoreItems(
     return f.trashed_via !== null && restoring.has(f.trashed_via);
   };
 
+  // The tree as it will look after this restore: every folder that is
+  // live afterwards, with parent pointers updated as relocation decisions
+  // are made. Used for the depth check below.
+  const postParent = new Map<string, string | null>();
+  for (const f of byId.values()) if (liveAfter(f.id)) postParent.set(f.id, f.parent_id);
+  const postChildren = childrenMap(postParent);
+
+  // Decide relocations. Folders go shallowest-first (by their current
+  // position in the full tree) so an ancestor's decision is known before
+  // its restored descendants are checked against it.
+  const fullParent = new Map([...byId.values()].map((f) => [f.id, f.parent_id]));
+  const decisionOrder = [...refs].sort(
+    (a, b) =>
+      (a.type === "folder" ? chainUp(fullParent, a.id).length : 0) -
+      (b.type === "folder" ? chainUp(fullParent, b.id).length : 0),
+  );
+  const relocated = new Set<string>();
+  for (const r of decisionOrder) {
+    const parent = parents.get(r.id) ?? null;
+    if (parent === null) continue;
+    let relocate = !liveAfter(parent);
+    // A folder that went to Trash can come back under a parent that has
+    // since been moved deeper; rather than exceed MAX_DEPTH, restore it
+    // to the root (reported like a missing parent).
+    if (!relocate && r.type === "folder") {
+      relocate = depthOf(postParent, parent) + subtreeDepth(postChildren, r.id) > MAX_DEPTH;
+    }
+    if (relocate) {
+      relocated.add(r.id);
+      if (r.type === "folder") postParent.set(r.id, null);
+    }
+  }
+
   const out: RestoredItemPublic[] = [];
   const relocatedFiles: string[] = [];
   const relocatedFolders: string[] = [];
   for (const r of refs) {
     const parent = parents.get(r.id) ?? null;
-    const relocate = parent !== null && !liveAfter(parent);
+    const relocate = relocated.has(r.id);
     if (relocate) (r.type === "file" ? relocatedFiles : relocatedFolders).push(r.id);
     out.push({
       type: r.type,

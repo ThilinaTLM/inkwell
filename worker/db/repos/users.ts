@@ -72,6 +72,25 @@ export async function findByIdAdmin(env: Env, id: string): Promise<AdminUserRow 
   return row ?? null;
 }
 
+// Public-facing display name for share pages ("Shared by …"). Never
+// exposes the email; returns null when the user is gone or has no name.
+export async function displayName(
+  env: Env,
+  id: string,
+): Promise<{ firstName: string; lastName: string } | null> {
+  const db = getDb(env);
+  const row = await db
+    .select({ firstName: t.users.first_name, lastName: t.users.last_name })
+    .from(t.users)
+    .where(eq(t.users.id, id))
+    .get();
+  if (!row) return null;
+  const firstName = row.firstName.trim();
+  const lastName = row.lastName.trim();
+  if (!firstName && !lastName) return null;
+  return { firstName, lastName };
+}
+
 export async function insert(env: Env, row: UserRow): Promise<void> {
   const db = getDb(env);
   await db.insert(t.users).values(row).run();
