@@ -71,6 +71,10 @@ function DrawerContent({
   return (
     <DrawerPortal>
       <DrawerOverlay />
+      {/* base-ui wires swipe-to-dismiss and touch scroll locking through
+          the Viewport; a bare Popup logs a warning and ignores swipes.
+          The Popup itself is `fixed`, so the Viewport needs no layout. */}
+      <DrawerPrimitive.Viewport data-slot="drawer-viewport">
       <DrawerPrimitive.Popup
         data-slot="drawer-content"
         data-side={side}
@@ -91,6 +95,7 @@ function DrawerContent({
       >
         {children}
       </DrawerPrimitive.Popup>
+      </DrawerPrimitive.Viewport>
     </DrawerPortal>
   )
 }

@@ -11,7 +11,7 @@
 
 import { MainMenu } from "@excalidraw/excalidraw";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSharedFile } from "@/data/shares";
 import DrawioEditor from "@/features/editor/DrawioEditor";
@@ -66,41 +66,35 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
     return ls;
   }, [qc, token, fileId]);
 
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   const save = useCallback(
     async (version: number, blob: FileBlob) => {
       const m = fileId
         ? await shares.saveFolderFile(token, fileId, version, blob)
         : await shares.save(token, version, blob);
+      const prev = loadedRef.current;
       const nextLoaded: LoadedFile = {
         meta: {
-          id: loaded?.meta.id ?? fileId ?? "",
+          id: prev?.meta.id ?? fileId ?? "",
           name: m.name,
           kind: m.kind,
           version: m.version,
           updatedAt: m.updatedAt,
-          folderId: loaded?.meta.folderId ?? null,
-          hasThumb: loaded?.meta.hasThumb ?? false,
-          starredAt: loaded?.meta.starredAt ?? m.starredAt ?? null,
+          folderId: prev?.meta.folderId ?? null,
+          hasThumb: prev?.meta.hasThumb ?? false,
+          starredAt: prev?.meta.starredAt ?? m.starredAt ?? null,
         },
         blob,
-        permission: loaded?.permission ?? "write",
-        allowDownload: loaded?.allowDownload ?? true,
-        sharedBy: loaded?.sharedBy ?? null,
+        permission: prev?.permission ?? "write",
+        allowDownload: prev?.allowDownload ?? true,
+        sharedBy: prev?.sharedBy ?? null,
       };
       setLoaded(nextLoaded);
       qc.setQueryData(keys.publicShare.token(token, fileId), nextLoaded);
       return { version: m.version };
     },
-    [
-      loaded?.allowDownload,
-      loaded?.meta.folderId,
-      loaded?.meta.hasThumb,
-      loaded?.meta.id,
-      loaded?.permission,
-      qc,
-      token,
-      fileId,
-    ],
+    [qc, token, fileId],
   );
 
   if (fileQuery.isError) {
@@ -142,6 +136,9 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
       onBack={fileId ? () => navigate(`/share/${token}`) : null}
       backLabel="Back to shared folder"
       visitor={{
+        sharedBy: loaded.sharedBy
+          ? `${loaded.sharedBy.firstName} ${loaded.sharedBy.lastName}`.trim() || null
+          : null,
         permission: loaded.permission,
         allowDownload: loaded.allowDownload,
         onDownload: () => {

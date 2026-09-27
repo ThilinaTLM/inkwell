@@ -4,41 +4,57 @@
 // `renderHeader(bridge)` prop so the header sees live save state and
 // routes navigation through the editor's leave-confirm guard) above the
 // editor surface, which takes the full remaining height.
+// `<EditorOverlays>` mounts the shared command palette, shortcut sheet
+// and dialog host (editors live outside AppShell) plus the ⌘K keymap.
 //
 // The editor "owns" the working file copy after first arrival:
 // `useFile(id)` is configured with `staleTime: Infinity` so it never
-// refetches and clobbers unsaved edits. We seed local state from the
-// query result on first arrival, then subsequent saves write back to
-// both the cache (`setQueryData`) and the local state.
+// refetches on its own and clobbers unsaved edits. We seed local state
+// from the query result on first arrival, then subsequent saves write
+// back to both the cache (`setQueryData`) and the local state. Later
+// detail refetches (triggered by the shared item actions' invalidations
+// after rename / move / star and their undos) only contribute metadata
+// — name, folder, starred — never the blob or version.
 //
 // Save remains a plain closure (NOT `useMutation`): the editors'
 // autosave loop has its own dedup ref and 409-reload-and-reset
 // semantics that don't compose cleanly with a mutation lifecycle.
 //
-// Header actions (Move / Duplicate / Trash / Tags / Star) call the
-// existing dialogs and `items.*` APIs directly for now; they will be
-// swapped to the shared command system later.
+// Header actions go through the shared `itemActions` (same dialogs,
+// optimistic updates and undo toasts as the explorer).
 
 import { MainMenu } from "@excalidraw/excalidraw";
+import {
+  ArrowLeft01Icon,
+  Copy01Icon,
+  Delete02Icon,
+  Download01Icon,
+  Edit02Icon,
+  KeyboardIcon,
+  StarIcon,
+} from "@hugeicons/core-free-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
-import { useFile, useMoveFile, useRenameFile, useSetFileTags } from "@/data/files";
-import { useFolders } from "@/data/folders";
-import { invalidations } from "@/data/invalidations";
-import { useTags } from "@/data/tags";
-import { useMutationWithToast } from "@/data/useMutationWithToast";
-import { MoveToFolderDialog } from "@/features/folders/MoveToFolderDialog";
-import { ShareDialog } from "@/features/sharing/ShareDialog";
-import { TagEditDialog } from "@/features/tags/TagEditDialog";
-import { type FileBlob, type FilesQuery, files, items, type LoadedFile } from "@/lib/api/client";
+import { openShortcutSheet } from "@/components/shell/shellStore";
+import { useFile } from "@/data/files";
+import { itemActions } from "@/features/actions/useItemActions";
+import {
+  ApiError,
+  type FileBlob,
+  type FilesQuery,
+  files,
+  type ItemRef,
+  type LoadedFile,
+} from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
+import type { Command } from "@/lib/commands/registry";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
 import DrawioEditor from "./DrawioEditor";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
+import { EditorOverlays } from "./EditorOverlays";
 import ExcalidrawEditor from "./ExcalidrawEditor";
 import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import NotesEditor from "./NotesEditor";
@@ -51,47 +67,61 @@ function folderUrl(folderId: string | null): string {
 export function EditorPage() {
   const { id = "" } = useParams<{ id: string }>();
   const qc = useQueryClient();
-
   const fileQuery = useFile(id);
-  const tagsQuery = useTags();
-  const foldersQuery = useFolders();
-  const renameMutation = useRenameFile();
-  const moveMutation = useMoveFile();
-  const setTagsMutation = useSetFileTags();
-  const runRename = useMutationWithToast(renameMutation, {
-    success: (m) => `Renamed to "${m.name}".`,
-    fallback: "rename failed",
-  });
-  const runMove = useMutationWithToast(moveMutation, {
-    success: "Moved.",
-    fallback: "move failed",
-  });
-
   const navigate = useNavigate();
   const [loaded, setLoaded] = useState<LoadedFile | null>(null);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [tagsOpen, setTagsOpen] = useState(false);
-  const [moveOpen, setMoveOpen] = useState(false);
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   // Set when the save lifecycle hit a 409 and re-fetched: shows the
   // non-blocking conflict banner in the header.
   const [conflict, setConflict] = useState(false);
   // Bumped by the conflict banner's Reload to remount the editor with
   // the freshly loaded copy.
   const [editorKey, setEditorKey] = useState(0);
+  // Optimistic star state until the next detail refetch confirms it.
   const [starOverride, setStarOverride] = useState<{ id: string; starred: boolean } | null>(null);
-  const [tagsOverride, setTagsOverride] = useState<{ id: string; tags: string[] } | null>(null);
+  // Bumped to start the header's inline rename (palette "Rename", F2).
+  const [renameNonce, setRenameNonce] = useState(0);
+  // Latest bridge from the mounted editor (flush / requestLeave for
+  // palette-driven actions).
+  const bridgeRef = useRef<EditorHeaderBridge | null>(null);
   // `mode`/`setMode` (rather than `resolved`/`toggle`) so the native
   // `MainMenu.DefaultItems.ToggleTheme` can render the three-state
   // light/dark/system picker our provider already supports.
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
-  // Seed the working copy on first arrival. After that the editor owns
-  // it; we do NOT mirror further query updates here because that would
-  // overwrite unsaved edits.
+  // Seed the working copy on first arrival.
   useEffect(() => {
     if (loaded) return;
     if (fileQuery.data) setLoaded(fileQuery.data);
   }, [fileQuery.data, loaded]);
+
+  // Metadata-only mirror of later detail refetches (see file header).
+  // If a refetch raced a save and cached an older version than ours,
+  // put our newer copy back so a revisit doesn't open stale content.
+  useEffect(() => {
+    const data = fileQuery.data;
+    const cur = loadedRef.current;
+    if (!data || !cur || data.meta.id !== cur.meta.id) return;
+    if (data.meta.version < cur.meta.version) {
+      qc.setQueryData(keys.files.detail(cur.meta.id), cur);
+      return;
+    }
+    const { name, folderId, starredAt } = data.meta;
+    setStarOverride(null);
+    if (
+      name === cur.meta.name &&
+      folderId === cur.meta.folderId &&
+      starredAt === cur.meta.starredAt
+    ) {
+      return;
+    }
+    setLoaded((prev) =>
+      prev && prev.meta.id === data.meta.id
+        ? { ...prev, meta: { ...prev.meta, name, folderId, starredAt } }
+        : prev,
+    );
+  }, [fileQuery.data, qc]);
 
   // When navigating to a *different* file, reset the working copy so the
   // seed effect above re-runs against the new query data.
@@ -106,24 +136,23 @@ export function EditorPage() {
     if (prevIdRef.current !== null && prevIdRef.current !== id) {
       setLoaded(null);
       setConflict(false);
+      setStarOverride(null);
     }
     prevIdRef.current = id;
   }, [id]);
 
-  // The file's row in its folder listing — source of `starredAt` and
-  // `tags`, which the `LoadedFile` meta doesn't carry. Usually already
-  // cached by the explorer.
+  // Keep the folder listing warm: the shared item actions resolve names,
+  // tags and parents from list caches (otherwise they fetch the whole
+  // account's file list once).
   const parentFolderId = loaded?.meta.folderId ?? null;
-  const rowQueryArgs: FilesQuery = { folderId: parentFolderId ?? "root" };
-  const rowQuery = useQuery({
-    queryKey: keys.files.list(rowQueryArgs),
-    queryFn: () => files.list(rowQueryArgs),
+  const listArgs: FilesQuery = { folderId: parentFolderId ?? "root" };
+  useQuery({
+    queryKey: keys.files.list(listArgs),
+    queryFn: () => files.list(listArgs),
     enabled: !!loaded,
   });
-  const row = rowQuery.data?.find((f) => f.id === id);
-  const starred =
-    starOverride?.id === id ? starOverride.starred : row ? row.starredAt != null : false;
-  const fileTags = tagsOverride?.id === id ? tagsOverride.tags : (row?.tags ?? []);
+
+  const starred = starOverride?.id === id ? starOverride.starred : loaded?.meta.starredAt != null;
 
   // Reload after a 409 conflict: bypass cache and force a fresh fetch.
   // Only the save lifecycle's conflict path calls this.
@@ -145,6 +174,7 @@ export function EditorPage() {
   const save = useCallback(
     async (version: number, blob: FileBlob) => {
       const m = await files.save(id, version, blob);
+      const prev = loadedRef.current;
       const nextLoaded: LoadedFile = {
         meta: {
           id,
@@ -152,12 +182,12 @@ export function EditorPage() {
           kind: m.kind,
           version: m.version,
           updatedAt: m.updatedAt,
-          folderId: loaded?.meta.folderId ?? null,
+          folderId: prev?.meta.folderId ?? null,
           // Once we've saved at least once, the editor's thumb pipeline
           // will have shipped (or is about to ship) a thumb. Server
           // `loadRow` is the source of truth on next cold load.
-          hasThumb: loaded?.meta.hasThumb ?? false,
-          starredAt: loaded?.meta.starredAt ?? m.starredAt ?? null,
+          hasThumb: prev?.meta.hasThumb ?? false,
+          starredAt: prev?.meta.starredAt ?? m.starredAt ?? null,
         },
         blob,
         permission: "write",
@@ -169,12 +199,12 @@ export function EditorPage() {
       // Update cached file-list rows so explorer views show fresh data.
       // Scope to list queries only — invalidating `keys.files.all` would
       // also match `keys.files.detail(id)` (prefix match) and trigger a
-      // refetch of the active file on every save, racing the autosave loop.
+      // refetch of the active file on every save.
       qc.invalidateQueries({ queryKey: ["files", "list"] });
       qc.invalidateQueries({ queryKey: ["folders", "list"] });
       return { version: m.version };
     },
-    [id, loaded?.meta.folderId, loaded?.meta.hasThumb, qc],
+    [id, qc],
   );
 
   const saveThumb = useCallback((svg: string) => files.putThumb(id, svg), [id]);
@@ -193,176 +223,175 @@ export function EditorPage() {
     navigate(`${folderUrl(parentFolderId)}?select=file:${id}`);
   }, [navigate, parentFolderId, id]);
 
-  if (fileQuery.isError) {
+  // ─── Actions (shared itemActions) ─────────────────────────────────
+  const ref = useMemo<ItemRef>(() => ({ type: "file", id }), [id]);
+  const flush = useCallback(async () => (bridgeRef.current ? bridgeRef.current.flush() : true), []);
+
+  const toggleStar = useCallback(() => {
+    const next = !starred;
+    setStarOverride({ id, starred: next });
+    // setStar is optimistic in the list caches, toasts with undo and
+    // invalidates; the detail refetch then settles `starredAt` here.
+    void itemActions.setStar([ref], next).finally(() => {
+      qc.invalidateQueries({ queryKey: keys.files.detail(id), exact: true });
+    });
+  }, [starred, id, ref, qc]);
+
+  const duplicate = useCallback(async () => {
+    // Persist pending edits first so the copy includes them.
+    if (!(await flush())) return;
+    await itemActions.duplicate([ref]);
+  }, [flush, ref]);
+
+  const download = useCallback(async () => {
+    await flush();
+    await itemActions.download([ref]);
+  }, [flush, ref]);
+
+  const trash = useCallback(async () => {
+    // Persist pending edits first so a restore brings them back.
+    await flush();
+    const folder = loadedRef.current?.meta.folderId ?? null;
+    await itemActions.trash([ref]);
+    // `trash` resolves the same way whether it trashed, was cancelled
+    // at the confirm prompt, or failed (it toasts on its own). The file
+    // endpoint 404s once the file is in Trash — that tells them apart.
+    const gone = await files.load(id).then(
+      () => false,
+      (e) => e instanceof ApiError && e.status === 404,
+    );
+    if (!gone) return;
+    qc.removeQueries({ queryKey: keys.files.detail(id), exact: true });
+    navigate(folderUrl(folder));
+  }, [flush, ref, id, qc, navigate]);
+
+  const rename = useCallback(
+    async (next: string) => {
+      try {
+        await itemActions.rename(ref, next);
+      } catch {
+        return false; // itemActions already toasted
+      }
+      setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: next.trim() } } : prev));
+      return true;
+    },
+    [ref],
+  );
+
+  // Palette / registry overrides with editor semantics. Only chords the
+  // editor actually handles carry `keys` (so the shortcut sheet is
+  // honest); single keys belong to the canvas / document.
+  const overrides = useMemo<Command[]>(
+    () => [
+      {
+        id: "item.rename",
+        icon: Edit02Icon,
+        label: "Rename",
+        keys: ["f2"],
+        group: "file",
+        run: () => setRenameNonce((n) => n + 1),
+      },
+      {
+        id: "item.star",
+        icon: StarIcon,
+        label: starred ? "Unstar" : "Star",
+        group: "organise",
+        run: toggleStar,
+      },
+      {
+        id: "item.duplicate",
+        icon: Copy01Icon,
+        label: "Duplicate",
+        group: "organise",
+        run: () => void duplicate(),
+      },
+      {
+        id: "item.download",
+        icon: Download01Icon,
+        label: "Download",
+        group: "file",
+        run: () => void download(),
+      },
+      {
+        id: "item.trash",
+        icon: Delete02Icon,
+        label: "Move to Trash",
+        group: "organise",
+        destructive: true,
+        run: () => void trash(),
+      },
+      {
+        id: "nav.back",
+        icon: ArrowLeft01Icon,
+        label: "Back to folder",
+        keys: ["mod+["],
+        group: "navigate",
+        palette: true,
+        run: () => bridgeRef.current?.requestLeave(handleBack) ?? handleBack(),
+      },
+      {
+        id: "app.shortcuts",
+        icon: KeyboardIcon,
+        label: "Keyboard shortcuts",
+        keys: ["mod+shift+/"],
+        group: "app",
+        run: () => openShortcutSheet(),
+      },
+    ],
+    [starred, toggleStar, duplicate, download, trash, handleBack],
+  );
+
+  const overlays = <EditorOverlays file={loaded ? ref : null} overrides={overrides} />;
+
+  // A failed *refetch* keeps the editor (and unsaved work) on screen;
+  // only a failed first load shows the error page.
+  if (fileQuery.isError && !loaded) {
     return <EditorErrorState message={errorMessage(fileQuery.error, "load failed")} />;
   }
   if (!loaded) return <EditorLoadingState label="Loading file…" />;
 
   const meta = loaded.meta;
 
-  // ─── Header actions ───────────────────────────────────────────────
-  const rename = async (next: string) => {
-    const m = await runRename({ id, name: next });
-    if (!m) return false;
-    setLoaded((prev) => (prev ? { ...prev, meta: { ...prev.meta, name: m.name } } : prev));
-    return true;
-  };
-
-  const toggleStar = async () => {
-    const next = !starred;
-    setStarOverride({ id, starred: next });
-    try {
-      await items.star([{ type: "file", id }], next);
-      qc.invalidateQueries({ queryKey: keys.files.listPrefix() });
-      qc.invalidateQueries({ queryKey: keys.folders.all });
-    } catch (e) {
-      setStarOverride({ id, starred: !next });
-      toast.error(errorMessage(e, "could not update star"));
-    }
-  };
-
-  const download = async (bridge: EditorHeaderBridge) => {
-    await bridge.flush();
-    window.location.href = files.downloadUrl(id);
-  };
-
-  const duplicate = async (bridge: EditorHeaderBridge) => {
-    if (!(await bridge.flush())) {
-      toast.error("Save your changes before duplicating.");
-      return;
-    }
-    try {
-      const res = await items.duplicate([{ type: "file", id }]);
-      invalidations.itemsMutated(qc);
-      const copy = res.files[0];
-      if (!copy) return;
-      toast.success(`Duplicated as "${copy.name}".`);
-      navigate(`/f/${copy.id}`);
-    } catch (e) {
-      toast.error(errorMessage(e, "duplicate failed"));
-    }
-  };
-
-  const trash = async (bridge: EditorHeaderBridge) => {
-    // Persist pending edits first so a restore brings them back.
-    await bridge.flush();
-    const folder = meta.folderId;
-    try {
-      await items.trash([{ type: "file", id }]);
-    } catch (e) {
-      toast.error(errorMessage(e, "could not move to Trash"));
-      return;
-    }
-    navigate(folderUrl(folder));
-    qc.removeQueries({ queryKey: keys.files.detail(id) });
-    invalidations.itemsMutated(qc);
-    toast.success(`Moved "${meta.name}" to Trash.`, {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          items
-            .restore([{ type: "file", id }])
-            .then(() => {
-              invalidations.itemsMutated(qc);
-              toast.success(`Restored "${meta.name}".`);
-            })
-            .catch((e) => toast.error(errorMessage(e, "restore failed")));
-        },
-      },
-    });
-  };
-
-  const renderHeader: RenderEditorHeader = (bridge) => (
-    <EditorHeader
-      bridge={bridge}
-      file={{
-        id,
-        name: meta.name,
-        kind: meta.kind,
-        version: meta.version,
-        folderId: meta.folderId,
-      }}
-      onBack={handleBack}
-      onNavigateFolder={(fid) => navigate(folderUrl(fid))}
-      onRename={rename}
-      starred={starred}
-      onToggleStar={() => void toggleStar()}
-      onShare={() => setShareOpen(true)}
-      onMove={() => setMoveOpen(true)}
-      onDuplicate={() => void duplicate(bridge)}
-      onDownload={() => void download(bridge)}
-      onEditTags={() => setTagsOpen(true)}
-      onTrash={() => void trash(bridge)}
-      conflict={
-        conflict
-          ? {
-              onReload: () => {
-                bridge.discard();
-                setConflict(false);
-                setEditorKey((k) => k + 1);
-              },
-              onDismiss: () => setConflict(false),
-            }
-          : null
-      }
-    />
-  );
-
-  const fileDialogs = (
-    <>
-      <ShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        targetType="file"
-        targetId={id}
-        targetName={meta.name}
-        targetKind={meta.kind}
+  const renderHeader: RenderEditorHeader = (bridge) => {
+    bridgeRef.current = bridge;
+    return (
+      <EditorHeader
+        bridge={bridge}
+        file={{
+          id,
+          name: meta.name,
+          kind: meta.kind,
+          version: meta.version,
+          folderId: meta.folderId,
+        }}
+        onBack={handleBack}
+        onNavigateFolder={(fid) => navigate(folderUrl(fid))}
+        onRename={rename}
+        renameNonce={renameNonce}
+        starred={starred}
+        onToggleStar={toggleStar}
+        onShare={() => itemActions.share(ref)}
+        onMove={() => itemActions.moveDialog([ref])}
+        onDuplicate={() => void duplicate()}
+        onDownload={() => void download()}
+        onEditTags={() => itemActions.editTags([ref])}
+        onTrash={() => void trash()}
+        onShowShortcuts={openShortcutSheet}
+        conflict={
+          conflict
+            ? {
+                onReload: () => {
+                  bridge.discard();
+                  setConflict(false);
+                  setEditorKey((k) => k + 1);
+                },
+                onDismiss: () => setConflict(false),
+              }
+            : null
+        }
       />
-
-      {moveOpen && foldersQuery.data ? (
-        <MoveToFolderDialog
-          open
-          onOpenChange={(o) => {
-            if (!o) setMoveOpen(false);
-          }}
-          folders={foldersQuery.data}
-          initialId={meta.folderId}
-          title={`Move "${meta.name}"`}
-          onSubmit={async (folderId) => {
-            const m = await runMove({ id, folderId });
-            if (!m) return;
-            setLoaded((prev) =>
-              prev ? { ...prev, meta: { ...prev.meta, folderId: m.folderId } } : prev,
-            );
-            setMoveOpen(false);
-          }}
-        />
-      ) : null}
-
-      {tagsOpen && rowQuery.isFetched && tagsQuery.data ? (
-        <TagEditDialog
-          open
-          onOpenChange={(o) => {
-            if (!o) setTagsOpen(false);
-          }}
-          initialTags={fileTags}
-          suggestions={tagsQuery.data.map((t) => t.name)}
-          title={`Tags for "${meta.name}"`}
-          onSave={async (next) => {
-            const result = await setTagsMutation.mutateAsync({
-              id,
-              tags: next,
-            });
-            return result.tags;
-          }}
-          onSaved={(next) => {
-            setTagsOverride({ id, tags: next });
-            toast.success("Tags updated.");
-          }}
-        />
-      ) : null}
-    </>
-  );
+    );
+  };
 
   const common = {
     loaded,
@@ -378,7 +407,7 @@ export function EditorPage() {
     return (
       <div className="h-dvh w-full overflow-hidden bg-background">
         <DrawioEditor key={editorKey} {...common} />
-        {fileDialogs}
+        {overlays}
       </div>
     );
   }
@@ -410,7 +439,7 @@ export function EditorPage() {
             );
           }}
         />
-        {fileDialogs}
+        {overlays}
       </div>
     );
   }
@@ -419,7 +448,7 @@ export function EditorPage() {
     return (
       <div className="h-dvh w-full overflow-hidden bg-background">
         <NotesEditor key={editorKey} {...common} />
-        {fileDialogs}
+        {overlays}
       </div>
     );
   }
@@ -447,7 +476,7 @@ export function EditorPage() {
           </MainMenu>
         }
       />
-      {fileDialogs}
+      {overlays}
     </div>
   );
 }

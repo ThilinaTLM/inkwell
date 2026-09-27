@@ -35,7 +35,7 @@ export function InviteAcceptPage() {
       return invites.accept(token, body);
     },
     onSuccess: (user) => {
-      qc.setQueryData<MeResponse>(keys.me, (prev) => ({
+      qc.setQueryData<MeResponse | null>(keys.me, (prev) => ({
         ...(prev ?? ({} as MeResponse)),
         ...user,
         expiresAt: prev?.expiresAt ?? Number.MAX_SAFE_INTEGER,

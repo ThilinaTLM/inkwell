@@ -16,7 +16,7 @@
 // navigation the header triggers goes through `bridge.requestLeave` so
 // the editor's leave-confirm dialog still guards unsaved work.
 //
-// Keyboard:
+// Keyboard (⌘K / the shortcut sheet are wired by `EditorOverlays`):
 //   • mod+[          back (window listener, bubble phase — editors that
 //                    consume the chord themselves, e.g. Excalidraw's
 //                    "send backward" while editing, keep it)
@@ -47,7 +47,6 @@ import {
   WifiDisconnected01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -61,13 +60,6 @@ import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -75,10 +67,10 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useMe } from "@/data/auth";
 import { useFolders } from "@/data/folders";
 import { folderPath } from "@/features/folders/FolderTree";
-import { auth, type FileKind } from "@/lib/api/client";
-import { keys } from "@/lib/api/query-keys";
+import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import type { EditorHeaderBridge } from "./editorHeaderBridge";
 
@@ -119,8 +111,10 @@ export interface EditorHeaderProps {
   onDownload?: () => void;
   onEditTags?: () => void;
   onTrash?: () => void;
-  /** Overrides the built-in shortcuts dialog (lead will wire the shared one). */
+  /** Opens the shortcut sheet. The shortcuts button is hidden without it. */
   onShowShortcuts?: () => void;
+  /** Bump to start the inline rename from outside (palette / menus). */
+  renameNonce?: number;
   /** Non-blocking conflict banner (another tab/device saved a newer version). */
   conflict?: { onReload: () => void; onDismiss: () => void } | null;
 }
@@ -139,12 +133,7 @@ export function EditorHeader(props: EditorHeaderProps) {
   const isVisitor = !!visitor;
   const canRename = !isVisitor && !!onRename;
   const [renaming, setRenaming] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  // Read the session from the cache only. `App` already probes `/api/me`;
-  // a second *fetching* observer on a public route would reset the
-  // errored (anonymous) query to pending on mount, flip App back to its
-  // boot splash, unmount us, and loop.
-  const me = useQuery({ queryKey: keys.me, queryFn: () => auth.me(), enabled: false });
+  const me = useMe();
 
   const goBack = useCallback(() => {
     if (!onBack) return;
@@ -189,10 +178,15 @@ export function EditorHeader(props: EditorHeaderProps) {
     }
   };
 
-  const showShortcuts = () => {
-    if (props.onShowShortcuts) props.onShowShortcuts();
-    else setShortcutsOpen(true);
-  };
+  // Start the inline rename when the nonce changes after mount (a
+  // remounted header must not reopen a rename requested earlier).
+  const { renameNonce = 0 } = props;
+  const seenNonceRef = useRef(renameNonce);
+  useEffect(() => {
+    if (renameNonce === seenNonceRef.current) return;
+    seenNonceRef.current = renameNonce;
+    if (canRenameRef.current) setRenaming(true);
+  }, [renameNonce]);
 
   const readOnly = isVisitor && visitor.permission !== "write";
 
@@ -286,20 +280,22 @@ export function EditorHeader(props: EditorHeaderProps) {
           <OwnerActions {...props} onRenameRequest={() => setRenaming(true)} />
         )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden sm:inline-flex"
-          onClick={showShortcuts}
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts"
-        >
-          <HugeiconsIcon icon={KeyboardIcon} strokeWidth={1.8} />
-        </Button>
+        {props.onShowShortcuts ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden sm:inline-flex"
+            onClick={props.onShowShortcuts}
+            aria-label="Keyboard shortcuts"
+            title={`Keyboard shortcuts (${MOD}⇧/)`}
+          >
+            <HugeiconsIcon icon={KeyboardIcon} strokeWidth={1.8} />
+          </Button>
+        ) : null}
 
         {me.data ? (
           <UserMenu user={me.data} />
-        ) : isVisitor && me.isError ? (
+        ) : isVisitor && !me.isPending ? (
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/login" />}>
             Sign in
           </Button>
@@ -307,13 +303,6 @@ export function EditorHeader(props: EditorHeaderProps) {
       </header>
 
       {props.conflict ? <ConflictBanner {...props.conflict} /> : null}
-
-      <ShortcutsDialog
-        open={shortcutsOpen}
-        onOpenChange={setShortcutsOpen}
-        owner={!isVisitor}
-        hasBack={!!onBack}
-      />
     </div>
   );
 }
@@ -771,51 +760,5 @@ function ConflictBanner({ onReload, onDismiss }: { onReload: () => void; onDismi
         Dismiss
       </Button>
     </div>
-  );
-}
-
-// ─── Shortcuts dialog (local until the shared one lands) ─────────────
-
-function ShortcutsDialog({
-  open,
-  onOpenChange,
-  owner,
-  hasBack,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  owner: boolean;
-  hasBack: boolean;
-}) {
-  const rows: Array<[string, string]> = [];
-  if (hasBack) {
-    rows.push([`${MOD}[`, "Back to the folder"]);
-    rows.push(["Esc Esc", "Back to the folder (header focused)"]);
-  }
-  if (owner) rows.push(["F2", "Rename file"]);
-  rows.push(["↵ / Esc", "Commit / cancel a rename"]);
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Editor shortcuts</DialogTitle>
-          <DialogDescription>
-            Each editor keeps its own shortcuts; these work across all of them.
-          </DialogDescription>
-        </DialogHeader>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          {rows.map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt>
-                <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">
-                  {k}
-                </kbd>
-              </dt>
-              <dd className="text-muted-foreground">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </DialogContent>
-    </Dialog>
   );
 }

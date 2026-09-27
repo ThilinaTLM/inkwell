@@ -9,7 +9,7 @@
 //
 // Route definitions and individual pages live in `./routes`.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { InkwellMark } from "@/components/InkwellMark";
@@ -29,17 +29,25 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Anonymous = the probe answered 401 (`data === null`) or failed
+  // outright (network / 5xx).
+  const anonymous = me.data === null || (me.isError && !me.data);
+
   // When we know we're anonymous and we're on a protected page, redirect.
   useEffect(() => {
-    if (!me.isError) return;
+    if (!anonymous) return;
     if (isPublicPath(location.pathname)) return;
     navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, {
       replace: true,
     });
-  }, [me.isError, location.pathname, location.search, navigate]);
+  }, [anonymous, location.pathname, location.search, navigate]);
 
-  // First boot: render splash while the session probe is in flight.
-  if (me.isPending) return <BootSplash />;
+  // First boot only: render the splash while the very first session
+  // probe is in flight. Later refetches (a query reset by logout, a
+  // retry after a network error) must never unmount the routes.
+  const bootedRef = useRef(false);
+  if (!me.isPending) bootedRef.current = true;
+  if (me.isPending && !bootedRef.current) return <BootSplash />;
 
   return <AppRoutes />;
 }
