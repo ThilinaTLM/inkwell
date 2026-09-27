@@ -157,10 +157,12 @@ export function EditorPage() {
           // will have shipped (or is about to ship) a thumb. Server
           // `loadRow` is the source of truth on next cold load.
           hasThumb: loaded?.meta.hasThumb ?? false,
+          starredAt: loaded?.meta.starredAt ?? m.starredAt ?? null,
         },
         blob,
         permission: "write",
         allowDownload: true,
+        sharedBy: null,
       };
       setLoaded(nextLoaded);
       qc.setQueryData(keys.files.detail(id), nextLoaded);

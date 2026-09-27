@@ -80,10 +80,12 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
           updatedAt: m.updatedAt,
           folderId: loaded?.meta.folderId ?? null,
           hasThumb: loaded?.meta.hasThumb ?? false,
+          starredAt: loaded?.meta.starredAt ?? m.starredAt ?? null,
         },
         blob,
         permission: loaded?.permission ?? "write",
         allowDownload: loaded?.allowDownload ?? true,
+        sharedBy: loaded?.sharedBy ?? null,
       };
       setLoaded(nextLoaded);
       qc.setQueryData(keys.publicShare.token(token, fileId), nextLoaded);

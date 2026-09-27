@@ -212,12 +212,23 @@ export interface LoadedFile {
      *  drawio editor uses this to backfill a one-shot thumb on open
      *  for files that don't have one yet. */
     hasThumb: boolean;
+    /** Owner loads only (`x-file-starred-at`); always `null` for share
+     *  visitors because stars are private. */
+    starredAt: number | null;
   };
   blob: FileBlob;
   /** Permission when loaded via a share token. Owner-loaded files are 'write'. */
   permission: "read" | "write";
   /** True if the share token allows downloading the file. */
   allowDownload: boolean;
+  /** Share-token loads: the owner's display name (never email). `null`
+   *  for owner loads or when the owner has no name set. */
+  sharedBy: SharedBy | null;
+}
+
+export interface SharedBy {
+  firstName: string;
+  lastName: string;
 }
 
 export type SharePermission = "read" | "write";
@@ -242,6 +253,7 @@ export interface FolderSharePayload {
     permission: SharePermission;
     allowDownload: boolean;
     label: string | null;
+    sharedBy: SharedBy | null;
   };
   root: FolderMeta;
   folders: FolderMeta[];
@@ -754,13 +766,29 @@ async function readFileResponse(
   const folderHeader = resp.headers.get("x-file-folder-id");
   const folderId = folderHeader ? folderHeader : null;
   const hasThumb = resp.headers.get("x-file-has-thumb") === "1";
+  const starredHeader = resp.headers.get("x-file-starred-at");
+  const starredAt = starredHeader ? Number(starredHeader) : null;
+  const sharedBy = parseSharedBy(resp.headers.get("x-share-shared-by"));
   const blob = (await resp.json()) as FileBlob;
   return {
-    meta: { id, name, kind, version, updatedAt, folderId, hasThumb },
+    meta: { id, name, kind, version, updatedAt, folderId, hasThumb, starredAt },
     blob,
     permission,
     allowDownload,
+    sharedBy,
   };
+}
+
+/** `x-share-shared-by` is URI-encoded JSON (names may be non-ASCII). */
+function parseSharedBy(header: string | null): SharedBy | null {
+  if (!header) return null;
+  try {
+    const v = JSON.parse(decodeURIComponent(header)) as Partial<SharedBy> | null;
+    if (!v || (typeof v.firstName !== "string" && typeof v.lastName !== "string")) return null;
+    return { firstName: v.firstName ?? "", lastName: v.lastName ?? "" };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Bulk item operations (files + folders) ──────────────────────────
