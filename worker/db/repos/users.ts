@@ -22,8 +22,11 @@ export async function findByEmail(env: Env, email: string): Promise<UserRow | nu
 
 // `file_count` excludes Trash (it's what the user sees); `storage_bytes`
 // includes it (trashed blobs still occupy R2 until purged).
-const fileCountSql = sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id} AND ${t.files.deleted_at} IS NULL), 0)`;
-const storageBytesSql = sql<number>`COALESCE((SELECT SUM(${t.files.size_bytes}) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`;
+// Correlated subqueries: drizzle renders `${column}` without a table
+// prefix inside raw sql, so `${t.users.id}` would resolve to `files.id`
+// here. Qualify both sides explicitly.
+const fileCountSql = sql<number>`COALESCE((SELECT COUNT(*) FROM files f WHERE f.owner = users.id AND f.deleted_at IS NULL), 0)`;
+const storageBytesSql = sql<number>`COALESCE((SELECT SUM(f.size_bytes) FROM files f WHERE f.owner = users.id), 0)`;
 
 // Admin list: every user with their owned-file count and storage use.
 export async function listAllAdmin(env: Env): Promise<AdminUserRow[]> {
