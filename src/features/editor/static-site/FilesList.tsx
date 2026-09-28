@@ -1,7 +1,4 @@
-// FilesList — paper-sheet panel listing every asset in a static-site
-// bundle. Wrapped in a rough.js silhouette so the panel reads as a
-// torn-from-the-pad sheet, then overlaid with paper-grain + fibre
-// dots for tooth.
+// FilesList — card panel listing every asset in a static-site bundle.
 //
 // Pure presentation — receives a manifest and a handful of callbacks.
 // Sorts so the entry row appears first (this addresses a real
@@ -9,13 +6,11 @@
 // list is strictly alphabetical, so users hunt for it).
 
 import { useMemo } from "react";
-import { RoughBox } from "@/components/rough/RoughBox";
-import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
+import { EmptyState } from "@/components/EmptyState";
 import type { StaticSiteFileBlob } from "@/lib/api/client";
 import { FileRow } from "./FileRow";
 
 export interface FilesListProps {
-  id: string;
   manifest: StaticSiteFileBlob;
   totalLabel: string;
   writable: boolean;
@@ -25,7 +20,6 @@ export interface FilesListProps {
 }
 
 export function FilesList({
-  id,
   manifest,
   totalLabel,
   writable,
@@ -49,33 +43,14 @@ export function FilesList({
   }, [assets, entry]);
 
   return (
-    <section aria-label="Files in bundle" className="relative isolate">
-      <RoughBox
-        shape="card"
-        seed={`files-card:${id}`}
-        stroke="var(--color-card-stroke)"
-        strokeWidth={1.3}
-        fill="var(--color-card)"
-        fillStyle="solid"
-        roughness={0.7}
-        bowing={0.5}
-        radius={10}
-      />
-      {/* Paper tooth — grain + sparse fibre dots. `-z-0` keeps them
-          above the rough.js silhouette but below the content. */}
-      <div
-        aria-hidden
-        className="bg-paper-grain pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-      <div
-        aria-hidden
-        className="bg-paper-dots pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-
+    <section
+      aria-label="Files in bundle"
+      className="relative rounded-xl border border-border bg-card"
+    >
       <header className="relative flex items-center justify-between gap-2 px-4 pt-3 pb-2 sm:px-5">
         <div className="flex items-center gap-2">
           <h2 className="font-heading text-sm font-semibold">Files</h2>
-          <span className="font-hand text-base leading-none text-muted-foreground/80">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
             inside the bundle
           </span>
         </div>
@@ -88,8 +63,7 @@ export function FilesList({
 
       {isEmpty ? (
         <div className="relative px-4 pb-6 sm:px-5">
-          <EmptyDeskNote
-            seed={`static-empty:${id}`}
+          <EmptyState
             title="No pages yet"
             body={
               writable

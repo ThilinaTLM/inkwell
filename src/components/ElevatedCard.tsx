@@ -8,7 +8,7 @@ interface ElevatedCardProps {
 
 /**
  * An elevated card surface that matches the login page (AuthShell)
- * aesthetic — paper-like shadow on light, deep shadow on dark.
+ * aesthetic — soft elevation on light, deep shadow on dark.
  */
 export function ElevatedCard({ children, className }: ElevatedCardProps) {
   return (

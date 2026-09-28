@@ -239,7 +239,7 @@ export function SettingsPage() {
           </Select>
           <div className="mx-auto max-w-[760px]">
             <header className="mt-1 mb-[18px] flex flex-wrap items-end gap-x-3 gap-y-1">
-              <h1 className="font-brand text-[28px] leading-none font-normal text-foreground">
+              <h1 className="font-display text-[26px] leading-tight font-medium text-foreground">
                 {current.title}
               </h1>
               <p className="text-[13px] text-muted-foreground">{current.description}</p>

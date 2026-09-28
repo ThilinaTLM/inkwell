@@ -12,7 +12,7 @@
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
-  FolderLibraryIcon,
+  Folder01Icon,
   FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -94,8 +94,8 @@ export function FolderTree({
               className="flex min-w-0 flex-1 items-center gap-1.5 outline-none"
             >
               <HugeiconsIcon
-                icon={FolderLibraryIcon}
-                strokeWidth={1.7}
+                icon={Folder01Icon}
+                strokeWidth={1.6}
                 className="size-4 shrink-0 opacity-60"
               />
               <span className="truncate">{rootLabel}</span>
@@ -177,8 +177,8 @@ function FolderNode({
           className="flex min-w-0 flex-1 items-center gap-1.5 outline-none"
         >
           <HugeiconsIcon
-            icon={active ? FolderOpenIcon : FolderLibraryIcon}
-            strokeWidth={1.7}
+            icon={active ? FolderOpenIcon : Folder01Icon}
+            strokeWidth={1.6}
             className="size-4 shrink-0 opacity-80"
           />
           <span className="truncate">{folder.name}</span>

@@ -8,18 +8,14 @@
 // rows (the entry is signalled there with a ribbon + stripe, not a
 // duplicate filename).
 //
-// Visual: rough.js outlined card with `--folder-soft` fill so it
-// reads as a manila slip pinned to the desk, paper-grain overlay for
-// tooth, slight per-id tilt to feel hand-laid.
+// Visual: a clean rounded card with a soft manila (`--folder-soft`)
+// fill and a hairline border.
 
 import { LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { RoughBox } from "@/components/rough/RoughBox";
-import { tiltFromId } from "@/components/sketch/tilt";
 import { Button } from "@/components/ui/button";
 
 export interface SiteCardProps {
-  id: string;
   entry: string;
   isEmpty: boolean;
   fileCount: number;
@@ -29,7 +25,6 @@ export interface SiteCardProps {
 }
 
 export function SiteCard({
-  id,
   entry,
   isEmpty,
   fileCount,
@@ -37,34 +32,16 @@ export function SiteCard({
   onOpen,
   openPending,
 }: SiteCardProps) {
-  const tilt = tiltFromId(`site-card:${id}`, 0.4);
   const fileNoun = fileCount === 1 ? "file" : "files";
 
   return (
     <section
       aria-label="Site overview"
-      className="relative isolate"
-      style={{ transform: `rotate(${tilt}deg)` }}
+      className="relative rounded-xl border border-border bg-folder-soft"
     >
-      <RoughBox
-        shape="card"
-        seed={`site-card:${id}`}
-        stroke="var(--color-card-stroke)"
-        strokeWidth={1.3}
-        fill="var(--color-folder-soft)"
-        fillStyle="solid"
-        roughness={0.9}
-        bowing={0.6}
-        radius={10}
-      />
-      <div
-        aria-hidden
-        className="bg-paper-grain pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-
       <div className="relative flex flex-col gap-4 p-5 sm:p-6">
         <header className="flex items-center justify-between gap-2">
-          <span className="font-hand text-lg leading-none text-foreground/75">entry&nbsp;→</span>
+          <span className="text-xs font-medium text-muted-foreground">Entry&nbsp;→</span>
           <span className="inline-flex items-center rounded-full bg-card/70 px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.12em] text-muted-foreground ring-1 ring-border/40">
             static site
           </span>

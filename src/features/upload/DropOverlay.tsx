@@ -38,7 +38,7 @@ export function DropOverlay({ targetName, visible, className }: DropOverlayProps
         strokeWidth={1.6}
         className="size-10 text-accent-foreground opacity-80"
       />
-      <h3 className="font-hand text-3xl leading-tight font-semibold text-foreground sm:text-4xl">
+      <h3 className="font-display text-3xl leading-tight font-medium text-foreground sm:text-4xl">
         Drop to upload into “{targetName}”
       </h3>
       <ul className="flex max-w-2xl flex-wrap justify-center gap-2">

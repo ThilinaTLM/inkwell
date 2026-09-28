@@ -14,7 +14,7 @@
 //                                        clears then blurs
 //   <PageBody className? padded?={true}>{children}</PageBody>  – flex-1 scroll container
 //   <StatusBar left right?={ReactNode} />   – 30px row; default right = "? shortcuts · ⌘K commands"
-//   <PageTitle>{children}</PageTitle>        – hand-font page title (Excalifont/Caveat)
+//   <PageTitle>{children}</PageTitle>        – display-serif page title (Fraunces)
 //   <PageFrame>{toolbar/body/status}</PageFrame>  – flex column filling the shell's main area
 
 import { FilterIcon } from "@hugeicons/core-free-icons";
@@ -32,7 +32,7 @@ export function PageTitle({ children, className }: { children: ReactNode; classN
   return (
     <h1
       className={cn(
-        "truncate font-brand text-[22px] leading-none font-normal text-foreground",
+        "truncate font-display text-[20px] leading-[1.25] font-medium text-foreground",
         className,
       )}
     >

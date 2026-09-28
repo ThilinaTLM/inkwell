@@ -414,7 +414,7 @@ export function EditorPage() {
   }
 
   if (meta.kind === "static-site") {
-    // StaticSiteEditor paints its own <PaperSurface> and owns its own
+    // StaticSiteEditor paints its own <Surface> and owns its own
     // scroll container — the wrapper just sizes to the viewport.
     return (
       <div className="h-dvh w-full">

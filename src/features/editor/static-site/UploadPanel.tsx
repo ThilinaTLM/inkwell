@@ -1,4 +1,4 @@
-// UploadPanel — rough.js outlined dropzone with three explicit upload
+// UploadPanel — dashed-border dropzone with three explicit upload
 // buttons. Lives next to (or below) the SiteCard so the primary
 // mutation surface stays reachable without scrolling past the file
 // list.
@@ -17,7 +17,6 @@
 import { FileUploadIcon, FolderUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useRef, useState } from "react";
-import { RoughBox } from "@/components/rough/RoughBox";
 import { Button } from "@/components/ui/button";
 import { collectDrop } from "@/features/upload/collectDrop";
 import { cn } from "@/lib/utils";
@@ -25,7 +24,6 @@ import { cn } from "@/lib/utils";
 export type UploadEntry = File | { path: string; file: File };
 
 export interface UploadPanelProps {
-  id: string;
   isEmpty: boolean;
   filesPending: boolean;
   zipPending: boolean;
@@ -34,7 +32,6 @@ export interface UploadPanelProps {
 }
 
 export function UploadPanel({
-  id,
   isEmpty,
   filesPending,
   zipPending,
@@ -94,9 +91,10 @@ export function UploadPanel({
   return (
     <section
       aria-label="Upload files"
+      data-drag={dragOver}
       className={cn(
-        "relative isolate rounded-md p-5 transition-shadow sm:p-6",
-        dragOver && "ring-2 ring-primary/40",
+        "relative rounded-xl border-2 border-dashed border-border bg-card p-5 transition-colors sm:p-6",
+        "data-[drag=true]:border-primary data-[drag=true]:bg-primary/5",
       )}
       onDragOver={(e) => {
         e.preventDefault();
@@ -105,32 +103,16 @@ export function UploadPanel({
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      <RoughBox
-        shape="card"
-        seed={`upload:${id}`}
-        stroke={dragOver ? "var(--color-primary)" : "var(--color-card-stroke)"}
-        strokeWidth={1.3}
-        fill={dragOver ? "var(--color-accent)" : "var(--color-card)"}
-        fillStyle="solid"
-        roughness={1.2}
-        bowing={0.9}
-        radius={10}
-      />
-      <div
-        aria-hidden
-        className="bg-paper-grain pointer-events-none absolute inset-0 -z-0 rounded-md"
-      />
-
       <div className="relative flex flex-col gap-4">
         <header className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-sm font-semibold">Upload</h2>
           <span
             className={cn(
-              "font-hand text-base leading-none transition-colors",
+              "text-sm font-medium transition-colors",
               dragOver ? "text-primary" : "text-muted-foreground/85",
             )}
           >
-            {dragOver ? "drop it!" : "drag a .zip, folder, or files here"}
+            {dragOver ? "Drop to upload" : "Drag a .zip, folder, or files here"}
           </span>
         </header>
 

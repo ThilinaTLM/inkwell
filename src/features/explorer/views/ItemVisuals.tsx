@@ -4,8 +4,8 @@
 import { Link04Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
+import { FileKindBadge, FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { tagColor } from "@/components/shell/tagColor";
-import { FileKindBadge, FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import { cn } from "@/lib/utils";
 import type { ExplorerItem, ItemKind } from "../model";
 

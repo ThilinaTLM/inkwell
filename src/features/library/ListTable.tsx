@@ -265,7 +265,7 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
   return (
     <tr>
       <td colSpan={colSpan} className="py-16 text-center">
-        <div className="font-hand text-xl text-muted-foreground">{children}</div>
+        <div className="font-display text-xl italic text-muted-foreground">{children}</div>
       </td>
     </tr>
   );

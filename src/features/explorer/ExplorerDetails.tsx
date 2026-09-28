@@ -384,7 +384,7 @@ function FolderSummary({
   const ref: ItemRef | null = folderId ? { type: "folder", id: folderId } : null;
   return (
     <div className="pb-4">
-      <h3 className="font-brand text-xl leading-tight">{folder?.name ?? "Home"}</h3>
+      <h3 className="font-display text-lg leading-tight font-medium">{folder?.name ?? "Home"}</h3>
       <Section title="Summary">
         <PropertyList
           rows={[

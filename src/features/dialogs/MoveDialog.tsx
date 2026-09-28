@@ -7,8 +7,8 @@
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
+  Folder01Icon,
   FolderAddIcon,
-  FolderLibraryIcon,
   Home01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
@@ -374,7 +374,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
                   />
                 </button>
                 <HugeiconsIcon
-                  icon={r.id === null ? Home01Icon : FolderLibraryIcon}
+                  icon={r.id === null ? Home01Icon : Folder01Icon}
                   strokeWidth={1.7}
                   className="size-4 shrink-0"
                 />

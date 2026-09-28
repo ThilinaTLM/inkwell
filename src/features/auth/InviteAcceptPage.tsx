@@ -110,7 +110,6 @@ export function InviteAcceptPage() {
 
   return (
     <AuthShell
-      tilt="right"
       title="You’re invited"
       description="Create your Inkwell account."
       footer={

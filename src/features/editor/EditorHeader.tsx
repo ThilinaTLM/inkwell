@@ -56,7 +56,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
+import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/button";
 import {

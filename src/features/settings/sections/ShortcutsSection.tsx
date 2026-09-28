@@ -220,7 +220,7 @@ export function ShortcutsSection({ query }: { query: string }) {
       ) : null}
 
       {groups.length === 0 ? (
-        <p className="py-10 text-center font-hand text-xl text-muted-foreground">
+        <p className="py-10 text-center font-display text-lg italic text-muted-foreground">
           No commands match.
         </p>
       ) : null}

@@ -121,7 +121,9 @@ export function LibraryItemsView({
     );
   }
   const empty = (
-    <p className="py-16 text-center font-hand text-xl text-muted-foreground">{emptyText}</p>
+    <p className="py-16 text-center font-display text-xl italic text-muted-foreground">
+      {emptyText}
+    </p>
   );
   const menu = { item: LIBRARY_ITEM_MENU_IDS, background: null, moveTo: true };
   return (

@@ -41,11 +41,11 @@ import {
 } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
 import { InkwellLogo } from "@/components/InkwellLogo";
-import { PaperSurface } from "@/components/PaperSurface";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { Surface } from "@/components/Surface";
 import { StatusBar, ToolbarSearch } from "@/components/shell/page";
-import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -112,23 +112,22 @@ export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) 
 
   if (folderQuery.isError) {
     return (
-      <PaperSurface variant="page" className="grid place-items-center px-4">
-        <EmptyDeskNote
-          seed="shared-folder-error"
+      <Surface variant="page" className="grid place-items-center px-4">
+        <EmptyState
           title="Couldn't load this folder"
           body={errorMessage(folderQuery.error, "could not load shared folder")}
         />
-      </PaperSurface>
+      </Surface>
     );
   }
   if (!payload) {
     return (
-      <PaperSurface variant="page" className="px-6 py-6">
+      <Surface variant="page" className="px-6 py-6">
         <div className="space-y-4">
           <div className="h-10 w-2/3 max-w-sm animate-pulse rounded-md bg-muted/60" />
           <SkeletonGrid count={6} />
         </div>
-      </PaperSurface>
+      </Surface>
     );
   }
   return <SharedFolderExplorer token={token} payload={payload} />;

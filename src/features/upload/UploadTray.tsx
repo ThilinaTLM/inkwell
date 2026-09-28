@@ -16,7 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
+import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
