@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inkwell — brand sheet</title>
+<link rel="icon" type="image/svg+xml" href="icon/favicon.svg" />
+<style>
+  :root { --ink:#1c1814; --chalk:#efe9dc; --or:#e8731f; --cream:#fdf6e8; --muted:#5b5044; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 15px/1.5 system-ui, sans-serif; color:var(--ink); background:#f6f3ee; }
+  main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  h2 { margin: 48px 0 12px; font-size: 18px; border-bottom: 1px solid #0002; padding-bottom: 6px; }
+  p.lead { color: var(--muted); margin: 0 0 8px; }
+  code { font-size: 13px; background:#0000000d; padding: 1px 5px; border-radius: 4px; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; }
+  .tile { background:#fff; border-radius:12px; padding:20px; display:flex; flex-direction:column; align-items:center; gap:10px; box-shadow:0 1px 2px #0001; }
+  .tile.dark { background:#121212; color:var(--chalk); }
+  .tile small { font-size:12px; color:inherit; opacity:.65; }
+  .tile img { display:block; }
+  .sizes { display:flex; align-items:flex-end; gap:14px; }
+  .splash { flex:1 1 460px; padding:0; overflow:hidden; }
+  .splash img { width:100%; aspect-ratio: 16/10; object-fit: cover; }
+  .splash small { padding: 0 0 12px; }
+  .concept { flex: 1 1 240px; }
+  .concept .pair { display:flex; gap:10px; }
+  .concept h3 { margin:0; font-size:15px; }
+  .concept p { margin:0; font-size:13px; color:var(--muted); text-align:center; }
+  .reco { outline: 2px solid var(--or); }
+  .swatches { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:120px; border-radius:10px; overflow:hidden; background:#fff; box-shadow:0 1px 2px #0001; font-size:12px; }
+  .sw div { height:56px; }
+  .sw span { display:block; padding:6px 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Inkwell — brand sheet</h1>
+  <p class="lead">Recommended direction: <b>“Well”</b> — a squat inkwell with a pen dipped in and burnt-orange ink inside.
+    The name, the palette and the hand-drawn Excalidraw feel in one silhouette that still reads at 16&nbsp;px.</p>
+
+  <h2>Splash screen (animated — open in a browser)</h2>
+  <div class="row">
+    <div class="tile splash"><img src="splash/splash-light.svg" alt="Light splash" /><small>splash/splash-light.svg</small></div>
+    <div class="tile splash dark"><img src="splash/splash-dark.svg" alt="Dark splash" /><small>splash/splash-dark.svg</small></div>
+  </div>
+
+  <h2>Logo</h2>
+  <div class="row">
+    <div class="tile"><img src="logo/lockup-horizontal-light-bg.svg" height="64" alt="" /><small>lockup-horizontal-light-bg</small></div>
+    <div class="tile dark"><img src="logo/lockup-horizontal-dark-bg.svg" height="64" alt="" /><small>lockup-horizontal-dark-bg</small></div>
+    <div class="tile"><img src="logo/lockup-stacked-light-bg.svg" height="128" alt="" /><small>lockup-stacked-light-bg</small></div>
+    <div class="tile dark"><img src="logo/lockup-stacked-dark-bg.svg" height="128" alt="" /><small>lockup-stacked-dark-bg</small></div>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <div class="tile"><img src="logo/mark-light-bg.svg" width="96" alt="" /><small>mark-light-bg</small></div>
+    <div class="tile dark"><img src="logo/mark-dark-bg.svg" width="96" alt="" /><small>mark-dark-bg</small></div>
+    <div class="tile"><img src="logo/mark.svg" width="96" alt="" /><small>mark (follows OS theme)</small></div>
+    <div class="tile" style="color:#3e5f8a"><img src="logo/mark-mono.svg" width="96" alt="" /><small>mark-mono (currentColor, inline)</small></div>
+    <div class="tile"><img src="logo/wordmark.svg" height="48" alt="" /><small>wordmark (outlined Excalifont)</small></div>
+  </div>
+
+  <h2>Icons</h2>
+  <div class="row">
+    <div class="tile"><div class="sizes">
+      <img src="icon/app-icon-light.svg" width="128" alt="" />
+      <img src="icon/app-icon-light.svg" width="64" alt="" />
+      <img src="icon/app-icon-light.svg" width="32" alt="" />
+    </div><small>app-icon-light</small></div>
+    <div class="tile"><div class="sizes">
+      <img src="icon/app-icon-dark.svg" width="128" alt="" />
+      <img src="icon/app-icon-dark.svg" width="64" alt="" />
+      <img src="icon/app-icon-dark.svg" width="32" alt="" />
+    </div><small>app-icon-dark</small></div>
+    <div class="tile"><img src="icon/app-icon-maskable.svg" width="128" style="border-radius:50%" alt="" /><small>app-icon-maskable (circle crop shown)</small></div>
+    <div class="tile"><div class="sizes">
+      <img src="icon/favicon.svg" width="48" alt="" />
+      <img src="icon/favicon.svg" width="32" alt="" />
+      <img src="icon/favicon.svg" width="16" alt="" />
+    </div><small>favicon (recolours to chalk on a dark OS theme)</small></div>
+  </div>
+
+  <h2>Concepts explored</h2>
+  <div class="row">
+    <div class="tile concept reco">
+      <div class="pair"><img src="concepts/01-well/app-icon-light.svg" width="96" alt="" /><img src="concepts/01-well/app-icon-dark.svg" width="96" alt="" /></div>
+      <h3>01 · Well ★</h3><p>Literal inkwell + dipped pen. Most ownable; the name is the picture.</p>
+    </div>
+    <div class="tile concept">
+      <div class="pair"><img src="concepts/02-drop/app-icon-light.svg" width="96" alt="" /><img src="concepts/02-drop/app-icon-dark.svg" width="96" alt="" /></div>
+      <h3>02 · Drop</h3><p>Ink drop carrying the old sketch stroke. Boldest at tiny sizes, but drops are common.</p>
+    </div>
+    <div class="tile concept">
+      <div class="pair"><img src="concepts/03-monogram/app-icon-light.svg" width="96" alt="" /><img src="concepts/03-monogram/app-icon-dark.svg" width="96" alt="" /></div>
+      <h3>03 · Monogram</h3><p>Lowercase “i”: pen-stroke stem, ink-drop dot. Most minimal.</p>
+    </div>
+    <div class="tile concept">
+      <div class="pair"><img src="concepts/04-folder-ink/app-icon-light.svg" width="96" alt="" /><img src="concepts/04-folder-ink/app-icon-dark.svg" width="96" alt="" /></div>
+      <h3>04 · Folder + ink</h3><p>Evolution of the current mark: same folder, orange stroke ending in a blot.</p>
+    </div>
+  </div>
+
+  <h2>Palette (from <code>src/index.css</code>)</h2>
+  <div class="swatches">
+    <div class="sw"><div style="background:#1c1814"></div><span>Ink #1c1814</span></div>
+    <div class="sw"><div style="background:#efe9dc"></div><span>Chalk #efe9dc</span></div>
+    <div class="sw"><div style="background:#e8731f"></div><span>Burnt orange #e8731f</span></div>
+    <div class="sw"><div style="background:#f5893a"></div><span>Orange (dark) #f5893a</span></div>
+    <div class="sw"><div style="background:#fdf6e8"></div><span>Cream #fdf6e8</span></div>
+  </div>
+</main>
+</body>
+</html>

@@ -41,7 +41,7 @@ import {
 } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { InkwellMark } from "@/components/InkwellMark";
+import { InkwellLogo } from "@/components/InkwellLogo";
 import { PaperSurface } from "@/components/PaperSurface";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { StatusBar, ToolbarSearch } from "@/components/shell/page";
@@ -340,9 +340,8 @@ function SharedFolderExplorer({ token, payload }: { token: string; payload: Fold
     >
       {/* Top bar: wordmark + sign in */}
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-        <Link to="/" className="flex items-center gap-1.5 text-foreground" aria-label="Inkwell">
-          <InkwellMark className="size-5" />
-          <span className="font-brand text-lg leading-none">inkwell</span>
+        <Link to="/" className="flex items-center text-foreground" aria-label="Inkwell">
+          <InkwellLogo />
         </Link>
         <span className="min-w-0 flex-1" />
         {me.data ? (

@@ -20,7 +20,7 @@ export function EditorLoadingState({ label }: { label: string }) {
   return (
     <PaperSurface variant="page" className="grid place-items-center text-muted-foreground">
       <div className="flex flex-col items-center gap-3 text-sm">
-        <InkwellMark animate className="size-10 text-foreground" />
+        <InkwellMark animate className="size-12 text-foreground" />
         {label}
       </div>
     </PaperSurface>

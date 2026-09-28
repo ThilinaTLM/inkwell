@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <title>Inkwell — Well</title>
+  <rect width="512" height="512" rx="112" fill="#1c1814"/>
+  <g transform="translate(87.0 87.0) scale(5.2800)">
+  <path fill="#f5893a" d="M9 43 C16 37 23 37 30 42 C37 47 46 47 55 40 V48 Q55 56 47 56 H17 Q9 56 9 48 Z"/>
+  <path stroke="#efe9dc" stroke-width="4.5" d="M23 17 H41 M27 17 V21 C27 25 9 26 9 36 V48 Q9 56 17 56 H47 Q55 56 55 48 V36 C55 26 37 25 37 21 V17"/>
+  <path stroke="#efe9dc" stroke-width="4.5" d="M50 3 L35 22"/>
+  </g>
+</svg>

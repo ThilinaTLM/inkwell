@@ -4,7 +4,7 @@
 // rotation) laid on a quiet paper background.
 
 import type { ReactNode } from "react";
-import { InkwellMark } from "@/components/InkwellMark";
+import { InkwellLogo } from "@/components/InkwellLogo";
 import { PaperSurface } from "@/components/PaperSurface";
 import { cn } from "@/lib/utils";
 
@@ -40,9 +40,8 @@ export function AuthShell({
             className,
           )}
         >
-          <div className="mb-2 flex items-center gap-2 text-foreground">
-            <InkwellMark className="size-5" />
-            <span className="font-brand text-xl leading-none">inkwell</span>
+          <div className="mb-2 flex items-center text-foreground">
+            <InkwellLogo />
           </div>
 
           {(title || description) && (

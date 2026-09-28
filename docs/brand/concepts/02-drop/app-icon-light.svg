@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <title>Inkwell — Drop</title>
+  <rect width="512" height="512" rx="112" fill="#fdf6e8"/>
+  <g transform="translate(87.0 87.0) scale(5.2800)">
+  <path fill="#e8731f" d="M32 5 C32 5 11 27 11 40 A21 21 0 0 0 53 40 C53 27 32 5 32 5 Z"/>
+  <path stroke="#fdf6e8" stroke-width="4.5" d="M20 42 C24 34 28 34 30 40 C32 46 37 33 44 40"/>
+  </g>
+</svg>

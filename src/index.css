@@ -402,35 +402,83 @@
   transform: rotate(4deg) translate(3px, -1px);
 }
 
-/* ─── Inkwell mark — sketch-stroke draw animation ───────────────────
-   Drives the inner stroke of `<InkwellMark animate />` in a continuous
-   draw → hold → erase loop, used in place of a generic spinner on the
-   boot splash and the editor loading state. The path uses
-   `pathLength="1"`, so dasharray/dashoffset values are length-agnostic.
+/* ─── Inkwell brand animations ──────────────────────────────────────
+   Used by <InkwellMark animate /> and <InkwellSplash>:
+     .ink-pen-dip    pen dips into the well            (loop, 1.6s)
+     .ink-wave       ink surface ripples sideways      (loop, 3.2s; the
+                     wave path has a 48-unit wavelength, so a 48px
+                     translate is seamless)
+     .ink-write      wordmark revealed left→right       (once)
+     .ink-underline  brand-orange underline draws in    (once; the path
+                     uses pathLength="1")
+     .ink-splash-grid  faint Excalidraw dot grid, faded at the edges
+   SVG child transforms are in user units, so "px" here means viewBox
+   units of the 64×64 mark. The static splash in index.html mirrors
+   these keyframes — keep the timings in sync.
    ────────────────────────────────────────────────────────────────── */
-@keyframes ink-sketch-draw {
-  0% {
+@keyframes ink-pen-dip {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  45%,
+  55% {
+    transform: translate(-3.2px, 4px);
+  }
+}
+@keyframes ink-wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(48px);
+  }
+}
+@keyframes ink-write {
+  from {
+    clip-path: inset(-10% 100% -10% 0);
+  }
+  to {
+    clip-path: inset(-10% 0 -10% 0);
+  }
+}
+@keyframes ink-underline {
+  from {
     stroke-dashoffset: 1;
   }
-  40% {
+  to {
     stroke-dashoffset: 0;
-  }
-  60% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: -1;
   }
 }
-.ink-sketch-anim {
+.ink-pen-dip {
+  animation: ink-pen-dip 1.6s cubic-bezier(0.45, 0, 0.3, 1) infinite;
+}
+.ink-wave {
+  animation: ink-wave 3.2s linear infinite;
+}
+.ink-write {
+  animation: ink-write 1.1s 0.15s cubic-bezier(0.6, 0.1, 0.3, 1) both;
+}
+.ink-underline {
   stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: ink-sketch-draw 1.8s ease-in-out infinite;
+  animation: ink-underline 0.6s 1.2s ease-out both;
+}
+.ink-splash-grid {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--foreground) 11%, transparent) 1.2px,
+    transparent 1.4px
+  );
+  background-size: 24px 24px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, #000 30%, transparent 100%);
 }
 @media (prefers-reduced-motion: reduce) {
-  .ink-sketch-anim {
+  .ink-pen-dip,
+  .ink-wave,
+  .ink-write,
+  .ink-underline {
     animation: none;
-    stroke-dashoffset: 0;
   }
 }
 

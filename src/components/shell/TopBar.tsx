@@ -5,7 +5,7 @@
 import { KeyboardIcon, Menu01Icon, Search01Icon, Upload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "react-router-dom";
-import { InkwellMark } from "@/components/InkwellMark";
+import { InkwellLogo } from "@/components/InkwellLogo";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,10 +33,9 @@ export function TopBar({ user }: { user: User }) {
         <Link
           to="/"
           aria-label="Inkwell home"
-          className="flex items-center gap-2 font-brand text-[22px] leading-none text-foreground transition-opacity hover:opacity-75"
+          className="flex items-center text-foreground transition-opacity hover:opacity-75"
         >
-          <InkwellMark className="size-5" />
-          <span className="hidden sm:inline">inkwell</span>
+          <InkwellLogo wordmarkClassName="hidden sm:block" />
         </Link>
       </div>
 

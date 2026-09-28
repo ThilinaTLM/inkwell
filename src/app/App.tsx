@@ -12,7 +12,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { InkwellMark } from "@/components/InkwellMark";
+import { InkwellSplash } from "@/components/InkwellSplash";
 import { useMe } from "@/data/auth";
 import { AppRoutes } from "./routes";
 
@@ -52,13 +52,14 @@ export default function App() {
   return <AppRoutes />;
 }
 
+// index.html paints a static copy of the splash (`#boot-splash`) inside
+// #root before any JS runs. This module is evaluated before the first
+// React render, so we can still see it here; if it was on screen, the
+// wordmark has already been "written" and the React splash must not
+// replay the intro when it takes over.
+const STATIC_SPLASH_SHOWN =
+  typeof document !== "undefined" && document.getElementById("boot-splash") !== null;
+
 function BootSplash() {
-  return (
-    <div className="grid min-h-dvh place-items-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <InkwellMark animate className="size-14 text-foreground" />
-        <div className="font-brand text-2xl text-muted-foreground">inkwell</div>
-      </div>
-    </div>
-  );
+  return <InkwellSplash intro={!STATIC_SPLASH_SHOWN} />;
 }
