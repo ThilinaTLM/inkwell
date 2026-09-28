@@ -3,12 +3,13 @@
 // Includes the shared "normalize a string into a tag name" helpers so
 // every route uses the same length cap + lowercasing rules.
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { newId } from "../../lib/crypto";
 import { now } from "../../lib/util";
 import type { Env, TagPublic, TagRow, TagTargetType } from "../../types";
 import { getDb, t } from "../client";
+import { inIds } from "../filters";
 
 type SqliteBatchItem = BatchItem<"sqlite">;
 
@@ -63,14 +64,21 @@ export async function findByName(
   return row ?? null;
 }
 
+// Counts only live (non-trashed) targets: taggings of trashed items are
+// kept so a restore brings the tags back, but they must not inflate the
+// sidebar counts.
 export async function listForOwnerWithCounts(env: Env, owner: string): Promise<TagPublic[]> {
   const db = getDb(env);
   const rows = await db
     .select({
       id: t.tags.id,
       name: t.tags.name,
-      file_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'file'   THEN 1 ELSE 0 END)`,
-      folder_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'folder' THEN 1 ELSE 0 END)`,
+      file_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'file' AND EXISTS (
+        SELECT 1 FROM ${t.files} WHERE ${t.files.id} = ${t.taggings.target_id} AND ${t.files.deleted_at} IS NULL
+      ) THEN 1 ELSE 0 END)`,
+      folder_count: sql<number>`SUM(CASE WHEN ${t.taggings.target_type} = 'folder' AND EXISTS (
+        SELECT 1 FROM ${t.folders} WHERE ${t.folders.id} = ${t.taggings.target_id} AND ${t.folders.deleted_at} IS NULL
+      ) THEN 1 ELSE 0 END)`,
     })
     .from(t.tags)
     .leftJoin(t.taggings, eq(t.taggings.tag_id, t.tags.id))
@@ -114,7 +122,7 @@ export async function collectForMany(
     .select({ id: t.taggings.target_id, name: t.tags.name })
     .from(t.taggings)
     .innerJoin(t.tags, eq(t.tags.id, t.taggings.tag_id))
-    .where(and(eq(t.taggings.target_type, targetType), inArray(t.taggings.target_id, targetIds)))
+    .where(and(eq(t.taggings.target_type, targetType), inIds(t.taggings.target_id, targetIds)))
     .orderBy(sql`${t.tags.name} COLLATE NOCASE`)
     .all();
   for (const r of rows) {

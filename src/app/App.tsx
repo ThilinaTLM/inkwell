@@ -9,10 +9,10 @@
 //
 // Route definitions and individual pages live in `./routes`.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { InkwellMark } from "@/components/InkwellMark";
+import { InkwellSplash } from "@/components/InkwellSplash";
 import { useMe } from "@/data/auth";
 import { AppRoutes } from "./routes";
 
@@ -29,28 +29,37 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Anonymous = the probe answered 401 (`data === null`) or failed
+  // outright (network / 5xx).
+  const anonymous = me.data === null || (me.isError && !me.data);
+
   // When we know we're anonymous and we're on a protected page, redirect.
   useEffect(() => {
-    if (!me.isError) return;
+    if (!anonymous) return;
     if (isPublicPath(location.pathname)) return;
     navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, {
       replace: true,
     });
-  }, [me.isError, location.pathname, location.search, navigate]);
+  }, [anonymous, location.pathname, location.search, navigate]);
 
-  // First boot: render splash while the session probe is in flight.
-  if (me.isPending) return <BootSplash />;
+  // First boot only: render the splash while the very first session
+  // probe is in flight. Later refetches (a query reset by logout, a
+  // retry after a network error) must never unmount the routes.
+  const bootedRef = useRef(false);
+  if (!me.isPending) bootedRef.current = true;
+  if (me.isPending && !bootedRef.current) return <BootSplash />;
 
   return <AppRoutes />;
 }
 
+// index.html paints a static copy of the splash (`#boot-splash`) inside
+// #root before any JS runs. This module is evaluated before the first
+// React render, so we can still see it here; if it was on screen, the
+// wordmark has already been "written" and the React splash must not
+// replay the intro when it takes over.
+const STATIC_SPLASH_SHOWN =
+  typeof document !== "undefined" && document.getElementById("boot-splash") !== null;
+
 function BootSplash() {
-  return (
-    <div className="grid min-h-dvh place-items-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <InkwellMark animate className="size-14 text-foreground" />
-        <div className="font-brand text-2xl text-muted-foreground">inkwell</div>
-      </div>
-    </div>
-  );
+  return <InkwellSplash intro={!STATIC_SPLASH_SHOWN} />;
 }

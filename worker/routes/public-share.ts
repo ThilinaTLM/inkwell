@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import * as filesRepo from "../db/repos/files";
 import * as foldersRepo from "../db/repos/folders";
 import * as tagsRepo from "../db/repos/tags";
+import * as usersRepo from "../db/repos/users";
 import { shareRenderPayload, signRender } from "../lib/crypto";
 import {
   errorResponse,
@@ -23,8 +24,8 @@ import {
 import { parseJsonOrEmpty } from "../middleware/body";
 import { requireShareToken } from "../middleware/share-token";
 import type { AppEnv } from "../middleware/types";
-import { deleteFileCascade } from "../services/delete-cascade";
 import { createFile, putFileBlob } from "../services/file-blob";
+import { trashItems } from "../services/trash";
 import type { FilePreview, FolderRow, ShareRow } from "../types";
 import { normalizeFileKind, rowToFolderMeta, rowToMeta } from "../types";
 
@@ -42,14 +43,15 @@ const r = new Hono<AppEnv>();
 // Folder-share: render the subtree listing with the same headers.
 r.get("/:token", requireShareToken(), async (c) => {
   const tk = c.get("share");
+  const sharedBy = await usersRepo.displayName(c.env, tk.owner);
   if (tk.target_type === "file") {
     const file = await filesRepo.findByIdAnyOwner(c.env, tk.target_id);
     if (!file) return errorResponse(404, "file not found");
     const resp = await streamFileResponse(c.env, file);
-    return mergeShareHeaders(resp, tk);
+    return mergeShareHeaders(resp, tk, sharedBy);
   }
-  const resp = await renderFolderShareListing(c.env, tk);
-  return mergeShareHeaders(resp, tk);
+  const resp = await renderFolderShareListing(c.env, tk, sharedBy);
+  return mergeShareHeaders(resp, tk, sharedBy);
 });
 
 // File-share write.
@@ -178,7 +180,7 @@ r.get(
     );
     const out = folders.map((f) =>
       rowToFolderMeta(
-        { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id },
+        { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id, starred_at: null },
         { tags: folderTags.get(f.id) ?? [] },
       ),
     );
@@ -210,6 +212,8 @@ r.get("/:token/files/:fileId", requireShareToken(), async (c) => {
   const merged = new Headers(resp.headers);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
+  setSharedByHeader(merged, await usersRepo.displayName(c.env, tk.owner));
+  setExpiresHeader(merged, tk);
   return new Response(resp.body, { status: resp.status, headers: merged });
 });
 
@@ -257,21 +261,44 @@ r.delete("/:token/files/:fileId", requireShareToken({ needsWrite: true }), async
   if (!(await ensureFolderShareCoversFile(c.env, tk, fileId))) {
     return errorResponse(404, "file not in shared folder");
   }
-  await deleteFileCascade(c.env, tk.owner, fileId);
+  // Soft delete, same as the owner endpoint: a write-share visitor's
+  // delete lands in the owner's Trash, where the owner can restore it.
+  await trashItems(c.env, tk.owner, [{ type: "file", id: fileId }]);
   return jsonResponse({ ok: true });
 });
 
 // ─── helpers ─────────────────────────────────────────────────────────
 
-function mergeShareHeaders(resp: Response, tk: ShareRow): Response {
+type SharedBy = { firstName: string; lastName: string } | null;
+
+// "Shared by" travels as `x-share-shared-by`: URI-encoded JSON
+// `{"firstName","lastName"}` (names may be non-ASCII, same encoding as
+// `x-file-name`). Omitted when the owner has no display name. Never
+// carries the email.
+function setSharedByHeader(headers: Headers, sharedBy: SharedBy): void {
+  if (sharedBy) headers.set("x-share-shared-by", encodeURIComponent(JSON.stringify(sharedBy)));
+}
+
+// `x-share-expires-at`: unix-ms when the link stops working, "" = never.
+function setExpiresHeader(headers: Headers, tk: ShareRow): void {
+  headers.set("x-share-expires-at", tk.expires_at === null ? "" : String(tk.expires_at));
+}
+
+function mergeShareHeaders(resp: Response, tk: ShareRow, sharedBy: SharedBy): Response {
   const merged = new Headers(resp.headers);
   merged.set("x-share-target-type", tk.target_type);
   merged.set("x-share-permission", tk.permission);
   merged.set("x-share-allow-download", tk.allow_download ? "1" : "0");
+  setSharedByHeader(merged, sharedBy);
+  setExpiresHeader(merged, tk);
   return new Response(resp.body, { status: resp.status, headers: merged });
 }
 
-async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): Promise<Response> {
+async function renderFolderShareListing(
+  env: AppEnv["Bindings"],
+  tk: ShareRow,
+  sharedBy: SharedBy,
+): Promise<Response> {
   const owner = tk.owner;
   const rootId = tk.target_id;
   const folders = await foldersRepo.loadSubtree(env, owner, rootId);
@@ -311,7 +338,7 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
   const folderOut = folders.map((f) => {
     const parent = f.id === rootId ? null : f.parent_id;
     return rowToFolderMeta(
-      { ...f, parent_id: parent },
+      { ...f, parent_id: parent, starred_at: null },
       {
         tags: folderTags.get(f.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === f.id).length,
@@ -327,9 +354,11 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
       permission: tk.permission,
       allowDownload: tk.allow_download,
       label: tk.label,
+      sharedBy,
+      expiresAt: tk.expires_at,
     },
     root: rowToFolderMeta(
-      { ...rootRow, parent_id: null },
+      { ...rootRow, parent_id: null, starred_at: null },
       {
         tags: folderTags.get(rootRow.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === rootRow.id).length,
@@ -338,7 +367,8 @@ async function renderFolderShareListing(env: AppEnv["Bindings"], tk: ShareRow): 
       },
     ),
     folders: folderOut,
-    files: files.map((s) => rowToMeta(s, fileTags.get(s.id) ?? [])),
+    // Stars are the owner's private state: visitors always see `null`.
+    files: files.map((s) => rowToMeta({ ...s, starred_at: null }, fileTags.get(s.id) ?? [])),
   });
 }
 

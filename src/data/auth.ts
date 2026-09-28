@@ -5,23 +5,40 @@
 // `AuthStatus = "unknown" | "authed" | "anon"` state machine that used
 // to live in App.tsx:
 //
-//   - `isPending` (no data yet, no error)         → boot splash
-//   - `isError` with ApiError(401)                → anonymous
+//   - `isPending` (first probe in flight)         → boot splash
+//   - `data === null` (the worker answered 401)   → anonymous
 //   - `data` present                              → authed
+//   - `isError` (network / 5xx)                   → treated as anonymous
+//
+// A 401 resolves to `null` rather than throwing. An errored query has
+// no data, so every newly mounted observer would refetch it and React
+// Query resets a data-less query to `pending` on fetch start — with
+// several `useMe()` consumers on a public route that flipped `App` back
+// to its boot splash, unmounted the consumers, remounted them and
+// looped. A `null` result is ordinary data: it is cached for
+// `staleTime` and later refetches happen in the background.
 //
 // `useInvitePeek` lives here (rather than under `data/admin.ts`)
 // because invite peek is a public, pre-auth concern — the invite-accept
 // page calls it before any session exists.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ApiError, auth, invites, type MeResponse, type User } from "@/lib/api/client";
+import { ApiError, auth, invites, type MeResponse, type User } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 
+async function fetchMe(): Promise<MeResponse | null> {
+  try {
+    return await auth.me();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
+}
+
 export function useMe() {
-  return useQuery<MeResponse, ApiError>({
+  return useQuery<MeResponse | null, ApiError>({
     queryKey: keys.me,
-    queryFn: () => auth.me(),
-    // Anonymous response is a deterministic 401; don't burn retries on it.
+    queryFn: fetchMe,
     retry: false,
     staleTime: 60_000,
   });
@@ -34,7 +51,7 @@ export function useLogin() {
     onSuccess: (user) => {
       // The login response is `User`; `me` adds `expiresAt`. Seed what
       // we know and let the next `useMe` refetch fill in the rest.
-      qc.setQueryData<MeResponse>(keys.me, (prev) => ({
+      qc.setQueryData<MeResponse | null>(keys.me, (prev) => ({
         ...(prev ?? ({} as MeResponse)),
         ...user,
         expiresAt: prev?.expiresAt ?? Number.MAX_SAFE_INTEGER,
@@ -50,8 +67,10 @@ export function useLogout() {
     onSettled: () => {
       // Whether the worker call succeeded or not, the local session is
       // effectively gone. Wiping the cache prevents stale data from
-      // leaking into a subsequent login.
+      // leaking into a subsequent login; seeding `me` as anonymous
+      // keeps App from flashing its boot splash on the way to /login.
       qc.clear();
+      qc.setQueryData<MeResponse | null>(keys.me, null);
     },
   });
 }

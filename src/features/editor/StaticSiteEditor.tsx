@@ -32,30 +32,20 @@
 // a toast + manifest refetch. No autosave loop, no `useSaveLifecycle`
 // scaffolding — those exist for content that's edited in-place.
 //
-// Layout: a `<PaperSurface>` page with a single editor-owned topbar
-// and a two-column grid on `lg:` (SiteCard + UploadPanel side by
+// Layout: the page's `<EditorHeader>` (via `renderHeader`, with the
+// "Open" button in its toolbar slot) above a two-column grid on `lg:` (SiteCard + UploadPanel side by
 // side, FilesList full-width below). On `<lg` the columns stack.
 // Subcomponents live in `./static-site/`.
 
-import {
-  ArrowLeft01Icon,
-  Download01Icon,
-  Edit02Icon,
-  HashtagIcon,
-  LinkSquare01Icon,
-  Share08Icon,
-} from "@hugeicons/core-free-icons";
+import { LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PaperSurface } from "@/components/PaperSurface";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   type FileMeta,
-  files,
   type LoadedFile,
   type StaticSiteFileBlob,
   type StaticSiteRenderSession,
@@ -64,19 +54,15 @@ import {
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { type RenderEditorHeader, staticBridge } from "./editorHeaderBridge";
 import { FilesList } from "./static-site/FilesList";
 import { SiteCard } from "./static-site/SiteCard";
 import { UploadPanel } from "./static-site/UploadPanel";
 
 export interface StaticSiteEditorProps {
   loaded: LoadedFile;
-  /** Optional back affordance (hidden when `null`). */
-  back?: { onClick: () => void; label: string } | null;
-  onRequestRename?: () => void;
-  onTags?: () => void;
-  onShare?: () => void;
-  /** Override the download URL — defaults to the owner endpoint. */
-  downloadUrl?: string;
+  /** Renders the page header above the bundle manager (see `EditorHeader`). */
+  renderHeader?: RenderEditorHeader;
   /** Override the render-session minter — defaults to owner's.
    *  Share-token viewers pass `() => shares.renderSession(token)`. */
   mintSession?: () => Promise<StaticSiteRenderSession>;
@@ -90,11 +76,7 @@ export interface StaticSiteEditorProps {
 
 export default function StaticSiteEditor({
   loaded,
-  back,
-  onRequestRename,
-  onTags,
-  onShare,
-  downloadUrl,
+  renderHeader,
   mintSession,
   writable = true,
   onManifestChanged,
@@ -210,75 +192,23 @@ export default function StaticSiteEditor({
   // ── Render ────────────────────────────────────────────────────────
   return (
     <PaperSurface variant="page" className="flex h-dvh flex-col">
-      {/* Editor topbar — borderless, glass-blur over the paper. Open
-          is the brand CTA; everything else is ghost. */}
-      <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 bg-background/85 px-3 backdrop-blur sm:px-5 supports-backdrop-filter:bg-background/70">
-        {back ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={back.onClick}
-            aria-label={back.label}
-            title={back.label}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} />
-          </Button>
-        ) : null}
-        <FileKindGlyph kind="static-site" variant="full" className="size-6 rounded" />
-        <div className="min-w-0 flex-1 truncate font-heading text-sm font-semibold">
-          {loaded.meta.name}
-        </div>
-        <div className="hidden items-center gap-1 sm:flex">
-          {onRequestRename ? (
+      {renderHeader?.(
+        staticBridge({
+          toolbar: (
             <Button
-              variant="ghost"
+              variant="default"
               size="sm"
-              onClick={onRequestRename}
-              title="Rename"
-              aria-label="Rename"
+              onClick={onOpenPreview}
+              disabled={isEmpty || openPreviewMutation.isPending}
+              title={isEmpty ? "Upload files to enable preview" : "Open rendered site in a new tab"}
+              aria-label="Open in new tab"
             >
-              <HugeiconsIcon icon={Edit02Icon} />
-              <span className="hidden md:inline">Rename</span>
+              <HugeiconsIcon icon={LinkSquare01Icon} />
+              <span className="hidden sm:inline">Open</span>
             </Button>
-          ) : null}
-          {onTags ? (
-            <Button variant="ghost" size="sm" onClick={onTags} title="Tags" aria-label="Tags">
-              <HugeiconsIcon icon={HashtagIcon} />
-              <span className="hidden md:inline">Tags</span>
-            </Button>
-          ) : null}
-          {onShare ? (
-            <Button variant="ghost" size="sm" onClick={onShare} title="Share" aria-label="Share">
-              <HugeiconsIcon icon={Share08Icon} />
-              <span className="hidden md:inline">Share</span>
-            </Button>
-          ) : null}
-        </div>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            window.location.href = downloadUrl ?? files.downloadUrl(id);
-          }}
-          title="Download as .zip"
-          aria-label="Download"
-        >
-          <HugeiconsIcon icon={Download01Icon} />
-          <span className="hidden md:inline">.zip</span>
-        </Button>
-        <Button
-          variant="default"
-          size="default"
-          onClick={onOpenPreview}
-          disabled={isEmpty || openPreviewMutation.isPending}
-          title={isEmpty ? "Upload files to enable preview" : "Open rendered site in a new tab"}
-          aria-label="Open in new tab"
-        >
-          <HugeiconsIcon icon={LinkSquare01Icon} />
-          <span className="hidden sm:inline">Open</span>
-        </Button>
-      </header>
+          ),
+        }),
+      )}
 
       {/* Main content: SiteCard + UploadPanel (or just SiteCard in
           read-only mode), then FilesList full-width below. */}

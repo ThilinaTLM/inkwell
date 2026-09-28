@@ -1,88 +1,61 @@
-// Cross-table cascade deletes.
+// Permanent deletes and their R2 cleanup.
+//
+// Owner-facing "delete" is a soft delete now (see `services/trash.ts`);
+// rows only disappear for real through Trash purge (`purgeItems`,
+// `emptyTrash`, the daily `purgeExpired` cron) and user deletion. Both
+// funnel their R2 cleanup through `deleteFileObjects` below so there is
+// exactly one definition of "every R2 object a file owns".
 //
 // D1 honors FKs only with `PRAGMA foreign_keys = ON` (per connection),
-// which Drizzle does NOT set. So we cascade explicitly. Keeping these
-// in one file makes it obvious what cleanup happens for each delete.
+// which Drizzle does NOT set. So we cascade explicitly.
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb, t } from "../db/client";
+import { chunk } from "../db/filters";
 import * as filesRepo from "../db/repos/files";
 import { r2FileKey, r2ThumbKey } from "../lib/responses";
-import { now } from "../lib/util";
-import type { Env, FolderRow } from "../types";
+import type { Env, FileKind } from "../types";
 import { deleteAllStaticSiteAssets } from "./static-site";
 
-// Delete one file: cascade shares + taggings, then drop the row, then
-// best-effort R2 cleanup. Used by both the owner endpoint and the
-// folder-share write endpoint (the share's owner is the file's owner).
-export async function deleteFileCascade(env: Env, owner: string, id: string): Promise<void> {
-  const db = getDb(env);
-  await db.batch([
-    db.delete(t.shares).where(and(eq(t.shares.target_type, "file"), eq(t.shares.target_id, id))),
-    db
-      .delete(t.taggings)
-      .where(and(eq(t.taggings.target_type, "file"), eq(t.taggings.target_id, id))),
-    db.delete(t.files).where(and(eq(t.files.id, id), eq(t.files.owner, owner))),
-  ]);
-  // Always drop the static-site asset prefix unconditionally: the
-  // helper paginates an R2 list under `static-sites/<id>/` and no-ops
-  // when there are no objects, so we don't need to branch on `kind`
-  // here (kind isn't loaded at this layer anyway).
-  await Promise.allSettled([
-    env.R2.delete(r2FileKey(id)),
-    env.R2.delete(r2ThumbKey(id)),
-    deleteAllStaticSiteAssets(env, id),
-  ]);
-}
+// R2's multi-key delete accepts up to 1000 keys per call.
+const R2_DELETE_BATCH = 1000;
 
-// Delete one folder. Children (direct files + subfolders) move up one
-// level; deleting a root-level folder leaves them at the root.
-// Taggings + shares targeting this folder are dropped.
-export async function deleteFolderCascade(
+/**
+ * Best-effort removal of every R2 object owned by the given files: the
+ * blob (`scenes/{id}.json`), the thumbnail and — for static sites — the
+ * whole `static-sites/{id}/` prefix. When `kind` is unknown the prefix is
+ * listed anyway (a no-op for non-sites) so callers can't under-clean.
+ *
+ * Blob + thumb keys go out in multi-key deletes so a large purge stays
+ * well under the Worker subrequest budget; only static sites need the
+ * per-file list call. Failures are swallowed: D1 is the source of truth
+ * and a leftover object is merely wasted storage.
+ */
+export async function deleteFileObjects(
   env: Env,
-  owner: string,
-  folder: FolderRow,
+  files: readonly { id: string; kind?: FileKind }[],
 ): Promise<void> {
-  const ts = now();
-  const db = getDb(env);
-  await db.batch([
-    db
-      .update(t.folders)
-      .set({ parent_id: folder.parent_id, updated_at: ts })
-      .where(and(eq(t.folders.owner, owner), eq(t.folders.parent_id, folder.id))),
-    db
-      .update(t.files)
-      .set({ folder_id: folder.parent_id, updated_at: ts })
-      .where(and(eq(t.files.owner, owner), eq(t.files.folder_id, folder.id))),
-    db
-      .delete(t.taggings)
-      .where(
-        and(
-          eq(t.taggings.target_type, "folder"),
-          eq(t.taggings.target_id, folder.id),
-          eq(t.taggings.owner, owner),
-        ),
-      ),
-    db
-      .delete(t.shares)
-      .where(
-        and(
-          eq(t.shares.target_type, "folder"),
-          eq(t.shares.target_id, folder.id),
-          eq(t.shares.owner, owner),
-        ),
-      ),
-    db.delete(t.folders).where(and(eq(t.folders.id, folder.id), eq(t.folders.owner, owner))),
-  ]);
+  if (files.length === 0) return;
+  const keys = files.flatMap((f) => [r2FileKey(f.id), r2ThumbKey(f.id)]);
+  const tasks: Promise<unknown>[] = chunk(keys, R2_DELETE_BATCH).map((batch) =>
+    env.R2.delete(batch).catch(() => Promise.allSettled(batch.map((k) => env.R2.delete(k)))),
+  );
+  for (const f of files) {
+    if (f.kind === undefined || f.kind === "static-site") {
+      tasks.push(deleteAllStaticSiteAssets(env, f.id));
+    }
+  }
+  await Promise.allSettled(tasks);
 }
 
 // Delete a user and everything they own: files (rows + R2 + thumbs),
-// folders, tags + taggings, shares, and invites they created.
+// folders, tags + taggings, shares, and invites they created. Trashed
+// files are included — they still own R2 objects.
 // Best-effort on R2: a partial failure leaves orphan objects but D1
 // stays consistent.
 export async function deleteUserCascade(env: Env, userId: string): Promise<void> {
   const db = getDb(env);
-  const fileIds = (await filesRepo.listForOwner(env, userId)).map((r) => r.id);
+  const fileRefs = await filesRepo.listAllIdsIncludingTrashed(env, userId);
 
   // Wipe owner-scoped rows from organization tables. Order matters
   // only for FK-honoring engines; with `PRAGMA foreign_keys = ON` D1
@@ -95,16 +68,7 @@ export async function deleteUserCascade(env: Env, userId: string): Promise<void>
     db.delete(t.files).where(eq(t.files.owner, userId)),
   ]);
 
-  if (fileIds.length > 0) {
-    const deletes: Promise<unknown>[] = [];
-    for (const id of fileIds) {
-      deletes.push(env.R2.delete(r2FileKey(id)));
-      deletes.push(env.R2.delete(r2ThumbKey(id)));
-      // No-op for kinds that don't have a static-site prefix.
-      deletes.push(deleteAllStaticSiteAssets(env, id));
-    }
-    await Promise.allSettled(deletes);
-  }
+  await deleteFileObjects(env, fileRefs);
 
   // Folders go after files (folders may be referenced by files via
   // ON DELETE SET NULL; with all the user's files gone it's a clean drop).

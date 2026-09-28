@@ -253,6 +253,7 @@ export async function putFileBlob(env: Env, row: FileRow, req: Request): Promise
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
     activeShareCount: shareMap.get(row.id) ?? 0,
+    starredAt: row.starred_at ?? null,
     createdAt: row.created_at,
     updatedAt: ts,
   } satisfies FileMeta);
@@ -309,6 +310,9 @@ export async function createFile(
     thumb_updated_at: 0,
     created_at: ts,
     updated_at: ts,
+    deleted_at: null,
+    trashed_via: null,
+    starred_at: null,
   });
 
   const tags = opts.tags ? await tagsRepo.replaceForEntity(env, owner, "file", id, opts.tags) : [];
@@ -324,6 +328,7 @@ export async function createFile(
     hasThumb: false,
     thumbUpdatedAt: 0,
     activeShareCount: 0,
+    starredAt: null,
     createdAt: ts,
     updatedAt: ts,
   };

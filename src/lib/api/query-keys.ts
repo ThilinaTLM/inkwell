@@ -36,6 +36,11 @@ export const keys = {
     manifest: (fileId: string) => ["files", fileId, "manifest"] as const,
   },
 
+  trash: {
+    all: ["trash"] as const,
+    list: () => ["trash", "list"] as const,
+  },
+
   sharesAll: ["shares"] as const,
 
   admin: {

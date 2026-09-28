@@ -1,35 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <title>Inkwell</title>
   <!--
-    Inkwell — favicon.
-    Monochrome ink-on-paper mark: a folder outline with a single
-    hand-drawn sketch stroke inside. Stays in sync with the React
-    <InkwellMark> component in src/components/InkwellMark.tsx.
+    Inkwell — favicon ("Well" mark): a short inkwell with a pen dipped in
+    and burnt-orange ink inside. Mirrors <InkwellMark> in
+    src/components/InkwellMark.tsx; keep the paths in sync.
 
-    Color adapts to the OS theme so the mark stays legible against
-    both light and dark browser chrome (Firefox + Safari respect
-    prefers-color-scheme inside SVG favicons; Chromium uses the
-    light-mode value, which is fine on its tab strip too).
+    Colours follow the OS theme (Firefox and Safari respect
+    prefers-color-scheme inside SVG favicons; Chromium uses the light
+    values, which also read fine on its tab strip).
   -->
   <style>
-    path {
-      stroke: #1c1814;
-      fill: none;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    @media (prefers-color-scheme: dark) {
-      path { stroke: #efe9dc; }
-    }
+    .s { stroke: #1c1814; } .f { fill: #e8731f; }
+    @media (prefers-color-scheme: dark) { .s { stroke: #efe9dc; } .f { fill: #f5893a; } }
   </style>
-  <!-- Folder outline with a notched tab on the upper left. -->
-  <path
-    d="M14 12 L26 12 L32 20 L50 20 Q56 20 56 26 L56 50 Q56 56 50 56 L14 56 Q8 56 8 50 L8 18 Q8 12 14 12 Z"
-    stroke-width="5"
-  />
-  <!-- Sketch stroke inside the folder. -->
-  <path
-    d="M16 44 C22 32 28 32 30 40 C32 46 38 28 44 38"
-    stroke-width="4"
-  />
+  <path class="f" d="M9 43 C16 37 23 37 30 42 C37 47 46 47 55 40 V48 Q55 56 47 56 H17 Q9 56 9 48 Z"/>
+  <path class="s" stroke-width="4.5" d="M23 17 H41 M27 17 V21 C27 25 9 26 9 36 V48 Q9 56 17 56 H47 Q55 56 55 48 V36 C55 26 37 25 37 21 V17"/>
+  <path class="s" stroke-width="4.5" d="M50 3 L35 22"/>
 </svg>

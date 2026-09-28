@@ -8,20 +8,23 @@
 //   • `useLeaveConfirm` + `<LeaveConfirmDialog>` for the in-app
 //     navigation guard when the document is dirty.
 //
-// BlockNote's React surface is small enough that we don't need to mirror
-// Excalidraw's "context provider for chrome" indirection — the chrome
-// strip lives outside `<BlockNoteView>` in the same component tree, so
-// it can read save state via plain props.
+// File-level chrome comes from the page through `renderHeader(bridge)`
+// (see `EditorHeader`); the Notes-only view toggles (`NotesEditorChrome`)
+// are handed to the header via `bridge.toolbar`, and "Export as
+// Markdown" via `bridge.menuExtras`.
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
+import { FileExportIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { FileBlob, LoadedFile, NotesFileBlob } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
@@ -46,18 +49,8 @@ export interface NotesEditorProps {
   onReload?: (loaded: LoadedFile) => void;
   /** Re-fetch the canonical file (for the 409 recovery path). */
   reload?: () => Promise<LoadedFile>;
-  /** Optional back affordance. `null` to hide. */
-  back?: { onClick: () => void; label: string } | null;
-  /** Owner-only: open the rename dialog. Omit on read-only share sessions. */
-  onRequestRename?: () => void;
-  /** Owner-only: open the tags dialog. */
-  onTags?: () => void;
-  /** Owner-only: open the share dialog. */
-  onShare?: () => void;
-  /** Trigger a `.notes.json` download (typically `files.downloadUrl(id)`). */
-  onDownload: () => void;
-  /** True when the share token allows downloading; ignored for owner sessions. */
-  allowDownload?: boolean;
+  /** Renders the page header above the document (see `EditorHeader`). */
+  renderHeader?: RenderEditorHeader;
 }
 
 export default function NotesEditor({
@@ -67,12 +60,7 @@ export default function NotesEditor({
   onThumbSaved,
   onReload,
   reload,
-  back = null,
-  onRequestRename,
-  onTags,
-  onShare,
-  onDownload,
-  allowDownload = true,
+  renderHeader,
 }: NotesEditorProps) {
   const readOnly = loaded.permission !== "write";
   const { resolved: themeResolved } = useTheme();
@@ -207,20 +195,12 @@ export default function NotesEditor({
     };
   }, [font]);
 
-  // ─── Leave-confirm guard for the back button ──────────────────────
+  // ─── Leave-confirm guard for header navigation ────────────────────
   const leave = useLeaveConfirm({
     isDirty: lifecycle.isDirty,
     saveNow: lifecycle.saveNow,
     discardPendingLocalWork: lifecycle.discardPendingLocalWork,
   });
-  const requestBack = useCallback(() => {
-    if (!back) return;
-    leave.requestLeave(back.onClick);
-  }, [back, leave]);
-  const guardedBack = useMemo(
-    () => (back ? { onClick: requestBack, label: back.label } : null),
-    [back, requestBack],
-  );
 
   const onExportMarkdown = useCallback(async () => {
     try {
@@ -246,22 +226,40 @@ export default function NotesEditor({
     }
   }, [editor, loaded.meta.name]);
 
+  const { saveNow, discardPendingLocalWork } = lifecycle;
+  const { requestLeave } = leave;
+  const bridge = useMemo<EditorHeaderBridge>(
+    () => ({
+      status: readOnly ? null : lifecycle.status,
+      errorMessage: lifecycle.errorMessage,
+      saveNow: readOnly ? null : () => void saveNow(),
+      flush: saveNow,
+      discard: discardPendingLocalWork,
+      requestLeave,
+      toolbar: <NotesEditorChrome />,
+      menuExtras: [
+        {
+          id: "export-markdown",
+          label: "Export as Markdown",
+          icon: <HugeiconsIcon icon={FileExportIcon} strokeWidth={1.8} />,
+          onSelect: () => void onExportMarkdown(),
+        },
+      ],
+    }),
+    [
+      readOnly,
+      lifecycle.status,
+      lifecycle.errorMessage,
+      saveNow,
+      discardPendingLocalWork,
+      requestLeave,
+      onExportMarkdown,
+    ],
+  );
+
   return (
     <div className="flex h-full w-full flex-col">
-      <NotesEditorChrome
-        name={loaded.meta.name}
-        back={guardedBack}
-        readOnly={readOnly}
-        status={lifecycle.status}
-        errorMessage={lifecycle.errorMessage}
-        onSaveNow={!readOnly ? () => void lifecycle.saveNow() : null}
-        onRequestRename={!readOnly && onRequestRename ? onRequestRename : null}
-        onTags={!readOnly && onTags ? onTags : null}
-        onShare={!readOnly && onShare ? onShare : null}
-        onDownload={onDownload}
-        onExportMarkdown={onExportMarkdown}
-        allowDownload={allowDownload}
-      />
+      {renderHeader?.(bridge)}
       <div className="notes-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
         {/* The padding + max-width wrapper lives **outside** BlockNoteView.
          *  BlockNote's shadcn build renders a second `.bn-root` portal node

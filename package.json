@@ -10,7 +10,7 @@
     "dev:worker": "wrangler dev --port 8888",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json",
-    "precommit:check": "pnpm check:ci && pnpm typecheck",
+    "precommit:check": "pnpm check:ci && pnpm typecheck && pnpm test",
     "deploy": "pnpm run build && wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrations:list:local": "wrangler d1 migrations list inkwell --local",
@@ -26,7 +26,9 @@
     "lint:fix": "biome lint --write .",
     "check": "biome check --write .",
     "check:ci": "biome ci .",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke-redesign.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -71,9 +73,11 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "drizzle-kit": "^0.31.10",
+    "playwright": "1.62.1",
     "simple-git-hooks": "^2.14.0",
     "typescript": "^6.0.3",
     "vite": "^8.3.0",
+    "vitest": "^5.0.2",
     "wrangler": "^4.135.0"
   },
   "pnpm": {

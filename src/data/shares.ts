@@ -80,10 +80,8 @@ export function useRevokeShare(targetType: ShareTargetType, targetId: string) {
 
 // ─── Cross-target hooks (the /shares management page) ────────────────
 //
-// Each `SharesGroup` row uses the per-target hooks above (the row
-// component knows its `(targetType, targetId)` context). What's left
-// for the page itself is bulk revoke, which spans multiple targets
-// and must fall back to the token-only invalidation path.
+// The Shared links table spans many targets, so its mutations go through
+// the token-only endpoints and the generic invalidation path.
 export function useAllShares() {
   return useQuery<Share[], ApiError>({
     queryKey: keys.sharesAll,

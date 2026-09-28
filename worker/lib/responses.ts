@@ -74,7 +74,8 @@ export async function serveR2WithCache(
 //   * GET /api/share/:token/files/:fileId/download  (folder share child)
 //
 // `includeFolderId` is owner-only: we don't surface owner-side folder
-// IDs to share-token recipients.
+// IDs to share-token recipients. The same flag gates `x-file-starred-at`
+// (unix-ms, or "" when not starred) — stars are the owner's private state.
 export async function streamFileResponse(
   env: { R2: R2Bucket },
   row: FileRow,
@@ -95,6 +96,7 @@ export async function streamFileResponse(
   };
   if (opts.includeFolderId) {
     headers["x-file-folder-id"] = row.folder_id ?? "";
+    headers["x-file-starred-at"] = row.starred_at === null ? "" : String(row.starred_at);
   }
   if (opts.download) {
     headers["content-disposition"] =

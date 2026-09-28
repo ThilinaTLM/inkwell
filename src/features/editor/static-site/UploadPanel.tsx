@@ -19,6 +19,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useRef, useState } from "react";
 import { RoughBox } from "@/components/rough/RoughBox";
 import { Button } from "@/components/ui/button";
+import { collectDrop } from "@/features/upload/collectDrop";
 import { cn } from "@/lib/utils";
 
 export type UploadEntry = File | { path: string; file: File };
@@ -72,18 +73,10 @@ export function UploadPanel({
       setDragOver(false);
       const dt = e.dataTransfer;
       if (!dt) return;
-      const items = dt.items;
-      const collected: UploadEntry[] = [];
-      if (items && items.length > 0 && (items[0] as DataTransferItem).webkitGetAsEntry) {
-        const tasks: Promise<void>[] = [];
-        for (let i = 0; i < items.length; i++) {
-          const entry = (items[i] as DataTransferItem).webkitGetAsEntry?.();
-          if (entry) tasks.push(walkEntry(entry, "", collected));
-        }
-        await Promise.all(tasks);
-      } else {
-        for (const f of Array.from(dt.files)) collected.push(f);
-      }
+      // Shared walker (keeps dropped-folder structure as `relativePath`).
+      const collected: UploadEntry[] = (await collectDrop(dt)).map((d) =>
+        d.relativePath === d.file.name ? d.file : { path: d.relativePath, file: d.file },
+      );
       if (collected.length === 0) return;
       if (
         collected.length === 1 &&
@@ -214,56 +207,4 @@ export function UploadPanel({
       </div>
     </section>
   );
-}
-
-// ─── Drag-and-drop folder walker ────────────────────────────────────
-//
-// FileSystem Entry API is non-standard but is the only DOM API that
-// preserves directory structure on drop. Chromium, WebKit and Gecko
-// all support it. We collect each leaf into a `{path, file}` pair so
-// the upload reaches the worker with the right asset relpath.
-
-type FsEntry = {
-  isFile: boolean;
-  isDirectory: boolean;
-  name: string;
-  file?: (cb: (f: File) => void, err?: (e: unknown) => void) => void;
-  createReader?: () => {
-    readEntries: (cb: (entries: FsEntry[]) => void, err?: (e: unknown) => void) => void;
-  };
-};
-
-async function walkEntry(entry: unknown, prefix: string, out: UploadEntry[]): Promise<void> {
-  if (!entry) return;
-  const e = entry as FsEntry;
-  if (e.isFile && e.file) {
-    await new Promise<void>((resolve) => {
-      e.file?.(
-        (f) => {
-          out.push({ path: prefix ? `${prefix}/${e.name}` : e.name, file: f });
-          resolve();
-        },
-        () => resolve(),
-      );
-    });
-    return;
-  }
-  if (e.isDirectory && e.createReader) {
-    const reader = e.createReader();
-    const children: FsEntry[] = [];
-    await new Promise<void>((resolve) => {
-      const drain = () =>
-        reader.readEntries((batch) => {
-          if (batch.length === 0) {
-            resolve();
-            return;
-          }
-          children.push(...batch);
-          drain();
-        });
-      drain();
-    });
-    const next = prefix ? `${prefix}/${e.name}` : e.name;
-    await Promise.all(children.map((c) => walkEntry(c, next, out)));
-  }
 }

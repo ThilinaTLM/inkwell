@@ -71,6 +71,8 @@ export const invites = sqliteTable(
     }),
     used_at: integer("used_at"),
     revoked_at: integer("revoked_at"),
+    // Free-form admin note (≤ 200 chars, enforced in the route).
+    note: text("note"),
   },
   (t) => [index("invites_created_by").on(t.created_by), index("invites_unused").on(t.used_at)],
 );
@@ -93,10 +95,19 @@ export const folders = sqliteTable(
     name: text("name").notNull(),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
+    // Trash (soft delete). See migration 0003 and `services/trash.ts`:
+    // `deleted_at` NULL = live; `trashed_via` is the id of the top-level
+    // item whose trash operation swept this row along (NULL on the
+    // top-level item itself).
+    deleted_at: integer("deleted_at"),
+    trashed_via: text("trashed_via"),
+    starred_at: integer("starred_at"),
   },
   (t) => [
     // Hot path: list children of a folder, list roots, sort by name.
     index("folders_owner_parent").on(t.owner, t.parent_id, t.name),
+    index("folders_owner_deleted").on(t.owner, t.deleted_at),
+    index("folders_trashed_via").on(t.trashed_via),
     check("folders_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
     check("folders_no_self_parent", sql`${t.parent_id} IS NULL OR ${t.parent_id} <> ${t.id}`),
   ],
@@ -133,6 +144,10 @@ export const files = sqliteTable(
     thumb_updated_at: integer("thumb_updated_at").notNull().default(0),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull(),
+    // Trash + stars — same semantics as on `folders`.
+    deleted_at: integer("deleted_at"),
+    trashed_via: text("trashed_via"),
+    starred_at: integer("starred_at"),
   },
   (t) => [
     // Hot path: dashboard list within a folder.
@@ -141,6 +156,8 @@ export const files = sqliteTable(
     index("files_owner_updated").on(t.owner, sql`${t.updated_at} DESC`),
     // LIKE-friendly name search.
     index("files_owner_name").on(t.owner, t.name),
+    index("files_owner_deleted").on(t.owner, t.deleted_at),
+    index("files_trashed_via").on(t.trashed_via),
     check("files_name_len", sql`length(${t.name}) BETWEEN 1 AND 200`),
     check("files_has_thumb_bool", sql`${t.has_thumb} IN (0, 1)`),
   ],

@@ -20,7 +20,15 @@ export async function findByEmail(env: Env, email: string): Promise<UserRow | nu
   return row ?? null;
 }
 
-// Admin list: every user with their owned-file count.
+// `file_count` excludes Trash (it's what the user sees); `storage_bytes`
+// includes it (trashed blobs still occupy R2 until purged).
+// Correlated subqueries: drizzle renders `${column}` without a table
+// prefix inside raw sql, so `${t.users.id}` would resolve to `files.id`
+// here. Qualify both sides explicitly.
+const fileCountSql = sql<number>`COALESCE((SELECT COUNT(*) FROM files f WHERE f.owner = users.id AND f.deleted_at IS NULL), 0)`;
+const storageBytesSql = sql<number>`COALESCE((SELECT SUM(f.size_bytes) FROM files f WHERE f.owner = users.id), 0)`;
+
+// Admin list: every user with their owned-file count and storage use.
 export async function listAllAdmin(env: Env): Promise<AdminUserRow[]> {
   const db = getDb(env);
   const rows = await db
@@ -35,7 +43,8 @@ export async function listAllAdmin(env: Env): Promise<AdminUserRow[]> {
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
+      file_count: fileCountSql,
+      storage_bytes: storageBytesSql,
     })
     .from(t.users)
     .orderBy(asc(t.users.created_at))
@@ -57,12 +66,32 @@ export async function findByIdAdmin(env: Env, id: string): Promise<AdminUserRow 
       created_at: t.users.created_at,
       updated_at: t.users.updated_at,
       last_login_at: t.users.last_login_at,
-      file_count: sql<number>`COALESCE((SELECT COUNT(*) FROM ${t.files} WHERE ${t.files.owner} = ${t.users.id}), 0)`,
+      file_count: fileCountSql,
+      storage_bytes: storageBytesSql,
     })
     .from(t.users)
     .where(eq(t.users.id, id))
     .get();
   return row ?? null;
+}
+
+// Public-facing display name for share pages ("Shared by …"). Never
+// exposes the email; returns null when the user is gone or has no name.
+export async function displayName(
+  env: Env,
+  id: string,
+): Promise<{ firstName: string; lastName: string } | null> {
+  const db = getDb(env);
+  const row = await db
+    .select({ firstName: t.users.first_name, lastName: t.users.last_name })
+    .from(t.users)
+    .where(eq(t.users.id, id))
+    .get();
+  if (!row) return null;
+  const firstName = row.firstName.trim();
+  const lastName = row.lastName.trim();
+  if (!firstName && !lastName) return null;
+  return { firstName, lastName };
 }
 
 export async function insert(env: Env, row: UserRow): Promise<void> {
