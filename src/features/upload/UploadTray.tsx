@@ -121,7 +121,7 @@ export function UploadTray() {
             <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-[11.5px] text-muted-foreground">
               {hasNotes ? (
                 <span className="min-w-0 flex-1">
-                  Markdown becomes Notes blocks; unsupported syntax turns into plain text.
+                  Markdown source is preserved, including diagrams and formulas.
                 </span>
               ) : (
                 <span className="flex-1" />

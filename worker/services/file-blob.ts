@@ -45,7 +45,7 @@ export function seedManifestForKind(kind: FileKind, name: string): FileBlob {
     case "excalidraw":
       return { elements: [], appState: { name }, files: {} };
     case "notes":
-      return { kind: "notes", blocks: [{ type: "paragraph", content: [] }] };
+      return { kind: "notes", format: "markdown-v1", source: "" };
     case "static-site":
       // The canonical seed manifest (with one asset entry) is built
       // by `writeSeedSite`; this sentinel keeps the function pure.
@@ -76,10 +76,17 @@ export function isDrawioBlob(blob: FileBlob): blob is DrawioFileBlob {
 }
 
 export function isNotesBlob(blob: FileBlob): blob is NotesFileBlob {
-  return (
-    (blob as { kind?: unknown }).kind === "notes" &&
-    Array.isArray((blob as { blocks?: unknown }).blocks)
-  );
+  if ((blob as { kind?: unknown }).kind !== "notes") return false;
+  const candidate = blob as { format?: unknown; source?: unknown; blocks?: unknown };
+  const markdown =
+    candidate.format === "markdown-v1" &&
+    typeof candidate.source === "string" &&
+    candidate.blocks === undefined;
+  const legacy =
+    candidate.format === undefined &&
+    candidate.source === undefined &&
+    Array.isArray(candidate.blocks);
+  return markdown || legacy;
 }
 
 export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | null {
@@ -93,7 +100,8 @@ export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | 
         return "elements must be an array";
       return null;
     case "notes":
-      if (!isNotesBlob(parsed)) return "notes blob must include kind=notes and blocks array";
+      if (!isNotesBlob(parsed))
+        return "Markdown blob must include source text, or a legacy notes blocks array";
       return null;
     case "static-site":
       // Direct manifest PUTs are not supported — `putFileBlob` short-

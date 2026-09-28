@@ -8,7 +8,7 @@ import { ensureItems, getFoldersCached } from "./itemCache";
 const EXT: Record<FileKind, string> = {
   excalidraw: ".excalidraw",
   drawio: ".drawio",
-  notes: ".notes.json",
+  notes: ".md",
   "static-site": ".zip",
 };
 

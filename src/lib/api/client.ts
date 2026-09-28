@@ -168,13 +168,21 @@ export interface DrawioFileBlob {
   xml: string;
 }
 
-/** BlockNote document JSON. The inner shape of `blocks` is opaque to
- *  Inkwell — BlockNote owns that schema and it changes between
- *  versions. We just round-trip the JSON. */
-export interface NotesFileBlob {
+/** Canonical Markdown document. The internal `notes` kind is retained
+ * for database and API compatibility. */
+export interface MarkdownNotesFileBlob {
+  kind: "notes";
+  format: "markdown-v1";
+  source: string;
+}
+
+/** Legacy BlockNote JSON, retained for lazy client-side conversion. */
+export interface LegacyNotesFileBlob {
   kind: "notes";
   blocks: unknown[];
 }
+
+export type NotesFileBlob = MarkdownNotesFileBlob | LegacyNotesFileBlob;
 
 /** One asset inside a static-site bundle. Paths are forward-slash,
  *  no leading slash, no `..`, no empty segments. */

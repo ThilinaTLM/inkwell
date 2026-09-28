@@ -121,7 +121,7 @@ function go(to: string) {
 const KIND_ITEMS: Array<{ kind: FileKind; label: string }> = [
   { kind: "excalidraw", label: "New Excalidraw drawing" },
   { kind: "drawio", label: "New Draw.io diagram" },
-  { kind: "notes", label: "New note" },
+  { kind: "notes", label: "New Markdown file" },
   { kind: "static-site", label: "New static site" },
 ];
 

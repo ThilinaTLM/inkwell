@@ -1,7 +1,7 @@
 // Bridge between an editor's save lifecycle and the page-level
 // `<EditorHeader>`.
 //
-// Each editor (Excalidraw, draw.io, Notes) owns its own
+// Each editor (Excalidraw, draw.io, Markdown) owns its own
 // `useSaveLifecycle` + `useLeaveConfirm` instance, because the
 // lifecycle closes over editor-specific snapshot refs. The header,
 // however, is built by the page (owner `EditorPage` or visitor
@@ -40,7 +40,7 @@ export interface EditorHeaderBridge {
   /** Editor-specific entries for the header's ⋯ menu. */
   menuExtras?: EditorMenuExtra[];
   /** Editor-specific controls rendered in the header's right cluster
-   *  (Notes view toggles, static-site "Open"). */
+   *  (Markdown view toggles, static-site "Open"). */
   toolbar?: ReactNode;
 }
 

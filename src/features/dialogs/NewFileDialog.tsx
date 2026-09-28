@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 const KINDS: Array<{ kind: FileKind; label: string }> = [
   { kind: "excalidraw", label: "Excalidraw" },
   { kind: "drawio", label: "Draw.io" },
-  { kind: "notes", label: "Notes" },
+  { kind: "notes", label: "Markdown" },
   { kind: "static-site", label: "Static site" },
 ];
 

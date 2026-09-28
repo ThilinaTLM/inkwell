@@ -19,7 +19,7 @@ import {
   type BrandLogoVariant,
   DrawioLogo,
   ExcalidrawLogo,
-  NotesLogo,
+  MarkdownLogo,
   StaticSiteLogo,
 } from "./brand-logos";
 
@@ -40,7 +40,7 @@ export function FileKindGlyph({
   className?: string;
 }) {
   if (kind === "drawio") return <DrawioLogo variant={variant} className={className} />;
-  if (kind === "notes") return <NotesLogo variant={variant} className={className} />;
+  if (kind === "notes") return <MarkdownLogo variant={variant} className={className} />;
   if (kind === "static-site") return <StaticSiteLogo variant={variant} className={className} />;
   return <ExcalidrawLogo variant={variant} className={className} />;
 }
@@ -50,7 +50,7 @@ export function fileKindLabel(kind: FileKind): string {
     case "drawio":
       return "draw.io file";
     case "notes":
-      return "notes file";
+      return "Markdown file";
     case "static-site":
       return "static site";
     default:
@@ -59,18 +59,18 @@ export function fileKindLabel(kind: FileKind): string {
 }
 
 /** Menu label for the per-kind download item, e.g.
- *  "Download .excalidraw" / "Download .drawio" / "Download .notes.json".
+ *  "Download .excalidraw" / "Download .drawio" / "Download .md".
  *
  *  Pulled out of the editor pages so adding a new kind is a one-line
  *  change here, and so the same label is used everywhere a download
  *  is offered (owner editor MainMenu, drawio File-menu extras,
- *  shared-page MainMenu, notes editor chrome). */
+ *  shared-page MainMenu, Markdown editor chrome). */
 export function downloadLabelForKind(kind: FileKind): string {
   switch (kind) {
     case "drawio":
       return "Download .drawio";
     case "notes":
-      return "Download .notes.json";
+      return "Download .md";
     case "static-site":
       return "Download .zip";
     default:

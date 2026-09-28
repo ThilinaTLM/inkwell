@@ -58,7 +58,7 @@ import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridg
 const DrawioEditor = lazy(() => import("./DrawioEditor"));
 const ExcalidrawEditor = lazy(() => import("./ExcalidrawEditor"));
 const ExcalidrawMenu = lazy(() => import("./ExcalidrawMenu"));
-const NotesEditor = lazy(() => import("./NotesEditor"));
+const MarkdownEditor = lazy(() => import("./MarkdownEditor"));
 const StaticSiteEditor = lazy(() => import("./StaticSiteEditor"));
 
 function EditorSuspense({ children }: { children: React.ReactNode }) {
@@ -458,7 +458,7 @@ export function EditorPage() {
     return (
       <EditorSuspense>
         <div className="h-dvh w-full overflow-hidden bg-background">
-          <NotesEditor key={editorKey} {...common} />
+          <MarkdownEditor key={editorKey} {...common} />
           {overlays}
         </div>
       </EditorSuspense>

@@ -1,17 +1,3 @@
-// NotesEditorChrome — the Notes editor's view controls.
-//
-// File-level chrome (back, breadcrumb, name, save state, rename /
-// tags / share / download) lives in the shared `<EditorHeader>`; this
-// component only renders the per-document presentation toggles that
-// are specific to Notes, and is mounted in the header's toolbar slot
-// via the editor bridge:
-//
-//   [width] [font] [theme]
-//
-// The width toggle is hidden below `sm` — its three presets (45rem /
-// 60rem / full) are all wider than a phone viewport, so toggling them
-// has no visible effect there.
-
 import {
   ComputerIcon,
   Layout01Icon,
@@ -30,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type ThemeMode, useTheme } from "@/lib/theme";
 import {
+  type MarkdownEditorLayout,
   NOTES_FONTS,
   NOTES_WIDTHS,
   type NotesEditorFont,
@@ -37,19 +24,68 @@ import {
   useNotesPreferences,
 } from "./notes/preferences";
 
-export function NotesEditorChrome() {
+const LAYOUTS: ReadonlyArray<{ value: MarkdownEditorLayout; label: string }> = [
+  { value: "source", label: "Source" },
+  { value: "split", label: "Split" },
+  { value: "preview", label: "Preview" },
+];
+
+export function MarkdownEditorChrome() {
+  const { layout, setLayout } = useNotesPreferences();
   return (
-    <div className="flex items-center gap-0.5" role="toolbar" aria-label="Notes view">
+    <div className="flex items-center gap-0.5" role="toolbar" aria-label="Markdown view">
+      <div className="sm:hidden">
+        <LayoutQuickToggle />
+      </div>
+      <div className="mr-1 hidden items-center rounded-md border p-0.5 sm:flex">
+        {LAYOUTS.map((item) => (
+          <Button
+            key={item.value}
+            variant={layout === item.value ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            aria-pressed={layout === item.value}
+            onClick={() => setLayout(item.value)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
       <div className="hidden sm:contents">
         <WidthQuickToggle />
+        <FontQuickToggle />
       </div>
-      <FontQuickToggle />
       <ThemeQuickToggle />
     </div>
   );
 }
 
-// ─── Quick-toggle buttons ────────────────────────────────────────────────────
+function LayoutQuickToggle() {
+  const { layout, setLayout } = useNotesPreferences();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label="Markdown view" title="Markdown view">
+            <HugeiconsIcon icon={Layout01Icon} strokeWidth={1.8} className="size-4" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="min-w-[9rem]">
+        <DropdownMenuRadioGroup
+          value={layout}
+          onValueChange={(value) => setLayout(value as MarkdownEditorLayout)}
+        >
+          {LAYOUTS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function WidthQuickToggle() {
   const { width, setWidth } = useNotesPreferences();
@@ -67,9 +103,9 @@ function WidthQuickToggle() {
           value={width}
           onValueChange={(v) => setWidth(v as NotesEditorWidth)}
         >
-          {NOTES_WIDTHS.map((opt) => (
-            <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-              {opt.label}
+          {NOTES_WIDTHS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -84,25 +120,22 @@ function FontQuickToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Editor font" title="Editor font">
+          <Button variant="ghost" size="icon" aria-label="Markdown font" title="Markdown font">
             <HugeiconsIcon icon={TextFontIcon} strokeWidth={1.8} className="size-4" />
           </Button>
         }
       />
       <DropdownMenuContent align="end" className="min-w-[14rem]">
         <DropdownMenuRadioGroup value={font} onValueChange={(v) => setFont(v as NotesEditorFont)}>
-          {NOTES_FONTS.map((opt) => (
+          {NOTES_FONTS.map((option) => (
             <DropdownMenuRadioItem
-              key={opt.value}
-              value={opt.value}
-              // Preview each option in its own face — once the font has
-              // loaded once (lazy-loaded on first selection), Chrome
-              // and Firefox will use it here on subsequent renders.
-              style={{ fontFamily: opt.stack }}
+              key={option.value}
+              value={option.value}
+              style={{ fontFamily: option.stack }}
             >
-              <span className="flex-1">{opt.label}</span>
+              <span className="flex-1">{option.label}</span>
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                {opt.family}
+                {option.family}
               </span>
             </DropdownMenuRadioItem>
           ))}
@@ -112,7 +145,7 @@ function FontQuickToggle() {
   );
 }
 
-const THEME_ITEMS: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunIcon }> = [
+const THEMES: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunIcon }> = [
   { value: "light", label: "Light", icon: SunIcon },
   { value: "dark", label: "Dark", icon: Moon02Icon },
   { value: "system", label: "System", icon: ComputerIcon },
@@ -120,24 +153,22 @@ const THEME_ITEMS: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof
 
 function ThemeQuickToggle() {
   const { mode, resolved, setMode } = useTheme();
-  // Show the *applied* theme glyph; the menu still lets the user pick
-  // "system" explicitly (which falls back to the OS preference).
-  const displayedIcon = resolved === "dark" ? Moon02Icon : SunIcon;
+  const icon = resolved === "dark" ? Moon02Icon : SunIcon;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="icon" aria-label="Theme" title="Theme">
-            <HugeiconsIcon icon={displayedIcon} strokeWidth={1.8} className="size-4" />
+            <HugeiconsIcon icon={icon} strokeWidth={1.8} className="size-4" />
           </Button>
         }
       />
       <DropdownMenuContent align="end" className="min-w-[10rem]">
         <DropdownMenuRadioGroup value={mode} onValueChange={(v) => setMode(v as ThemeMode)}>
-          {THEME_ITEMS.map((opt) => (
-            <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-              <HugeiconsIcon icon={opt.icon} strokeWidth={1.8} />
-              {opt.label}
+          {THEMES.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              <HugeiconsIcon icon={option.icon} strokeWidth={1.8} />
+              {option.label}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -9,7 +9,7 @@
 //     columns: ItemColumn[] – "location" | "modified" | "kind" | "size" | "tags" | "starred"
 //   <ItemIcon kind? size? />     – kind glyph or folder icon
 //   LIBRARY_ITEM_MENU_IDS         – row context-menu command ids
-//   kindShortLabel(kind?)         – "Excalidraw" · "draw.io" · "Notes" · "Site" · "Folder"
+//   kindShortLabel(kind?)         – "Excalidraw" · "draw.io" · "Markdown" · "Site" · "Folder"
 
 import { Folder01Icon, Link04Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -65,7 +65,7 @@ export function kindShortLabel(kind?: FileKind): string {
     case "drawio":
       return "draw.io";
     case "notes":
-      return "Notes";
+      return "Markdown";
     case "static-site":
       return "Site";
     default:

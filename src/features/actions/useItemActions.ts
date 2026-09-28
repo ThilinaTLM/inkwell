@@ -111,7 +111,7 @@ export function defaultNameForKind(kind: FileKind): string {
     case "drawio":
       return "Untitled diagram";
     case "notes":
-      return "Untitled note";
+      return "Untitled markdown";
     case "static-site":
       return "Untitled site";
     default:

@@ -13,7 +13,7 @@ export function AboutSection() {
     <>
       <SettingsGroup
         title="Inkwell"
-        description="A small, self-hosted home for your diagrams and notes."
+        description="A small, self-hosted home for your diagrams and Markdown."
       >
         <SettingRow label="Version">
           <span className="font-mono text-xs">v{VERSION}</span>
@@ -51,9 +51,13 @@ export function AboutSection() {
             <a className={EXT} href="https://www.drawio.com/" target="_blank" rel="noreferrer">
               draw.io
             </a>
-            , notes by{" "}
-            <a className={EXT} href="https://www.blocknotejs.org/" target="_blank" rel="noreferrer">
-              BlockNote
+            , Markdown editing by{" "}
+            <a className={EXT} href="https://codemirror.net/" target="_blank" rel="noreferrer">
+              CodeMirror
+            </a>{" "}
+            and{" "}
+            <a className={EXT} href="https://unifiedjs.com/" target="_blank" rel="noreferrer">
+              unified
             </a>
             . Design ideas borrowed (with thanks) from{" "}
             <a

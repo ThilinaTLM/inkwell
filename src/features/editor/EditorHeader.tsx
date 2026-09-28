@@ -21,7 +21,7 @@
 //                    consume the chord themselves, e.g. Excalidraw's
 //                    "send backward" while editing, keep it)
 //   • Esc Esc        back, only while focus is inside the header (so we
-//                    never steal Esc from Excalidraw / draw.io / BlockNote)
+//                    never steal Esc from Excalidraw / draw.io / CodeMirror)
 //   • F2             inline rename (owner, not while typing in a field)
 
 import {

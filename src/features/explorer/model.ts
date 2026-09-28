@@ -58,7 +58,7 @@ export const KIND_META: Record<ItemKind, { label: string; short: string; color: 
   folder: { label: "Folder", short: "", color: "var(--color-folder)" },
   excalidraw: { label: "Excalidraw", short: "EX", color: "#8b87ff" },
   drawio: { label: "Draw.io", short: "DR", color: "#f08705" },
-  notes: { label: "Notes", short: "NO", color: "#5aa9ff" },
+  notes: { label: "Markdown", short: "MD", color: "#5aa9ff" },
   "static-site": { label: "Static site", short: "SI", color: "#4cc38a" },
 };
 

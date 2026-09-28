@@ -107,7 +107,7 @@ const NAV: Array<{ heading: string; items: SectionDef[] }> = [
         label: "Editors",
         icon: PencilEdit02Icon,
         title: "Editors",
-        description: "Per-editor defaults for draw.io and Notes.",
+        description: "Per-editor defaults for draw.io and Markdown.",
       },
     ],
   },

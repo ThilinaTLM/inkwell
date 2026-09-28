@@ -26,7 +26,7 @@ import { SharedStaticSitePreviewRedirect } from "./StaticSitePreviewRedirect";
 const DrawioEditor = lazy(() => import("@/features/editor/DrawioEditor"));
 const ExcalidrawEditor = lazy(() => import("@/features/editor/ExcalidrawEditor"));
 const ExcalidrawMenu = lazy(() => import("@/features/editor/ExcalidrawMenu"));
-const NotesEditor = lazy(() => import("@/features/editor/NotesEditor"));
+const MarkdownEditor = lazy(() => import("@/features/editor/MarkdownEditor"));
 
 function EditorSuspense({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<EditorLoadingState label="Loading editor…" />}>{children}</Suspense>;
@@ -194,7 +194,7 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
     return (
       <EditorSuspense>
         <div className="h-dvh w-full overflow-hidden bg-background">
-          <NotesEditor key={editorKey} {...common} />
+          <MarkdownEditor key={editorKey} {...common} />
         </div>
       </EditorSuspense>
     );
