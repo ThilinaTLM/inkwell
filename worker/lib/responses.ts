@@ -39,7 +39,7 @@ export function errorResponse(status: number, message: string): Response {
 // documented for follow-up; this caching layer doesn't make it worse.
 export async function serveR2WithCache(
   env: { R2: R2Bucket },
-  ctx: ExecutionContext | null,
+  ctx: { waitUntil(promise: Promise<unknown>): void } | null,
   req: Request | null,
   key: string,
 ): Promise<Response> {
