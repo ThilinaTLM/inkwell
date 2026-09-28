@@ -18,7 +18,7 @@
 import { Excalidraw } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
 import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
@@ -76,7 +76,14 @@ export default function ExcalidrawEditor({
   chrome,
   renderHeader,
 }: ExcalidrawEditorProps) {
-  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  // Excalidraw invokes this callback synchronously from its class constructor.
+  // Keeping the API in state would update this parent while its child is still
+  // rendering. React 19 retries that render and can enter a maximum-depth loop.
+  // A ref is sufficient: the API is assigned before this component's effects run.
+  const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const receiveApi = useCallback((api: ExcalidrawImperativeAPI) => {
+    apiRef.current = api;
+  }, []);
 
   // App theme is the single source of truth; Excalidraw renders as a
   // controlled consumer via the `theme` prop below.
@@ -167,13 +174,14 @@ export default function ExcalidrawEditor({
   // as canonical, so a stale appState.name here cannot revert a
   // rename.
   useEffect(() => {
+    const api = apiRef.current;
     if (!api) return;
     const current = api.getAppState();
     if (current.name === loaded.meta.name) return;
     api.updateScene({
       appState: { name: loaded.meta.name } as unknown as AppState,
     });
-  }, [api, loaded.meta.name]);
+  }, [loaded.meta.name]);
 
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
@@ -226,7 +234,7 @@ export default function ExcalidrawEditor({
       <div className="relative min-h-0 w-full flex-1">
         <div className="absolute inset-0">
           <Excalidraw
-            excalidrawAPI={(a) => setApi(a)}
+            excalidrawAPI={receiveApi}
             initialData={initial}
             onChange={onChange}
             viewModeEnabled={readOnly}
