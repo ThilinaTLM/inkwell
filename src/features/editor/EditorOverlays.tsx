@@ -11,9 +11,9 @@
 //
 // Keymap — deliberately narrow, never single keys (editors own those):
 //   • mod+K         command palette (capture phase: wins over Excalidraw's
-//                   "add link" chord; BlockNote doesn't bind it)
+//                   "add link" chord; CodeMirror is scoped below it)
 //   • mod+shift+/   shortcut sheet (plain `?` is Excalidraw's help and a
-//                   character in Notes)
+//                   character in Markdown)
 //   • mod+[ / F2 / Esc Esc are handled by `EditorHeader`.
 //
 // `overrides` re-register command ids with editor semantics (e.g.

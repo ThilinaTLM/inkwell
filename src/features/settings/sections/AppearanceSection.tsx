@@ -26,7 +26,7 @@ export function AppearanceSection() {
           ]}
         />
       </SettingRow>
-      <SettingRow label="Editor style" help="draw.io chrome and Notes typography">
+      <SettingRow label="Editor style" help="draw.io chrome and Markdown typography">
         <span className="text-[13px] text-muted-foreground">
           draw.io: <b className="font-medium text-foreground">{drawio}</b>
         </span>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stripExtension, uniqueName } from "./naming";
-import { textToParagraphBlocks } from "./textBlocks";
+import { normalizeMarkdownSource } from "./textBlocks";
 
 describe("stripExtension", () => {
   it.each([
@@ -36,21 +36,18 @@ describe("uniqueName", () => {
   });
 });
 
-describe("textToParagraphBlocks", () => {
-  it("creates one paragraph per line and collapses blank runs", () => {
-    const blocks = textToParagraphBlocks("\n\nOne\nTwo\n\n\n\nThree\n\n");
-    expect(blocks.map((b) => b.content.map((c) => c.text).join(""))).toEqual([
-      "One",
-      "Two",
-      "",
-      "Three",
-    ]);
+describe("normalizeMarkdownSource", () => {
+  it("preserves Markdown, Mermaid, TeX, Unicode, and line endings exactly", () => {
+    const source = "# Héllo\r\n\r\n```mermaid\r\ngraph TD; A-->B\r\n```\r\n\r\n$$x^2$$";
+    expect(normalizeMarkdownSource(source)).toBe(source);
   });
-  it("handles CRLF and BOM", () => {
-    const blocks = textToParagraphBlocks("\uFEFFa\r\nb");
-    expect(blocks.map((b) => b.content[0]?.text)).toEqual(["a", "b"]);
+
+  it("removes only a leading UTF-8 BOM", () => {
+    expect(normalizeMarkdownSource("\uFEFFa\r\nb")).toBe("a\r\nb");
+    expect(normalizeMarkdownSource("a\uFEFFb")).toBe("a\uFEFFb");
   });
-  it("returns an empty paragraph for empty text", () => {
-    expect(textToParagraphBlocks("")).toEqual([{ type: "paragraph", content: [] }]);
+
+  it("preserves empty content", () => {
+    expect(normalizeMarkdownSource("")).toBe("");
   });
 });

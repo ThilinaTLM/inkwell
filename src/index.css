@@ -6,13 +6,6 @@
 @import "@fontsource-variable/fraunces/full-italic.css";
 @import "@excalidraw/excalidraw/index.css";
 
-/* BlockNote (used by NotesEditor) ships utility classes from its
- * shadcn integration build. Tell Tailwind v4 to scan that package
- * source so the relevant utilities get generated. The package is
- * loaded only inside the notes editor route, but the classes need to
- * exist in the global CSS bundle. */
-@source "../node_modules/@blocknote/shadcn";
-
 @custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -549,206 +542,281 @@
   gap: 4px;
 }
 
-/* ─── Notes editor (BlockNote) ──────────────────────────────────────────
-   Three concerns are handled here:
-
-   1. **Phantom `.bn-root` portal.** BlockNote's shadcn build mounts a
-      second `.bn-root` element directly under <body> for floating
-      menus/popovers. Any `className` we hand to `<BlockNoteView>` is
-      copied onto that portal, which in practice means padding
-      utilities used to leak there and balloon the page beyond the
-      viewport (vertical overflow → horizontal scrollbar). We keep
-      presentation off `BlockNoteView.className` entirely; the rule
-      below is a defensive belt that strips layout box on any portal
-      `.bn-root` (i.e. not the in-tree `.bn-container` variant).
-
-   2. **Theme alignment.** BlockNote's shadcn build paints its own
-      editor surface (`--bn-colors-editor-background`) one shade
-      different from the app background, which reads as a visible
-      "card" mid-page in dark mode. We map BlockNote's theme tokens
-      onto inkwell's shadcn palette so the editor surface is
-      indistinguishable from the page surface in both themes.
-
-   3. **Typeface.** Per-font `--bn-font-family` overrides are keyed
-      on `[data-notes-font="…"]` set on <html> from React. Driving the
-      cascade from the document root means BlockNote's portal popovers
-      (rendered to <body>, outside our React tree) inherit the same
-      face as the in-tree editor. Font CSS itself is loaded lazily by
-      `notes/fontLoader.ts`; this file only declares the family stacks
-      that resolve once the @font-face rules are present.
-   ───────────────────────────────────────────────────────────────────── */
-
-/* (1) Defence-in-depth: even if a future caller sneaks padding onto
-   BlockNoteView's className again, the portal root won't add layout
-   weight to <body>. */
-.bn-root:not(.bn-container) {
-  /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal-root layout */
-  padding: 0 !important;
-  /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal-root layout */
-  margin: 0 !important;
+/* ─── Markdown editor ─────────────────────────────────────────────── */
+.markdown-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--color-background);
 }
 
-/* (2) Editor surface always blends with the app background. Targeting
-   `[data-color-scheme]` (regardless of value) covers both themes;
-   BlockNote's own light/dark switch toggles `data-color-scheme`. */
-.bn-root[data-color-scheme] {
-  --bn-colors-editor-background: var(--color-background);
-  --bn-colors-editor-text: var(--color-foreground);
-  --bn-colors-side-menu: var(--color-muted-foreground);
-  --bn-colors-border: var(--color-border);
-}
-.bn-root[data-color-scheme="dark"] {
-  --bn-colors-menu-background: var(--color-popover);
-  --bn-colors-menu-text: var(--color-popover-foreground);
-  --bn-colors-tooltip-background: var(--color-popover);
-  --bn-colors-tooltip-text: var(--color-popover-foreground);
-  --bn-colors-hovered-background: var(--color-accent);
-  --bn-colors-hovered-text: var(--color-accent-foreground);
-  --bn-colors-selected-background: var(--color-primary);
-  --bn-colors-selected-text: var(--color-primary-foreground);
-  --bn-colors-disabled-background: var(--color-muted);
-  --bn-colors-disabled-text: var(--color-muted-foreground);
-  --bn-colors-shadow: rgba(0, 0, 0, 0.5);
+.markdown-source-pane,
+.markdown-preview-pane {
+  min-width: 0;
+  background: var(--color-background);
 }
 
-/* (3) Per-font BlockNote font-family overrides. Activated by
-   `<html data-notes-font="…">` so the cascade reaches the portal
-   `.bn-root` mounted on <body>. */
-[data-notes-font="inter"] .bn-root {
-  --bn-font-family: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-[data-notes-font="manrope"] .bn-root {
-  --bn-font-family: "Manrope Variable", "Manrope", system-ui, sans-serif;
-}
-[data-notes-font="geist"] .bn-root {
-  --bn-font-family: "Geist Variable", "Geist", "Inter Variable", system-ui, sans-serif;
-}
-[data-notes-font="lora"] .bn-root {
-  --bn-font-family: "Lora Variable", "Lora", "Iowan Old Style", Georgia, serif;
-}
-[data-notes-font="source-serif"] .bn-root {
-  --bn-font-family: "Source Serif 4 Variable", "Source Serif 4", "Source Serif Pro", Georgia, serif;
-}
-[data-notes-font="jetbrains-mono"] .bn-root {
-  --bn-font-family:
-    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+.markdown-source-pane {
+  overflow: hidden;
 }
 
-/* BlockNote ships a hardcoded `font-family: Inter, …` rule on its
-   `.bn-default-styles` class (the wrapper `.bn-editor` uses) that
-   beats the inherited `--bn-font-family`. Our global `h1…h4` rule
-   in @layer base similarly forces the UI sans onto every heading. Both
-   undo the user's font choice for the actual content, so we re-route
-   them to the BlockNote variable here — once the variable is set,
-   the cascade does the rest. */
-.bn-default-styles,
-.bn-container :is(h1, h2, h3, h4, h5, h6) {
-  font-family: var(--bn-font-family);
+/* On phones Split intentionally behaves as Source. Rendering large diagrams
+   below the editor would make the writing surface impractically short. */
+.markdown-layout-split .markdown-preview-pane {
+  display: none;
 }
 
-/* ─── Responsive editor padding ─────────────────────────────────────
-   BlockNote ships `padding-inline: 54px` on `.bn-editor` to reserve a
-   gutter for its drag-handle side menu. On a 375px viewport that
-   eats 108px (~30%) of the writable column, leaving ~230px for
-   prose — unworkably narrow. We tighten the gutter on small screens
-   where:
-     • the side menu (hover-only) isn't usable on touch anyway, and
-     • horizontal space is precious.
-
-   Targets the in-tree editor (`.bn-container .bn-editor`) so popover
-   menus (mounted on the body-level `.bn-root`) are unaffected.
-   ─────────────────────────────────────────────────────────────────── */
-@media (max-width: 639.98px) {
-  .bn-container .bn-editor {
-    padding-inline: 12px;
+@media (min-width: 640px) {
+  .markdown-layout-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-}
-@media (min-width: 640px) and (max-width: 1023.98px) {
-  .bn-container .bn-editor {
-    padding-inline: 32px;
+  .markdown-layout-split .markdown-preview-pane {
+    display: block;
+    border-left: 1px solid var(--color-border);
   }
 }
 
-/* Drag handle + add-block button (`.bn-side-menu`) are rendered into
-   BlockNote's body-level `.bn-root` portal (NOT inside `.bn-container`)
-   and absolutely positioned over the hovered block. On coarse pointers
-   there's no hover to reveal them; on narrow viewports the gutter
-   that hosts them is tighter than the menu itself, so they overlap
-   or clip the prose. Hide the menu globally in those modes.
-
-   We scope the rule with `.bn-root` (the portal root) so we don't
-   accidentally affect any in-tree `.bn-side-menu` (BlockNote also
-   ships an inline variant for some embedded use-cases). */
-@media (max-width: 1023.98px), (pointer: coarse) {
-  .bn-root .bn-side-menu {
-    /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal menu visibility */
-    display: none !important;
-  }
+.markdown-preview {
+  color: var(--color-foreground);
+  font-size: 1rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
 }
-
-/* BlockNote's floating formatting toolbar can extend past the
-   viewport on phones (it's positioned by Floating UI relative to the
-   selection, but its default content can exceed 100vw with all the
-   format buttons). The shadcn build already caps it at `100vw` with
-   overflow-x: auto; we add a small inline scroll-padding so the
-   leftmost button isn't flush against the edge. */
-@media (max-width: 639.98px) {
-  .bn-shadcn .bn-formatting-toolbar,
-  .bn-shadcn .bn-toolbar {
-    scroll-padding-inline: 8px;
-  }
+.markdown-preview > :first-child {
+  margin-top: 0;
 }
-
-/* ─── Notion-style custom scrollbar ─────────────────────────────────
-   Used on the notes-editor scroll surface (.notes-scroll). Keeps the
-   app shell free of native browser chrome scrollbars while still
-   surfacing scroll position. The track is invisible at rest; the
-   thumb is a translucent rounded pill that becomes more opaque on
-   hover, similar to Notion / Linear / Vercel docs.
-
-   We use `background-clip: padding-box` + a transparent border so the
-   thumb appears thinner than the track gutter, which makes the
-   resting state read as a slim 4–5px pill on a 10px-wide gutter.
-
-   Firefox uses `scrollbar-width` / `scrollbar-color` (no per-state
-   styling); we approximate by picking a mid-opacity thumb colour.
-   ─────────────────────────────────────────────────────────────────── */
-.notes-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+.markdown-preview > :last-child {
+  margin-bottom: 0;
 }
-.dark .notes-scroll {
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+.markdown-preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.7em 0 0.65em;
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-weight: 650;
+  line-height: 1.2;
 }
-.notes-scroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+.markdown-preview h1 {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.35em;
+  font-size: 2em;
 }
-.notes-scroll::-webkit-scrollbar-track {
+.markdown-preview h2 {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.3em;
+  font-size: 1.5em;
+}
+.markdown-preview h3 {
+  font-size: 1.25em;
+}
+.markdown-preview :is(p, ul, ol, blockquote, pre, table) {
+  margin: 1em 0;
+}
+.markdown-preview :is(ul, ol) {
+  padding-left: 1.6em;
+}
+.markdown-preview ul {
+  list-style: disc;
+}
+.markdown-preview ol {
+  list-style: decimal;
+}
+.markdown-preview li + li {
+  margin-top: 0.25em;
+}
+.markdown-preview .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.markdown-preview .task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 2.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, var(--color-card) 82%, var(--color-muted));
+  padding: 0.45rem 0.7rem;
+}
+.markdown-preview .task-list-item input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin: 0.3rem 0 0;
+  accent-color: var(--color-primary);
+  opacity: 1;
+}
+.markdown-preview a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.markdown-preview blockquote {
+  border-left: 3px solid var(--color-border);
+  color: var(--color-muted-foreground);
+  padding-left: 1em;
+}
+.markdown-preview :not(pre) > code {
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--color-muted) 72%, transparent);
+  padding: 0.12em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+}
+.markdown-preview pre {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-muted) 58%, var(--color-background));
+  padding: 1rem 1.1rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.025);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.markdown-preview pre:has(.markdown-mermaid),
+.markdown-preview pre:has(.markdown-mermaid-loading),
+.markdown-preview pre:has(.markdown-mermaid-error) {
+  overflow: visible;
+  border: 0;
   background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
-.notes-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.18);
-  border-radius: 9999px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
+.markdown-preview pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.notes-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.32);
-  background-clip: padding-box;
+.markdown-preview table {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-spacing: 0;
+  border-radius: 0.75rem;
+  background: var(--color-card);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.025);
 }
-.dark .notes-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.18);
-  background-clip: padding-box;
+.markdown-preview :is(th, td) {
+  border: 0;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.65rem 0.8rem;
+  text-align: left;
 }
-.dark .notes-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.32);
-  background-clip: padding-box;
+.markdown-preview :is(th, td):last-child {
+  border-right: 0;
+}
+.markdown-preview tr:last-child td {
+  border-bottom: 0;
+}
+.markdown-preview th {
+  background: color-mix(in srgb, var(--color-muted) 58%, var(--color-card));
+  color: var(--color-muted-foreground);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+.markdown-preview tbody tr {
+  transition: background-color 120ms ease;
+}
+.markdown-preview tbody tr:hover {
+  background: color-mix(in srgb, var(--color-muted) 38%, transparent);
+}
+.markdown-preview hr {
+  margin: 2rem 0;
+  border-color: var(--color-border);
+}
+.markdown-preview img {
+  max-width: 100%;
+  border-radius: 0.4rem;
+}
+.markdown-preview .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25rem;
+}
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-literal {
+  color: #a626a4;
+}
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-attr {
+  color: #50a14f;
+}
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-section,
+.markdown-preview .hljs-function {
+  color: #4078f2;
+}
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: var(--color-muted-foreground);
+  font-style: italic;
+}
+.dark .markdown-preview .hljs-keyword,
+.dark .markdown-preview .hljs-selector-tag,
+.dark .markdown-preview .hljs-literal {
+  color: #c678dd;
+}
+.dark .markdown-preview .hljs-string,
+.dark .markdown-preview .hljs-attr {
+  color: #98c379;
+}
+.dark .markdown-preview .hljs-title,
+.dark .markdown-preview .hljs-section,
+.dark .markdown-preview .hljs-function {
+  color: #61afef;
+}
+.markdown-mermaid {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+  border-radius: 0.875rem;
+  background:
+    radial-gradient(
+      circle at 1px 1px,
+      color-mix(in srgb, var(--color-border) 50%, transparent) 1px,
+      transparent 0
+    )
+    0 0 / 18px 18px,
+    color-mix(in srgb, var(--color-muted) 28%, var(--color-background));
+  padding: 1.5rem;
+  text-align: center;
+}
+.markdown-mermaid svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+.markdown-mermaid :is(.node rect, .node polygon, .node circle, .node ellipse) {
+  filter: none;
+  stroke-width: 1.25px;
+}
+.markdown-mermaid .node rect {
+  rx: 8px;
+  ry: 8px;
+}
+.markdown-mermaid-loading,
+.markdown-mermaid-error {
+  margin: 1rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+}
+.markdown-mermaid-error {
+  border-color: color-mix(in srgb, var(--color-destructive) 50%, var(--color-border));
+}
+.markdown-mermaid-error strong,
+.markdown-mermaid-error span {
+  display: block;
+}
+.markdown-mermaid-error strong {
+  color: var(--color-destructive);
 }
 
 /* ─── App scrollbars ──────────────────────────────────────────────────
    Keep every app scroll surface visually consistent with the themed
-   notes editor. A transparent track avoids the bright native gutter,
+   Markdown editor. A transparent track avoids the bright native gutter,
    while the padded pill remains large enough to grab with a pointer. */
 * {
   scrollbar-width: thin;

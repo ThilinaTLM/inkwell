@@ -303,14 +303,21 @@ export interface DrawioFileBlob {
   xml: string;
 }
 
-/** What the client PUTs as a notes file blob. The inner shape of
- *  `blocks` is BlockNote's document JSON — we don't validate it here
- *  because BlockNote owns that schema and it changes between versions.
- *  We just round-trip the JSON. */
-export interface NotesFileBlob {
+/** Canonical representation for Markdown documents. The internal
+ * `notes` kind is retained for database and API compatibility. */
+export interface MarkdownNotesFileBlob {
+  kind: "notes";
+  format: "markdown-v1";
+  source: string;
+}
+
+/** Legacy BlockNote JSON, accepted so existing documents remain readable. */
+export interface LegacyNotesFileBlob {
   kind: "notes";
   blocks: unknown[];
 }
+
+export type NotesFileBlob = MarkdownNotesFileBlob | LegacyNotesFileBlob;
 
 /** One asset inside a static-site bundle. Paths are forward-slash,
  *  no leading slash, no `..`, no empty segments. `contentType` is

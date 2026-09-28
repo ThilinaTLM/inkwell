@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 const LEGEND: Array<{ ext: string; kind: string }> = [
   { ext: ".excalidraw / .json", kind: "Excalidraw" },
   { ext: ".drawio / .xml", kind: "Draw.io" },
-  { ext: ".md / .txt", kind: "Notes" },
+  { ext: ".md / .txt", kind: "Markdown" },
   { ext: ".zip / .html / folder with index.html", kind: "Static site" },
 ];
 

@@ -53,13 +53,13 @@ Features at a glance:
 - **Duplicate** files and whole folders (including R2 blobs, thumbnails and
   static-site assets)
 - **Uploads for every file kind**: drop files or folders from the desktop, or
-  use Upload / `U`. `.excalidraw`, `.drawio`/`.xml`, Markdown/text (converted
-  to Notes) and `.zip`/HTML bundles (Static sites) are supported, with
+  use Upload / `U`. `.excalidraw`, `.drawio`/`.xml`, Markdown/text (preserved
+  as Markdown) and `.zip`/HTML bundles (Static sites) are supported, with
   conflict handling (keep both / replace / skip) and an upload tray.
 - Multi-file dashboard with **folders** (nested, per-user) and **tags**
-- Four equal-priority file kinds today (Excalidraw, draw.io, Notes via
-  [BlockNote](https://www.blocknotejs.org/), and **Static sites** for
-  publishing uploaded HTML/CSS/JS bundles), more later
+- Four equal-priority file kinds today: Excalidraw, draw.io, **Markdown** via
+  [CodeMirror](https://codemirror.net/) with GFM, Mermaid and TeX previews,
+  and **Static sites** for publishing uploaded HTML/CSS/JS bundles
 - **Share links** for individual files or whole folder subtrees, read or
   read-write, with optional expiry and downloads, managed from one filterable
   *Shared links* page
@@ -70,7 +70,7 @@ Features at a glance:
 ## Architecture
 
 ```
-Browser (React + @excalidraw/excalidraw)
+Browser (React + Excalidraw + CodeMirror)
    │
    │  fetch (HttpOnly cookie session)
    ▼
@@ -90,6 +90,10 @@ Key choices:
   cannot read session cookies or call `/api/*` as the owner. See
   [`worker/services/static-site.ts`](./worker/services/static-site.ts)
   and [`worker/routes/render.ts`](./worker/routes/render.ts).
+- **Markdown is stored as source**, not an editor-specific syntax tree. The
+  CodeMirror editor and unified/remark preview support GFM, Mermaid diagrams,
+  KaTeX formulas and highlighted code. Legacy BlockNote blobs are converted in
+  the browser when first opened and remain untouched until the user saves.
 - **Optimistic concurrency** via an integer `version` column and `If-Match`.
 - **Client-side SVG thumbnails** (`exportToSvg` on a debounce). No
   server-side rendering required.
@@ -109,7 +113,7 @@ Key choices:
   refs per request; each request runs as one D1 batch), plus
   `GET`/`DELETE /api/trash`.
 - **Uploads use the existing endpoints.** Files are classified in the
-  browser. Excalidraw goes through `/api/files/import`; draw.io and Notes
+  browser. Excalidraw goes through `/api/files/import`; draw.io and Markdown
   are created and then saved; static sites use the assets/zip endpoints.
   There is no dedicated upload endpoint.
 - **Front end:** a single command registry (`src/lib/commands/`) drives the

@@ -11,13 +11,13 @@ import {
   renderSceneThumb,
   sceneToStoredBlob,
 } from "./excalidraw";
-import { textToNoteBlocks } from "./textBlocks";
+import { normalizeMarkdownSource } from "./textBlocks";
 import type { PlannedJob } from "./types";
 
 export type Prepared =
   | { kind: "excalidraw"; file: File; scene: ExcalidrawScene }
   | { kind: "drawio"; xml: string }
-  | { kind: "notes"; blocks: unknown[] }
+  | { kind: "notes"; source: string }
   | { kind: "static-site"; zip: Blob };
 
 export class UploadError extends Error {}
@@ -42,11 +42,8 @@ export async function prepareJob(job: PlannedJob): Promise<Prepared> {
       }
       return { kind, xml };
     }
-    case "notes": {
-      const text = await first.text();
-      const markdown = !/\.txt$/i.test(first.name);
-      return { kind, blocks: await textToNoteBlocks(text, markdown) };
-    }
+    case "notes":
+      return { kind, source: normalizeMarkdownSource(await first.text()) };
     case "static-site": {
       if (job.site === "zip") return { kind, zip: first };
       return { kind, zip: await zipEntries(job) };
@@ -116,7 +113,11 @@ export async function writeContent(
     case "drawio":
       return filesApi.save(target.id, target.version, { kind: "drawio", xml: prepared.xml });
     case "notes":
-      return filesApi.save(target.id, target.version, { kind: "notes", blocks: prepared.blocks });
+      return filesApi.save(target.id, target.version, {
+        kind: "notes",
+        format: "markdown-v1",
+        source: prepared.source,
+      });
     case "static-site":
       return (await staticSites.uploadZip(target.id, prepared.zip, target.version)).meta;
   }
@@ -129,8 +130,8 @@ export async function writeThumb(prepared: Prepared, fileId: string): Promise<vo
   if (prepared.kind === "excalidraw") {
     svg = await renderSceneThumb(prepared.scene);
   } else if (prepared.kind === "notes") {
-    const { notesBlocksToThumbSvg } = await import("@/features/editor/notes/thumb");
-    svg = notesBlocksToThumbSvg(prepared.blocks);
+    const { markdownToThumbSvg } = await import("@/features/editor/markdown/thumb");
+    svg = markdownToThumbSvg(prepared.source);
   }
   if (svg) await filesApi.putThumb(fileId, svg);
 }

@@ -99,6 +99,27 @@ export async function streamFileResponse(
     headers["x-file-starred-at"] = row.starred_at === null ? "" : String(row.starred_at);
   }
   if (opts.download) {
+    if (row.kind === "notes") {
+      const parsed = await parseStoredFileBlob(obj);
+      if (
+        parsed?.kind === "notes" &&
+        "format" in parsed &&
+        parsed.format === "markdown-v1" &&
+        typeof parsed.source === "string"
+      ) {
+        headers["content-disposition"] = `attachment; filename="${safeFilename(row.name)}.md"`;
+        headers["content-type"] = "text/markdown; charset=utf-8";
+        return new Response(parsed.source, { headers });
+      }
+      if (!parsed?.kind || parsed.kind !== "notes" || !("blocks" in parsed)) {
+        return errorResponse(500, "invalid Markdown blob");
+      }
+      // Legacy BlockNote documents remain JSON until the browser has
+      // converted and saved them as canonical Markdown.
+      headers["content-disposition"] =
+        `attachment; filename="${safeFilename(row.name)}.notes.json"`;
+      return new Response(JSON.stringify(parsed), { headers });
+    }
     headers["content-disposition"] =
       `attachment; filename="${safeFilename(row.name)}.${downloadExtensionForKind(row.kind)}"`;
     if (row.kind === "drawio") {
@@ -151,20 +172,16 @@ function safeFilename(name: string): string {
   return base.slice(0, 80);
 }
 
-function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "notes.json" | "zip" {
+function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "zip" {
   switch (kind) {
     case "drawio":
       return "drawio";
     case "excalidraw":
       return "excalidraw";
     case "notes":
-      // Notes blobs are BlockNote document JSON; the `.notes.json`
-      // double extension keeps both "this is JSON" and "this is an
-      // Inkwell notes file" obvious to the OS and to humans. The
-      // worker does not convert to Markdown — the SPA exposes a
-      // separate client-only "Export as Markdown" path that runs
-      // `editor.blocksToMarkdownLossy()` in the browser.
-      return "notes.json";
+      // Notes downloads are handled above because the extension depends
+      // on whether the stored blob is canonical Markdown or legacy JSON.
+      throw new Error("notes extension requires blob inspection");
     case "static-site":
       // Re-packaged ZIP — see `streamFileResponse` for the build.
       return "zip";

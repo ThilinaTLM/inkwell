@@ -32,7 +32,7 @@ const KIND_CHIPS: Array<{ value: KindFilter; label: string }> = [
   { value: "folder", label: "Folders" },
   { value: "excalidraw", label: "Excalidraw" },
   { value: "drawio", label: "draw.io" },
-  { value: "notes", label: "Notes" },
+  { value: "notes", label: "Markdown" },
   { value: "static-site", label: "Sites" },
 ];
 

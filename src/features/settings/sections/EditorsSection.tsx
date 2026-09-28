@@ -1,6 +1,4 @@
-// Settings → Editors: draw.io style (src/lib/preferences) and the Notes
-// width / typeface (src/features/editor/notes/preferences — imported, not
-// edited).
+// Settings → Editors: draw.io style and Markdown reading preferences.
 
 import {
   Select,
@@ -47,21 +45,24 @@ export function EditorsSection() {
           />
         </SettingRow>
       </SettingsGroup>
-      <SettingsGroup title="Notes" description="Reading preferences; per device, not per document.">
+      <SettingsGroup
+        title="Markdown"
+        description="Reading preferences; per device, not per document."
+      >
         <SettingRow label="Content width">
           <Segmented<NotesEditorWidth>
-            ariaLabel="Notes content width"
+            ariaLabel="Markdown content width"
             value={notes.width}
             onChange={notes.setWidth}
             options={NOTES_WIDTHS.map((w) => ({ value: w.value, label: w.label }))}
           />
         </SettingRow>
-        <SettingRow label="Typeface" help="Fonts load the first time you open a note">
+        <SettingRow label="Typeface" help="Fonts load the first time you open Markdown">
           <Select
             value={notes.font}
             onValueChange={(value) => notes.setFont(value as NotesEditorFont)}
           >
-            <SelectTrigger aria-label="Notes typeface" className="h-8 min-w-52 text-[13px]">
+            <SelectTrigger aria-label="Markdown typeface" className="h-8 min-w-52 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

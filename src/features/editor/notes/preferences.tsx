@@ -1,4 +1,4 @@
-// Notes editor preferences — content-width and typeface, persisted
+// Markdown editor preferences — layout, content width, and typeface, persisted
 // per-browser in localStorage.
 //
 // These are presentation-only choices that don't belong in the saved
@@ -16,7 +16,7 @@
 // and two monospaces (one ligature-rich, one neutral). All font CSS
 // is **lazy-loaded** by `loadNotesFont` (./fontLoader.ts) so the app
 // shell only ships the chrome typeface; the editor face is fetched on
-// the first visit to a notes document.
+// the first visit to a Markdown document.
 
 import {
   createContext,
@@ -29,6 +29,7 @@ import {
 } from "react";
 
 export type NotesEditorWidth = "narrow" | "wide" | "full";
+export type MarkdownEditorLayout = "source" | "split" | "preview";
 export type NotesEditorFont =
   | "inter"
   | "manrope"
@@ -48,7 +49,7 @@ export interface NotesFontOption {
   label: string;
   /** Short tag shown after the label — "Sans", "Serif", "Mono". */
   family: "Sans" | "Serif" | "Mono";
-  /** CSS `font-family` stack applied via `--bn-font-family`. */
+  /** CSS `font-family` stack applied to source and preview surfaces. */
   stack: string;
 }
 
@@ -102,15 +103,19 @@ export function fontStack(value: NotesEditorFont): string {
 
 const WIDTH_KEY = "inkwell:notes:width";
 const FONT_KEY = "inkwell:notes:font";
+const LAYOUT_KEY = "inkwell:markdown:layout";
 
 const DEFAULT_WIDTH: NotesEditorWidth = "narrow";
 const DEFAULT_FONT: NotesEditorFont = "inter";
+const DEFAULT_LAYOUT: MarkdownEditorLayout = "split";
 
 interface NotesPreferencesValue {
   width: NotesEditorWidth;
   font: NotesEditorFont;
+  layout: MarkdownEditorLayout;
   setWidth: (w: NotesEditorWidth) => void;
   setFont: (f: NotesEditorFont) => void;
+  setLayout: (layout: MarkdownEditorLayout) => void;
 }
 
 const NotesPreferencesContext = createContext<NotesPreferencesValue | null>(null);
@@ -135,9 +140,20 @@ function readFont(): NotesEditorFont {
   return DEFAULT_FONT;
 }
 
+function readLayout(): MarkdownEditorLayout {
+  try {
+    const value = localStorage.getItem(LAYOUT_KEY);
+    if (value === "source" || value === "split" || value === "preview") return value;
+  } catch {
+    /* storage unavailable */
+  }
+  return DEFAULT_LAYOUT;
+}
+
 export function NotesPreferencesProvider({ children }: { children: ReactNode }) {
   const [width, setWidthState] = useState<NotesEditorWidth>(() => readWidth());
   const [font, setFontState] = useState<NotesEditorFont>(() => readFont());
+  const [layout, setLayoutState] = useState<MarkdownEditorLayout>(() => readLayout());
 
   useEffect(() => {
     try {
@@ -155,12 +171,21 @@ export function NotesPreferencesProvider({ children }: { children: ReactNode }) 
     }
   }, [font]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_KEY, layout);
+    } catch {
+      /* ignore */
+    }
+  }, [layout]);
+
   const setWidth = useCallback((w: NotesEditorWidth) => setWidthState(w), []);
   const setFont = useCallback((f: NotesEditorFont) => setFontState(f), []);
+  const setLayout = useCallback((value: MarkdownEditorLayout) => setLayoutState(value), []);
 
   const value = useMemo<NotesPreferencesValue>(
-    () => ({ width, font, setWidth, setFont }),
-    [width, font, setWidth, setFont],
+    () => ({ width, font, layout, setWidth, setFont, setLayout }),
+    [width, font, layout, setWidth, setFont, setLayout],
   );
 
   return (
@@ -177,8 +202,10 @@ export function useNotesPreferences(): NotesPreferencesValue {
     return {
       width: DEFAULT_WIDTH,
       font: DEFAULT_FONT,
+      layout: DEFAULT_LAYOUT,
       setWidth: () => {},
       setFont: () => {},
+      setLayout: () => {},
     };
   }
   return ctx;
