@@ -11,14 +11,7 @@ A short, wide inkwell with a pen dipped in and burnt-orange ink inside.
 - **It uses the existing palette.** Ink `#1c1814` / chalk `#efe9dc` for strokes, and burnt orange `#e8731f` (`#f5893a` on dark) for the ink. These are the same tokens as `src/index.css`.
 - **The wordmark** is "inkwell" set in Excalifont (the app's `--font-brand`) and converted to outlines, so it renders the same everywhere without the font installed.
 
-Four concepts were explored. They are in `concepts/`, and each has a theme-aware mark plus light and dark app icons:
-
-| # | Concept | Notes |
-|---|---------|-------|
-| 01 | **Well** ★ | Recommended. The most distinctive, and it spells out the name. |
-| 02 | Drop | An ink drop carrying the old sketch stroke. Very bold when small, but drop logos are common. |
-| 03 | Monogram | A lowercase "i": the stem is a pen stroke and the dot is an ink drop. The most minimal. |
-| 04 | Folder + ink | The current folder mark with an orange stroke that ends in a blot. The safest evolution. |
+Three other concepts were explored and dropped: Drop, Monogram and Folder + ink. They are in git history (commit `ae39067`, `docs/brand/concepts/`).
 
 ## Files
 
@@ -36,7 +29,6 @@ icon/
   app-icon-maskable.svg            full-bleed, art inside the 80% safe zone (PWA)
 splash/
   splash-light.svg / splash-dark.svg       animated, 16:10, preserveAspectRatio="slice"
-concepts/NN-name/{mark,app-icon-light,app-icon-dark}.svg
 ```
 
 ## Mark geometry (64×64 viewBox, stroke-width 4.5, round caps/joins)
@@ -69,3 +61,15 @@ It uses pure CSS inside the SVG, so it runs in `<img>`, `<object>` or inline:
 4. The ink surface ripples sideways in a loop.
 
 Renderers that don't animate, and `prefers-reduced-motion`, show the final frame. The artwork stays inside the central ~420×360 units, so the `slice` scaling never crops it on phones or ultrawide screens.
+
+## Regenerating the PNG icons
+
+The PNGs in `public/` are rendered from `icon/`:
+
+```sh
+sed 's/rx="112" //' docs/brand/icon/app-icon-dark.svg > /tmp/fullbleed.svg
+rsvg-convert -w 180 -h 180 /tmp/fullbleed.svg                  -o public/apple-touch-icon.png
+rsvg-convert -w 192 -h 192 docs/brand/icon/app-icon-dark.svg     -o public/icon-192.png
+rsvg-convert -w 512 -h 512 docs/brand/icon/app-icon-dark.svg     -o public/icon-512.png
+rsvg-convert -w 512 -h 512 docs/brand/icon/app-icon-maskable.svg -o public/icon-maskable-512.png
+```
