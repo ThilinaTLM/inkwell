@@ -582,7 +582,9 @@
    BlockNoteView's className again, the portal root won't add layout
    weight to <body>. */
 .bn-root:not(.bn-container) {
+  /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal-root layout */
   padding: 0 !important;
+  /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal-root layout */
   margin: 0 !important;
 }
 
@@ -679,6 +681,7 @@
    ships an inline variant for some embedded use-cases). */
 @media (max-width: 1023.98px), (pointer: coarse) {
   .bn-root .bn-side-menu {
+    /* biome-ignore lint/complexity/noImportantStyles: override BlockNote's portal menu visibility */
     display: none !important;
   }
 }

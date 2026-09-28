@@ -9,14 +9,10 @@
 // top-level file-share token there's no parent and it's hidden.
 // Read-only shares get the canvas in view mode.
 
-import { MainMenu } from "@excalidraw/excalidraw";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSharedFile } from "@/data/shares";
-import DrawioEditor from "@/features/editor/DrawioEditor";
-import ExcalidrawEditor from "@/features/editor/ExcalidrawEditor";
-import NotesEditor from "@/features/editor/NotesEditor";
 import type { FileBlob, LoadedFile } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
@@ -26,6 +22,15 @@ import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
 import type { RenderEditorHeader } from "./editorHeaderBridge";
 import { SharedStaticSitePreviewRedirect } from "./StaticSitePreviewRedirect";
+
+const DrawioEditor = lazy(() => import("@/features/editor/DrawioEditor"));
+const ExcalidrawEditor = lazy(() => import("@/features/editor/ExcalidrawEditor"));
+const ExcalidrawMenu = lazy(() => import("@/features/editor/ExcalidrawMenu"));
+const NotesEditor = lazy(() => import("@/features/editor/NotesEditor"));
+
+function EditorSuspense({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<EditorLoadingState label="Loading editor…" />}>{children}</Suspense>;
+}
 
 interface SharedEditorProps {
   /** Optional preloaded file; used by SharedTokenLanding to avoid a double fetch. */
@@ -177,38 +182,35 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
 
   if (loaded.meta.kind === "drawio") {
     return (
-      <div className="h-dvh w-full overflow-hidden bg-background">
-        <DrawioEditor key={editorKey} {...common} />
-      </div>
+      <EditorSuspense>
+        <div className="h-dvh w-full overflow-hidden bg-background">
+          <DrawioEditor key={editorKey} {...common} />
+        </div>
+      </EditorSuspense>
     );
   }
 
   if (loaded.meta.kind === "notes") {
     return (
-      <div className="h-dvh w-full overflow-hidden bg-background">
-        <NotesEditor key={editorKey} {...common} />
-      </div>
+      <EditorSuspense>
+        <div className="h-dvh w-full overflow-hidden bg-background">
+          <NotesEditor key={editorKey} {...common} />
+        </div>
+      </EditorSuspense>
     );
   }
 
   return (
-    <div className="h-dvh w-full overflow-hidden bg-background">
-      <ExcalidrawEditor
-        key={editorKey}
-        {...common}
-        chrome={
-          <MainMenu>
-            {/* Share permission, back and download live in the header. */}
-            <MainMenu.DefaultItems.ToggleTheme
-              allowSystemTheme
-              theme={themeMode}
-              onSelect={setThemeMode}
-            />
-            <MainMenu.DefaultItems.SaveAsImage />
-            <MainMenu.DefaultItems.Help />
-          </MainMenu>
-        }
-      />
-    </div>
+    <EditorSuspense>
+      <div className="h-dvh w-full overflow-hidden bg-background">
+        <ExcalidrawEditor
+          key={editorKey}
+          {...common}
+          chrome={
+            <ExcalidrawMenu variant="shared" theme={themeMode} onSelectTheme={setThemeMode} />
+          }
+        />
+      </div>
+    </EditorSuspense>
   );
 }

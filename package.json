@@ -79,11 +79,6 @@
     "vitest": "^5.0.2",
     "wrangler": "^4.140.0"
   },
-  "pnpm": {
-    "patchedDependencies": {
-      "@excalidraw/excalidraw@0.18.1": "patches/@excalidraw__excalidraw@0.18.1.patch"
-    }
-  },
   "simple-git-hooks": {
     "pre-commit": "pnpm precommit:check"
   }

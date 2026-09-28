@@ -2,7 +2,6 @@
 // share payload and the share-token download endpoint. Mirrors the
 // owner-side `features/actions/download.ts` but never touches owner APIs.
 
-import { zip } from "fflate";
 import type { FileMeta, FolderMeta } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
 
@@ -117,6 +116,7 @@ export async function downloadShareZip(opts: {
     }
   }
   await Promise.all([worker(), worker(), worker()]);
+  const { zip } = await import("fflate");
   const data = await new Promise<Uint8Array>((resolve, reject) =>
     zip(out, { level: 6 }, (err, res) => (err ? reject(err) : resolve(res))),
   );
