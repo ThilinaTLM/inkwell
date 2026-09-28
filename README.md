@@ -1,5 +1,10 @@
 # Inkwell
 
+[![Formatting](https://github.com/ThilinaTLM/inkwell/actions/workflows/format.yml/badge.svg)](https://github.com/ThilinaTLM/inkwell/actions/workflows/format.yml)
+[![Linting](https://github.com/ThilinaTLM/inkwell/actions/workflows/lint.yml/badge.svg)](https://github.com/ThilinaTLM/inkwell/actions/workflows/lint.yml)
+[![Unit tests](https://github.com/ThilinaTLM/inkwell/actions/workflows/test.yml/badge.svg)](https://github.com/ThilinaTLM/inkwell/actions/workflows/test.yml)
+[![Build](https://github.com/ThilinaTLM/inkwell/actions/workflows/build.yml/badge.svg)](https://github.com/ThilinaTLM/inkwell/actions/workflows/build.yml)
+
 A small, self-hosted dashboard for [Excalidraw](https://excalidraw.com/) and
 [draw.io](https://www.drawio.com/) diagrams, built to run entirely on
 Cloudflare. File blobs live in **R2**, the metadata index lives in **D1**,
