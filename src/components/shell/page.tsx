@@ -22,6 +22,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { CommandKeys, Kbd } from "./Kbd";
+import { SidebarToggleButton } from "./SidebarToggleButton";
 
 export function PageFrame({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>{children}</div>;
@@ -60,6 +61,7 @@ export function PageToolbar({
         className,
       )}
     >
+      <SidebarToggleButton />
       {icon || title ? (
         <div className="flex min-w-0 items-center gap-2 pr-2">
           {icon ? (

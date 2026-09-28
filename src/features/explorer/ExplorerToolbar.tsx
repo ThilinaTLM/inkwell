@@ -1,7 +1,6 @@
 // Explorer toolbar (wireframe `explorerToolbar()`): back / forward / up,
 // breadcrumb (every crumb a drop target, "…" collapses ancestors into a
-// dropdown), filter, New folder, Upload ▾, sort, view switcher, details
-// toggle.
+// dropdown), filter, sort, view switcher, and details toggle.
 //
 // Below 768px (screen 23) a compact row is rendered instead: Up,
 // breadcrumb, a filter toggle and a ⋯ menu holding the secondary actions
@@ -17,6 +16,7 @@ import {
   FilterIcon,
   FolderAddIcon,
   FolderUploadIcon,
+  GridIcon,
   GridViewIcon,
   Home01Icon,
   LayoutThreeColumnIcon,
@@ -32,6 +32,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useShell } from "@/components/shell/AppShell";
 import { ToolbarSearch } from "@/components/shell/page";
+import { SidebarToggleButton } from "@/components/shell/SidebarToggleButton";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,17 +42,23 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { itemActions } from "@/features/actions/useItemActions";
 import { openUploadPicker } from "@/features/upload";
-import type { FolderMeta } from "@/lib/api/client";
+import type { FileKind, FolderMeta } from "@/lib/api/client";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys, runCommand } from "@/lib/commands/registry";
-import { type ExplorerView, type SortKey, useExplorerPref } from "@/lib/explorerPrefs";
+import {
+  type ExplorerView,
+  type SortKey,
+  THUMB_SIZES,
+  type ThumbSize,
+  useExplorerPref,
+} from "@/lib/explorerPrefs";
 import { cn } from "@/lib/utils";
+import { ExplorerFilterMenu, ExplorerFilterMenuItems } from "./ExplorerFilterBar";
 
 const VIEWS: Array<{ view: ExplorerView; label: string; icon: IconSvgElement }> = [
   { view: "grid", label: "Grid", icon: GridViewIcon },
@@ -67,13 +74,6 @@ export const SORT_LABELS: Record<SortKey, string> = {
   size: "Size",
   kind: "Kind",
 };
-
-const IMPORTS: Array<{ label: string; accept: string }> = [
-  { label: ".excalidraw / .json → Excalidraw", accept: ".excalidraw,.json" },
-  { label: ".drawio / .xml → Draw.io", accept: ".drawio,.xml" },
-  { label: ".md / .txt → Notes", accept: ".md,.markdown,.txt" },
-  { label: ".zip / .html → Static site", accept: ".zip,.html,.htm" },
-];
 
 function keysOf(id: string) {
   return formatKeys(getEffectiveKeys(id));
@@ -121,6 +121,10 @@ export function ExplorerToolbar({
   onFilter,
   view,
   onView,
+  kinds,
+  onKinds,
+  tag,
+  onTag,
 }: {
   folderId: string | null;
   /** Ancestors + current folder (root excluded). */
@@ -129,6 +133,10 @@ export function ExplorerToolbar({
   onFilter: (v: string) => void;
   view: ExplorerView;
   onView: (v: ExplorerView) => void;
+  kinds: FileKind[];
+  onKinds: (kinds: FileKind[]) => void;
+  tag: string | null;
+  onTag: (tag: string | null) => void;
 }) {
   const shell = useShell();
   const [sort, setSort] = useExplorerPref("sort");
@@ -143,12 +151,17 @@ export function ExplorerToolbar({
         onFilter={onFilter}
         view={view}
         onView={onView}
+        kinds={kinds}
+        onKinds={onKinds}
+        tag={tag}
+        onTag={onTag}
       />
     );
   }
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-3">
+      <SidebarToggleButton />
       <IconBtn
         label={`Back (${keysOf("nav.back")})`}
         icon={ArrowLeft01Icon}
@@ -167,50 +180,15 @@ export function ExplorerToolbar({
       />
       <Breadcrumb path={path} />
       <div className="flex-1" />
-      <ToolbarSearch
-        value={filter}
-        onChange={onFilter}
-        placeholder={path.length ? "Filter this folder" : "Filter Home"}
-        className="hidden w-[200px] md:flex"
-      />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => itemActions.newFolder(folderId)}
-        className="hidden lg:inline-flex"
-      >
-        <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
-        New folder
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-          <HugeiconsIcon icon={Upload01Icon} strokeWidth={2} />
-          <span className="hidden sm:inline">Upload</span>
-          <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-70" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
-          <DropdownMenuItem onClick={() => openUploadPicker({ folderId })}>
-            <HugeiconsIcon icon={Upload01Icon} strokeWidth={2} />
-            Upload files…
-            <DropdownMenuShortcut>{keysOf("file.upload")}</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => openUploadPicker({ folderId, directory: true })}>
-            <HugeiconsIcon icon={FolderUploadIcon} strokeWidth={2} />
-            Upload folder…
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Import</DropdownMenuLabel>
-          {IMPORTS.map((imp) => (
-            <DropdownMenuItem
-              key={imp.accept}
-              onClick={() => openUploadPicker({ folderId, accept: imp.accept })}
-            >
-              <span className="size-4" aria-hidden />
-              {imp.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="hidden items-center md:flex">
+        <ToolbarSearch
+          value={filter}
+          onChange={onFilter}
+          placeholder={path.length ? "Filter this folder" : "Filter Home"}
+          className="w-[200px] rounded-r-none"
+        />
+        <ExplorerFilterMenu kinds={kinds} onKinds={onKinds} tag={tag} onTag={onTag} />
+      </div>
       <DropdownMenu>
         <Tooltip>
           <TooltipTrigger
@@ -290,6 +268,7 @@ export function ExplorerToolbar({
           );
         })}
       </fieldset>
+      {view === "grid" ? <ThumbnailSizeMenu /> : null}
       <IconBtn
         label={`Details panel (${keysOf("view.details")})`}
         icon={SidebarRightIcon}
@@ -297,6 +276,49 @@ export function ExplorerToolbar({
         onClick={() => shell.toggleDetails()}
       />
     </div>
+  );
+}
+
+const THUMB_SIZE_LABELS: Record<ThumbSize, string> = {
+  s: "Small",
+  m: "Medium",
+  l: "Large",
+  xl: "Extra large",
+};
+
+function ThumbnailSizeItems() {
+  const [thumb, setThumb] = useExplorerPref("thumbSize");
+  return (
+    <DropdownMenuRadioGroup value={thumb} onValueChange={(value) => setThumb(value as ThumbSize)}>
+      {THUMB_SIZES.map((size) => (
+        <DropdownMenuRadioItem key={size} value={size}>
+          {THUMB_SIZE_LABELS[size]}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
+
+function ThumbnailSizeMenu() {
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="Thumbnail size" />}
+            />
+          }
+        >
+          <HugeiconsIcon icon={GridIcon} strokeWidth={1.9} className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Thumbnail size</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuLabel>Thumbnail size</DropdownMenuLabel>
+        <ThumbnailSizeItems />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -309,6 +331,10 @@ function MobileToolbar({
   onFilter,
   view,
   onView,
+  kinds,
+  onKinds,
+  tag,
+  onTag,
 }: {
   folderId: string | null;
   path: FolderMeta[];
@@ -316,6 +342,10 @@ function MobileToolbar({
   onFilter: (v: string) => void;
   view: ExplorerView;
   onView: (v: ExplorerView) => void;
+  kinds: FileKind[];
+  onKinds: (kinds: FileKind[]) => void;
+  tag: string | null;
+  onTag: (tag: string | null) => void;
 }) {
   const shell = useShell();
   const [sort, setSort] = useExplorerPref("sort");
@@ -389,6 +419,8 @@ function MobileToolbar({
               Upload folder…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <ExplorerFilterMenuItems kinds={kinds} onKinds={onKinds} tag={tag} onTag={onTag} />
+            <DropdownMenuSeparator />
             <DropdownMenuLabel>View</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={view} onValueChange={(v) => onView(v as ExplorerView)}>
               {VIEWS.filter((v) => v.view !== "columns").map((v) => (
@@ -397,6 +429,12 @@ function MobileToolbar({
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
+            {view === "grid" ? (
+              <>
+                <DropdownMenuLabel>Thumbnail size</DropdownMenuLabel>
+                <ThumbnailSizeItems />
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Sort by</DropdownMenuLabel>
             <DropdownMenuRadioGroup

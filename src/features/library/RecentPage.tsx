@@ -5,13 +5,7 @@
 import { Clock01Icon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import {
-  FilterBar,
-  PageFrame,
-  PageToolbar,
-  StatusBar,
-  ToolbarSearch,
-} from "@/components/shell/page";
+import { PageFrame, PageToolbar, StatusBar, ToolbarSearch } from "@/components/shell/page";
 import { useFolders } from "@/data/folders";
 import { files } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
@@ -19,8 +13,8 @@ import { fmtShortDate, groupRecent } from "./helpers";
 import { LibraryItemsView, useLibraryView, ViewSwitch } from "./LibraryItemsView";
 import { type LibrarySortKey, sortLibraryItems, toLibraryItems } from "./libraryItems";
 import {
-  KindChips,
   type KindFilter,
+  KindFilterMenu,
   matchesKind,
   matchesQuery,
   SelectedCount,
@@ -70,10 +64,8 @@ export function RecentPage() {
         }
       >
         <span className="text-xs text-muted-foreground">Recently edited files</span>
+        <KindFilterMenu value={kind} onChange={setKind} includeFolders={false} />
       </PageToolbar>
-      <FilterBar>
-        <KindChips value={kind} onChange={setKind} includeFolders={false} />
-      </FilterBar>
       <LibraryItemsView
         view={view}
         meta={(i) => `${i.location} · ${fmtShortDate(i.updatedAt, Date.now())}`}

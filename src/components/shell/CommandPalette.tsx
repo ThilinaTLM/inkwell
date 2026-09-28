@@ -406,7 +406,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
         ref={listRef}
         id="palette-results"
         role="listbox"
-        className="max-h-[min(460px,60dvh)] overflow-y-auto py-1.5"
+        className="max-h-[min(460px,60dvh)] overflow-y-auto py-1.5 [scrollbar-gutter:stable]"
       >
         {results.map((r, i) => {
           const header = r.group !== lastGroup ? r.group : null;
@@ -428,7 +428,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
                 onClick={() => r.run()}
                 onKeyDown={() => undefined}
                 className={cn(
-                  "mx-1.5 flex h-9 cursor-default items-center gap-2.5 rounded-lg px-3 text-[13.5px] text-foreground",
+                  "relative mx-1.5 flex h-9 cursor-default items-center gap-2.5 rounded-lg px-3 text-[13.5px] text-foreground",
                   i === safeHl && "bg-accent text-accent-foreground",
                 )}
               >
@@ -454,7 +454,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
                   <span className="flex-1" />
                 )}
                 {i === safeHl && r.ref ? (
-                  <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:flex">
+                  <span className="absolute right-3 hidden items-center gap-1 bg-accent pl-3 text-[11px] text-muted-foreground sm:flex">
                     <Kbd>↵</Kbd> open · <Kbd>{isMacPlatform ? "⌘" : "Ctrl"}</Kbd>
                     <Kbd>↵</Kbd> reveal · <Kbd>Tab</Kbd> actions
                   </span>

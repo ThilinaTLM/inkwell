@@ -7,12 +7,21 @@ import { UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { PageFrame, PageToolbar, ToolbarSearch } from "@/components/shell/page";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAdminUsers, useInvites } from "@/data/admin";
 import { useMe } from "@/data/auth";
 import { cn } from "@/lib/utils";
 import { InvitePopover } from "./InvitePopover";
-import { InvitesTab } from "./InvitesTab";
-import { UsersTab } from "./UsersTab";
+import { type InviteStatusFilter, InvitesTab } from "./InvitesTab";
+import { type UserRoleFilter, type UserStatusFilter, UsersTab } from "./UsersTab";
 
 export function UsersPage() {
   const { tab = "users" } = useParams<{ tab?: string }>();
@@ -20,6 +29,9 @@ export function UsersPage() {
   const users = useAdminUsers();
   const invites = useInvites();
   const [q, setQ] = useState("");
+  const [role, setRole] = useState<UserRoleFilter>("all");
+  const [userStatus, setUserStatus] = useState<UserStatusFilter>("all");
+  const [inviteStatus, setInviteStatus] = useState<InviteStatusFilter>("pending");
   const [flashToken, setFlashToken] = useState<string | null>(null);
 
   if (tab !== "users" && tab !== "invites") return <Navigate to="/users" replace />;
@@ -43,7 +55,60 @@ export function UsersPage() {
             <InvitePopover onCreated={(token) => setFlashToken(token)} />
           </>
         }
-      />
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7" />}>
+            Filters
+            {(tab === "users"
+              ? Number(role !== "all") + Number(userStatus !== "all")
+              : Number(inviteStatus !== "all")) > 0 ? (
+              <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                {tab === "users"
+                  ? Number(role !== "all") + Number(userStatus !== "all")
+                  : Number(inviteStatus !== "all")}
+              </span>
+            ) : null}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            {tab === "users" ? (
+              <>
+                <DropdownMenuLabel>Role</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={role}
+                  onValueChange={(value) => setRole(value as UserRoleFilter)}
+                >
+                  <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="admin">Admins</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="user">Users</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={userStatus}
+                  onValueChange={(value) => setUserStatus(value as UserStatusFilter)}
+                >
+                  <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="disabled">Disabled</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </>
+            ) : (
+              <>
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={inviteStatus}
+                  onValueChange={(value) => setInviteStatus(value as InviteStatusFilter)}
+                >
+                  <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="pending">Pending</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="used">Used</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="expired">Expired</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="revoked">Revoked</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PageToolbar>
       <div
         role="tablist"
         aria-label="Users sections"
@@ -65,9 +130,14 @@ export function UsersPage() {
         />
       </div>
       {tab === "users" ? (
-        <UsersTab selfId={me.data.id} query={q} />
+        <UsersTab selfId={me.data.id} query={q} role={role} status={userStatus} />
       ) : (
-        <InvitesTab query={q} flashToken={flashToken} />
+        <InvitesTab
+          query={q}
+          flashToken={flashToken}
+          status={inviteStatus}
+          onStatusChange={setInviteStatus}
+        />
       )}
     </PageFrame>
   );

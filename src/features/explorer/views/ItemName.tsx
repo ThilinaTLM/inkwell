@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox";
 import { InlineRename } from "../InlineRename";
 import type { ExplorerItem } from "../model";
 import type { ItemState } from "./collection";
@@ -35,27 +36,15 @@ export function SelectCheck({
   className?: string;
 }) {
   return (
-    <button
-      type="button"
+    <Checkbox
       tabIndex={-1}
-      aria-pressed={checked}
+      checked={checked}
       aria-label={checked ? "Deselect" : "Select"}
       data-item-check=""
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={
-        className ??
-        `grid size-[15px] shrink-0 place-items-center rounded-[4px] border-[1.5px] text-[10px] leading-none font-black ${
-          checked
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-muted-foreground/40 bg-transparent"
-        }`
-      }
-    >
-      {checked ? "✓" : ""}
-    </button>
+      onCheckedChange={onToggle}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      className={className}
+    />
   );
 }

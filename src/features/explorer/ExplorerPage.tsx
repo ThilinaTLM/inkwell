@@ -49,8 +49,7 @@ import { parseRefKey } from "@/lib/selection";
 import { BulkBar } from "./BulkBar";
 import { EmptyFolder } from "./EmptyFolder";
 import { ExplorerDetails } from "./ExplorerDetails";
-import { ExplorerFilterBar } from "./ExplorerFilterBar";
-import { ExplorerToolbar, SORT_LABELS } from "./ExplorerToolbar";
+import { ExplorerToolbar } from "./ExplorerToolbar";
 import {
   type ExplorerItem,
   filterItems,
@@ -321,16 +320,6 @@ export function ExplorerPage() {
     ),
   };
 
-  const sortLabel =
-    sorts.length > 1 || !isSortKey(sorts[0]?.key ?? "name")
-      ? sorts
-          .map(
-            (s) =>
-              `${isSortKey(s.key) ? SORT_LABELS[s.key] : s.key} ${s.dir === "asc" ? "↑" : "↓"}`,
-          )
-          .join(", ")
-      : undefined;
-
   return (
     <PageFrame className="relative">
       <ExplorerToolbar
@@ -340,17 +329,11 @@ export function ExplorerPage() {
         onFilter={setText}
         view={view}
         onView={setView}
+        kinds={kinds}
+        onKinds={setKinds}
+        tag={tag}
+        onTag={setTag}
       />
-      {view !== "columns" ? (
-        <ExplorerFilterBar
-          kinds={kinds}
-          onKinds={setKinds}
-          tag={tag}
-          onTag={setTag}
-          showThumbSlider={view === "grid"}
-          sortLabel={sortLabel}
-        />
-      ) : null}
       <div ref={paneRef} className="relative flex min-h-0 flex-1 flex-col" {...touchHandlers}>
         {loading ? (
           <div className="px-4 py-3.5">

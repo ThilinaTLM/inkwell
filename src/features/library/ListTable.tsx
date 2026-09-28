@@ -20,6 +20,7 @@
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { ListSelectionApi } from "./useListSelection";
 
@@ -116,7 +117,7 @@ export function Th<K extends string>({
   );
 }
 
-function Checkbox({
+function SelectionCheckbox({
   checked,
   indeterminate,
   onChange,
@@ -128,17 +129,13 @@ function Checkbox({
   label: string;
 }) {
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       aria-label={label}
       checked={checked}
-      ref={(el) => {
-        if (el) el.indeterminate = !!indeterminate;
-      }}
-      onChange={onChange}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-      className="size-3.5 cursor-pointer accent-primary align-middle"
+      indeterminate={indeterminate}
+      onCheckedChange={onChange}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
     />
   );
 }
@@ -148,7 +145,7 @@ export function CheckTh({ selection }: { selection: ListSelectionApi }) {
   const total = selection.order.length;
   return (
     <th className="sticky top-0 z-[1] h-8 w-7 border-b border-border bg-background pr-0 pl-2.5 text-left">
-      <Checkbox
+      <SelectionCheckbox
         label="Select all"
         checked={total > 0 && n === total}
         indeterminate={n > 0 && n < total}
@@ -191,7 +188,7 @@ export function ListRow({
         onContextMenu?.(e);
       }}
       className={cn(
-        "group/row cursor-default select-none [&>td]:border-b [&>td]:border-border/40",
+        "group/row cursor-default select-none",
         "hover:[&>td]:bg-muted/60 data-[selected]:[&>td]:bg-accent/70 dark:data-[selected]:[&>td]:bg-accent/50",
         "data-[focused]:[&>td:first-child]:shadow-[inset_2px_0_0_var(--primary)]",
         dimmed && "opacity-55",
@@ -206,7 +203,7 @@ export function ListRow({
 export function CheckTd({ rowKey, selection }: { rowKey: string; selection: ListSelectionApi }) {
   return (
     <td className="h-9 w-7 pr-0 pl-2.5">
-      <Checkbox
+      <SelectionCheckbox
         label="Select row"
         checked={selection.isSelected(rowKey)}
         onChange={() => selection.toggle(rowKey)}
@@ -258,7 +255,6 @@ export function GroupRow({
         <div className="flex items-center gap-2 text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
           {label}
           {count !== undefined ? <span className="tabular-nums normal-case">{count}</span> : null}
-          <span className="h-px flex-1 bg-border" />
         </div>
       </td>
     </tr>

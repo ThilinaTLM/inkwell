@@ -4,21 +4,15 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import {
-  FilterBar,
-  PageFrame,
-  PageToolbar,
-  StatusBar,
-  ToolbarSearch,
-} from "@/components/shell/page";
+import { PageFrame, PageToolbar, StatusBar, ToolbarSearch } from "@/components/shell/page";
 import { useFolders } from "@/data/folders";
 import { files } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { LibraryItemsView, useLibraryView, ViewSwitch } from "./LibraryItemsView";
 import { type LibrarySortKey, sortLibraryItems, toLibraryItems } from "./libraryItems";
 import {
-  KindChips,
   type KindFilter,
+  KindFilterMenu,
   matchesKind,
   matchesQuery,
   SelectedCount,
@@ -69,10 +63,8 @@ export function StarredPage() {
         }
       >
         <span className="text-xs text-muted-foreground">Pinned items, newest first</span>
+        <KindFilterMenu value={kind} onChange={setKind} />
       </PageToolbar>
-      <FilterBar>
-        <KindChips value={kind} onChange={setKind} />
-      </FilterBar>
       <LibraryItemsView
         view={view}
         meta={(i) => i.location}

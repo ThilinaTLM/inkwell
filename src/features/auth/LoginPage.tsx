@@ -89,14 +89,6 @@ export function LoginPage() {
         <Button type="submit" size="lg" disabled={busy} className="mt-2 w-full">
           {busy && <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />}
           {busy ? "Signing in…" : "Sign in"}
-          {busy ? null : (
-            <kbd
-              aria-hidden
-              className="ml-1 rounded border border-primary-foreground/40 px-1 font-sans text-[0.7rem] leading-4"
-            >
-              ↵
-            </kbd>
-          )}
         </Button>
       </form>
     </AuthShell>

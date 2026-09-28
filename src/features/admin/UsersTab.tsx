@@ -19,7 +19,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FilterBar, FilterChip, StatusBar } from "@/components/shell/page";
+import { StatusBar } from "@/components/shell/page";
 import { setDetailsOpen } from "@/components/shell/shellStore";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -52,6 +52,8 @@ import { DeleteUserDialog } from "./DeleteUserDialog";
 import { UserDetailsPanel } from "./UserDetailsPanel";
 import { Avatar, SELF_REASON } from "./userBits";
 
+export type UserRoleFilter = "all" | "admin" | "user";
+export type UserStatusFilter = "all" | "active" | "disabled";
 type SortKey = "name" | "email" | "role" | "status" | "files" | "storage" | "lastLogin";
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -66,11 +68,19 @@ const MENU_IDS = [
   "user.delete",
 ];
 
-export function UsersTab({ selfId, query }: { selfId: string; query: string }) {
+export function UsersTab({
+  selfId,
+  query,
+  role,
+  status,
+}: {
+  selfId: string;
+  query: string;
+  role: UserRoleFilter;
+  status: UserStatusFilter;
+}) {
   const users = useAdminUsers();
   const update = useUpdateAdminUser();
-  const [role, setRole] = useState<"all" | "admin" | "user">("all");
-  const [status, setStatus] = useState<"all" | "active" | "disabled">("all");
   const [sort, onSort] = useToggleSort<SortKey>({ key: "name", dir: "asc" });
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
   const now = Date.now();
@@ -250,50 +260,22 @@ export function UsersTab({ selfId, query }: { selfId: string; query: string }) {
 
   return (
     <>
-      <FilterBar>
-        <span className="pr-0.5">Role</span>
-        {(
-          [
-            ["all", "All"],
-            ["admin", "Admins"],
-            ["user", "Users"],
-          ] as const
-        ).map(([v, l]) => (
-          <FilterChip key={v} active={role === v} onClick={() => setRole(v)}>
-            {l}
-          </FilterChip>
-        ))}
-        <span aria-hidden className="mx-1 h-[18px] w-px bg-border" />
-        <span className="pr-0.5">Status</span>
-        {(
-          [
-            ["all", "All"],
-            ["active", "Active"],
-            ["disabled", "Disabled"],
-          ] as const
-        ).map(([v, l]) => (
-          <FilterChip key={v} active={status === v} onClick={() => setStatus(v)}>
-            {l}
-          </FilterChip>
-        ))}
-        {selection.count > 1 ? (
-          <>
-            <span className="flex-1" />
-            <b className="font-semibold text-accent-foreground">{selection.count} selected</b>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-6" />}>
-                Bulk actions
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-52">
-                <CommandMenuItems
-                  as="dropdown"
-                  ids={MENU_IDS.filter((id) => id !== "user.details" && id !== "user.delete")}
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        ) : null}
-      </FilterBar>
+      {selection.count > 1 ? (
+        <div className="flex h-10 shrink-0 items-center gap-2 bg-accent/30 px-3 text-xs">
+          <b className="font-semibold text-accent-foreground">{selection.count} selected</b>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-6" />}>
+              Bulk actions
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-52">
+              <CommandMenuItems
+                as="dropdown"
+                ids={MENU_IDS.filter((id) => id !== "user.details" && id !== "user.delete")}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
 
       <ContextMenu>
         <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">

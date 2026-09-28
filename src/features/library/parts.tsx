@@ -11,6 +11,15 @@
 
 import { useCallback, useState } from "react";
 import { FilterChip } from "@/components/shell/page";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { FileKind } from "@/lib/api/client";
 import { useSelection } from "@/lib/selection";
 import type { SortState } from "./ListTable";
@@ -49,6 +58,39 @@ export function KindChips({
         </FilterChip>
       ))}
     </>
+  );
+}
+
+export function KindFilterMenu({
+  value,
+  onChange,
+  includeFolders = true,
+}: {
+  value: KindFilter;
+  onChange: (value: KindFilter) => void;
+  includeFolders?: boolean;
+}) {
+  const options = KIND_CHIPS.filter((item) => includeFolders || item.value !== "folder");
+  const label = options.find((item) => item.value === value)?.label ?? "All";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7" />}>
+        Kind: {label}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuLabel>Kind</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => onChange(next as KindFilter)}
+        >
+          {options.map((item) => (
+            <DropdownMenuRadioItem key={item.value} value={item.value}>
+              {item.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

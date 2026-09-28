@@ -10,7 +10,6 @@
 //   share.extend7 · share.revoke (Delete, ⌘⌫)
 
 import {
-  ArrowDown01Icon,
   Clock01Icon,
   Copy01Icon,
   Delete02Icon,
@@ -25,14 +24,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  FilterBar,
-  FilterChip,
-  PageFrame,
-  PageToolbar,
-  StatusBar,
-  ToolbarSearch,
-} from "@/components/shell/page";
+import { PageFrame, PageToolbar, StatusBar, ToolbarSearch } from "@/components/shell/page";
 import { setDetailsOpen } from "@/components/shell/shellStore";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -40,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -308,80 +301,59 @@ export function SharesPage() {
         <span className="truncate text-xs text-muted-foreground">
           {all.length} links · {targetCount} targets
         </span>
-      </PageToolbar>
-
-      <FilterBar>
-        <span className="pr-0.5">Type</span>
-        {(
-          [
-            ["all", "All"],
-            ["file", "Files"],
-            ["folder", "Folders"],
-          ] as const
-        ).map(([v, l]) => (
-          <FilterChip key={v} active={filters.type === v} onClick={() => setF({ type: v })}>
-            {l}
-          </FilterChip>
-        ))}
-        <Sep />
-        <span className="pr-0.5">Access</span>
-        {(
-          [
-            ["all", "All"],
-            ["read", "View"],
-            ["write", "Edit"],
-          ] as const
-        ).map(([v, l]) => (
-          <FilterChip key={v} active={filters.access === v} onClick={() => setF({ access: v })}>
-            {l}
-          </FilterChip>
-        ))}
-        <Sep />
-        <span className="pr-0.5">Status</span>
-        {(
-          [
-            ["all", "All"],
-            ["active", "Active"],
-            ["expiring", "Expiring soon"],
-            ["expired", "Expired"],
-          ] as const
-        ).map(([v, l]) => (
-          <FilterChip
-            key={v}
-            active={filters.status === v}
-            onClick={() => setF({ status: filters.status === v && v !== "all" ? "all" : v })}
-          >
-            {l}
-          </FilterChip>
-        ))}
-        <span className="flex-1" />
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-            }
-          >
-            Group by: <b className="font-semibold text-foreground">{groupBy}</b>
-            <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3" />
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7" />}>
+            Filters
+            {filters.type !== "all" || filters.access !== "all" || filters.status !== "all" ? (
+              <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                {
+                  [filters.type, filters.access, filters.status].filter((value) => value !== "all")
+                    .length
+                }
+              </span>
+            ) : null}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-              <DropdownMenuRadioItem value="none" closeOnClick>
-                None
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="target" closeOnClick>
-                Target
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="access" closeOnClick>
-                Access
-              </DropdownMenuRadioItem>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuLabel>Type</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={filters.type}
+              onValueChange={(value) => setF({ type: value as ShareFilters["type"] })}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="file">Files</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="folder">Folders</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel>Access</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={filters.access}
+              onValueChange={(value) => setF({ access: value as ShareFilters["access"] })}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="read">View</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="write">Edit</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel>Status</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={filters.status}
+              onValueChange={(value) => setF({ status: value as ShareFilters["status"] })}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="expiring">Expiring soon</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="expired">Expired</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel>Group by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={groupBy}
+              onValueChange={(value) => setGroupBy(value as GroupBy)}
+            >
+              <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="target">Target</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="access">Access</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-      </FilterBar>
+      </PageToolbar>
 
       {selection.count > 1 ? (
         <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-accent/40 px-3 text-xs">

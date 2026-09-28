@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
-  FilterBar,
   PageFrame,
   PageTitle,
   PageToolbar,
@@ -20,8 +19,8 @@ import { keys } from "@/lib/api/query-keys";
 import { LibraryItemsView, useLibraryView, ViewSwitch } from "./LibraryItemsView";
 import { type LibrarySortKey, sortLibraryItems, toLibraryItems } from "./libraryItems";
 import {
-  KindChips,
   type KindFilter,
+  KindFilterMenu,
   matchesKind,
   matchesQuery,
   SelectedCount,
@@ -77,10 +76,9 @@ export function TagPage() {
             <ViewSwitch view={view} onChange={setView} />
           </>
         }
-      />
-      <FilterBar>
-        <KindChips value={kind} onChange={setKind} />
-      </FilterBar>
+      >
+        <KindFilterMenu value={kind} onChange={setKind} />
+      </PageToolbar>
       <LibraryItemsView
         view={view}
         meta={(i) => i.location}

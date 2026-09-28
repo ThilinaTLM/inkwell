@@ -131,7 +131,7 @@ export function Sidebar({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate?
         </Tooltip>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0.5">
+      <div className="-mr-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-2.5 pl-0.5">
         <SectionHeader>Library</SectionHeader>
         <NavItem
           to="/"

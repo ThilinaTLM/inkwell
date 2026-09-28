@@ -2,13 +2,7 @@
 // (opens the palette), uploads button with activity dot, shortcuts
 // button, user menu. On mobile a hamburger opens the sidebar drawer.
 
-import {
-  KeyboardIcon,
-  Menu01Icon,
-  Search01Icon,
-  SidebarLeftIcon,
-  Upload01Icon,
-} from "@hugeicons/core-free-icons";
+import { KeyboardIcon, Menu01Icon, Search01Icon, Upload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "react-router-dom";
 import { InkwellMark } from "@/components/InkwellMark";
@@ -36,26 +30,6 @@ export function TopBar({ user }: { user: User }) {
         </Button>
       ) : null}
       <div className="flex items-center gap-1 md:w-[204px]">
-        {!isMobile ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Toggle sidebar"
-                  onClick={toggleSidebar}
-                  className="text-muted-foreground"
-                />
-              }
-            >
-              <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
-            </TooltipTrigger>
-            <TooltipContent>
-              Toggle sidebar ({formatKeys(getEffectiveKeys("view.sidebar"))})
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
         <Link
           to="/"
           aria-label="Inkwell home"

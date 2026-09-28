@@ -355,7 +355,7 @@ const ListRow = memo(function ListRow({
     <div
       {...props}
       className={cn(
-        "group grid h-9 cursor-default items-center border-b border-border/40 text-[12.5px] text-muted-foreground",
+        "group grid h-9 cursor-default items-center text-[12.5px] text-muted-foreground",
         "border-x-0 border-t-0",
         itemStateClass({ ...state, focused: false }),
         state.focused && "shadow-[inset_2px_0_0_var(--color-primary)]",

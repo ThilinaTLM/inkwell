@@ -777,3 +777,43 @@
   background-color: rgba(255, 255, 255, 0.32);
   background-clip: padding-box;
 }
+
+/* ─── App scrollbars ──────────────────────────────────────────────────
+   Keep every app scroll surface visually consistent with the themed
+   notes editor. A transparent track avoids the bright native gutter,
+   while the padded pill remains large enough to grab with a pointer. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  min-width: 32px;
+  min-height: 32px;
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-color: rgba(0, 0, 0, 0.18);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.32);
+  background-clip: padding-box;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+  background-clip: padding-box;
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
+}

@@ -76,7 +76,7 @@ export function GridView({ thumbSize, groupHeaders = true, meta, ...props }: Gri
       {sections.map((s) => (
         <section key={s.label ?? "all"} className="mb-4 last:mb-0">
           {s.label ? (
-            <h3 className="mx-0.5 mb-2.5 flex items-center gap-2 text-[11px] font-normal tracking-[0.08em] text-muted-foreground uppercase after:h-px after:flex-1 after:bg-border">
+            <h3 className="mx-0.5 mb-2.5 text-[11px] font-normal tracking-[0.08em] text-muted-foreground uppercase">
               {s.label} · {s.items.length}
             </h3>
           ) : null}
@@ -127,11 +127,9 @@ const GridItem = memo(function GridItem({
         checked={state.selected}
         onToggle={toggle}
         className={cn(
-          "absolute top-3.5 left-3.5 grid size-[18px] place-items-center rounded-[5px] border-[1.5px] text-xs font-black",
-          state.selected
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-white/40 bg-black/40 text-transparent",
-          state.selected || selectionMode ? "flex" : "hidden group-hover/item:grid",
+          "absolute top-3.5 left-3.5 shadow-sm",
+          !state.selected && "bg-background/80",
+          state.selected || selectionMode ? "flex" : "hidden group-hover/item:flex",
         )}
       />
       <ItemBadges item={item} />

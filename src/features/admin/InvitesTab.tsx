@@ -6,9 +6,9 @@
 
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FilterBar, FilterChip, StatusBar } from "@/components/shell/page";
+import { StatusBar } from "@/components/shell/page";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useInvites } from "@/data/admin";
 import { confirmDialog } from "@/features/dialogs/dialogStore";
@@ -36,7 +36,7 @@ import { type Command, useRegisterCommands } from "@/lib/commands/registry";
 import { inviteUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "all" | InviteStatus;
+export type InviteStatusFilter = "all" | InviteStatus;
 type SortKey = "created" | "expires" | "status";
 
 const TONE: Record<InviteStatus, StatusTone> = {
@@ -60,10 +60,19 @@ async function copyInvite(token: string) {
   else toast.error("Couldn't access the clipboard", { description: inviteUrl(token) });
 }
 
-export function InvitesTab({ query, flashToken }: { query: string; flashToken: string | null }) {
+export function InvitesTab({
+  query,
+  flashToken,
+  status,
+  onStatusChange,
+}: {
+  query: string;
+  flashToken: string | null;
+  status: InviteStatusFilter;
+  onStatusChange: Dispatch<SetStateAction<InviteStatusFilter>>;
+}) {
   const qc = useQueryClient();
   const invites = useInvites();
-  const [status, setStatus] = useState<StatusFilter>("pending");
   const [sort, onSort] = useToggleSort<SortKey>({ key: "created", dir: "desc" });
   const [flash, setFlash] = useState<string | null>(null);
   const now = Date.now();
@@ -71,11 +80,11 @@ export function InvitesTab({ query, flashToken }: { query: string; flashToken: s
 
   useEffect(() => {
     if (!flashToken) return;
-    setStatus((s) => (s === "all" || s === "pending" ? s : "pending"));
+    onStatusChange((current) => (current === "all" || current === "pending" ? current : "pending"));
     setFlash(flashToken);
     const t = window.setTimeout(() => setFlash(null), 1600);
     return () => window.clearTimeout(t);
-  }, [flashToken]);
+  }, [flashToken, onStatusChange]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -167,14 +176,6 @@ export function InvitesTab({ query, flashToken }: { query: string; flashToken: s
 
   return (
     <>
-      <FilterBar>
-        <span className="pr-0.5">Status</span>
-        {(["all", "pending", "used", "expired", "revoked"] as const).map((s) => (
-          <FilterChip key={s} active={status === s} onClick={() => setStatus(s)}>
-            {s === "all" ? "All" : LABEL[s]}
-          </FilterChip>
-        ))}
-      </FilterBar>
       <ContextMenu>
         <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
           <ListTable label="Invites" selection={selection}>

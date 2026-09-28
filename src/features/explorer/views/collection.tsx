@@ -69,7 +69,15 @@ import type { ItemRef } from "@/lib/api/client";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys, registerCommands, runCommand } from "@/lib/commands/registry";
-import { getExplorerPref, type SortKey, useExplorerPref } from "@/lib/explorerPrefs";
+import {
+  type ExplorerView,
+  getExplorerPref,
+  type SortKey,
+  THUMB_SIZES,
+  type ThumbSize,
+  useExplorerPref,
+  useFolderView,
+} from "@/lib/explorerPrefs";
 import { getSelection, parseRefKey } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 import { startItemDrag, useIsDragSource, useItemDropTargets } from "../dnd/itemDnd";
@@ -766,21 +774,75 @@ function BackgroundMenuBody({
 }) {
   const ids = menu.background ?? BACKGROUND_MENU_IDS;
   const split = splitAt(ids, "select.all");
+  const [view, setView] = useFolderView(folderId ?? null);
+  const [thumbSize, setThumbSize] = useExplorerPref("thumbSize");
   const folderRef: ItemRef | null = folderId ? { type: "folder", id: folderId } : null;
   const ctx = folderId !== undefined ? { currentFolderId: folderId } : undefined;
   return (
     <>
       <CommandMenuItems ids={split ? split[0] : ids} as="context" ctx={ctx} />
       {folderId !== undefined ? (
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <HugeiconsIcon icon={SortingAZ02Icon} strokeWidth={2} />
-            <span>Sort by</span>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-48">
-            <SortMenuItems />
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        <>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <span className="size-4" aria-hidden />
+              <span>View</span>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-48">
+              {(
+                [
+                  ["grid", "Grid"],
+                  ["compact", "Compact"],
+                  ["list", "Details"],
+                  ["columns", "Columns"],
+                ] as Array<[ExplorerView, string]>
+              ).map(([value, label]) => (
+                <ContextMenuItem key={value} onClick={() => setView(value)}>
+                  <span className="grid size-4 place-items-center text-xs" aria-hidden>
+                    {view === value ? "✓" : ""}
+                  </span>
+                  <span>{label}</span>
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          {view === "grid" ? (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <span className="size-4" aria-hidden />
+                <span>Thumbnail size</span>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="min-w-48">
+                {THUMB_SIZES.map((size) => (
+                  <ContextMenuItem key={size} onClick={() => setThumbSize(size)}>
+                    <span className="grid size-4 place-items-center text-xs" aria-hidden>
+                      {thumbSize === size ? "✓" : ""}
+                    </span>
+                    <span>
+                      {
+                        (
+                          { s: "Small", m: "Medium", l: "Large", xl: "Extra large" } as Record<
+                            ThumbSize,
+                            string
+                          >
+                        )[size]
+                      }
+                    </span>
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          ) : null}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <HugeiconsIcon icon={SortingAZ02Icon} strokeWidth={2} />
+              <span>Sort by</span>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-48">
+              <SortMenuItems />
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </>
       ) : null}
       {split ? <CommandMenuItems ids={["select.all", ...split[1]]} as="context" ctx={ctx} /> : null}
       {folderRef ? (
