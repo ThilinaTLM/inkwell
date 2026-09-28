@@ -10,16 +10,13 @@
 // the shell so they keep their own chrome and never receive the
 // single-key shortcuts.
 
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AppShell } from "@/components/shell/AppShell";
 import { useMe } from "@/data/auth";
 import { UsersPage } from "@/features/admin/UsersPage";
 import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { EditorPage } from "@/features/editor/EditorPage";
-import { SharedEditorPage } from "@/features/editor/SharedEditorPage";
-import { SharedTokenLandingPage } from "@/features/editor/SharedTokenLandingPage";
-import { StaticSitePreviewRedirect } from "@/features/editor/StaticSitePreviewRedirect";
 import { ExplorerPage } from "@/features/explorer/ExplorerPage";
 import { RecentPage } from "@/features/library/RecentPage";
 import { StarredPage } from "@/features/library/StarredPage";
@@ -27,6 +24,29 @@ import { TagPage } from "@/features/library/TagPage";
 import { TrashPage } from "@/features/library/TrashPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharesPage } from "@/features/sharing/SharesPage";
+
+const EditorPage = lazy(() =>
+  import("@/features/editor/EditorPage").then((module) => ({ default: module.EditorPage })),
+);
+const SharedEditorPage = lazy(() =>
+  import("@/features/editor/SharedEditorPage").then((module) => ({
+    default: module.SharedEditorPage,
+  })),
+);
+const SharedTokenLandingPage = lazy(() =>
+  import("@/features/editor/SharedTokenLandingPage").then((module) => ({
+    default: module.SharedTokenLandingPage,
+  })),
+);
+const StaticSitePreviewRedirect = lazy(() =>
+  import("@/features/editor/StaticSitePreviewRedirect").then((module) => ({
+    default: module.StaticSitePreviewRedirect,
+  })),
+);
+
+function lazyRoute(element: React.ReactNode) {
+  return <Suspense fallback={null}>{element}</Suspense>;
+}
 
 export function AppRoutes() {
   return (
@@ -53,20 +73,20 @@ export function AppRoutes() {
         />
       </Route>
 
-      <Route path="/f/:id" element={<EditorPage />} />
+      <Route path="/f/:id" element={lazyRoute(<EditorPage />)} />
       {/* Owner-facing stable preview URL for static-site files. The
           component mints a fresh signed `/sites/:id/:sig/...` URL on
           every visit and `location.replace`s into it — see
           StaticSitePreviewRedirect for the access-control story. */}
-      <Route path="/f/:id/site" element={<StaticSitePreviewRedirect />} />
+      <Route path="/f/:id/site" element={lazyRoute(<StaticSitePreviewRedirect />)} />
       {/* Legacy: pre-rebrand `/s/:id` URLs (bookmarks, browser history,
           tabs) redirect to the canonical /f/:id form. */}
       <Route path="/s/:id" element={<LegacyFileRedirect />} />
       {/* Legacy: pre-rebrand `/account` URLs redirect to the renamed
           `/settings` route so bookmarks and the back stack stay clean. */}
       <Route path="/account" element={<LegacyAccountRedirect />} />
-      <Route path="/share/:token" element={<SharedTokenLandingPage />} />
-      <Route path="/share/:token/files/:fileId" element={<SharedEditorPage />} />
+      <Route path="/share/:token" element={lazyRoute(<SharedTokenLandingPage />)} />
+      <Route path="/share/:token/files/:fileId" element={lazyRoute(<SharedEditorPage />)} />
       {/* Legacy folder-share child URLs (`.../scenes/:sceneId`) redirect
           to the renamed form. The share token itself is unchanged. */}
       <Route path="/share/:token/scenes/:sceneId" element={<LegacyFolderShareFileRedirect />} />

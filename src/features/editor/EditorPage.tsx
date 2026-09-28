@@ -23,7 +23,6 @@
 // Header actions go through the shared `itemActions` (same dialogs,
 // optimistic updates and undo toasts as the explorer).
 
-import { MainMenu } from "@excalidraw/excalidraw";
 import {
   ArrowLeft01Icon,
   Copy01Icon,
@@ -34,7 +33,7 @@ import {
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { openShortcutSheet } from "@/components/shell/shellStore";
 import { useFile } from "@/data/files";
@@ -51,14 +50,20 @@ import { keys } from "@/lib/api/query-keys";
 import type { Command } from "@/lib/commands/registry";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
-import DrawioEditor from "./DrawioEditor";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
 import { EditorOverlays } from "./EditorOverlays";
-import ExcalidrawEditor from "./ExcalidrawEditor";
 import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
-import NotesEditor from "./NotesEditor";
-import StaticSiteEditor from "./StaticSiteEditor";
+
+const DrawioEditor = lazy(() => import("./DrawioEditor"));
+const ExcalidrawEditor = lazy(() => import("./ExcalidrawEditor"));
+const ExcalidrawMenu = lazy(() => import("./ExcalidrawMenu"));
+const NotesEditor = lazy(() => import("./NotesEditor"));
+const StaticSiteEditor = lazy(() => import("./StaticSiteEditor"));
+
+function EditorSuspense({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<EditorLoadingState label="Loading editor…" />}>{children}</Suspense>;
+}
 
 function folderUrl(folderId: string | null): string {
   return folderId ? `/folders/${folderId}` : "/";
@@ -406,10 +411,12 @@ export function EditorPage() {
 
   if (meta.kind === "drawio") {
     return (
-      <div className="h-dvh w-full overflow-hidden bg-background">
-        <DrawioEditor key={editorKey} {...common} />
-        {overlays}
-      </div>
+      <EditorSuspense>
+        <div className="h-dvh w-full overflow-hidden bg-background">
+          <DrawioEditor key={editorKey} {...common} />
+          {overlays}
+        </div>
+      </EditorSuspense>
     );
   }
 
@@ -417,67 +424,57 @@ export function EditorPage() {
     // StaticSiteEditor paints its own <Surface> and owns its own
     // scroll container — the wrapper just sizes to the viewport.
     return (
-      <div className="h-dvh w-full">
-        <StaticSiteEditor
-          loaded={loaded}
-          renderHeader={renderHeader}
-          onManifestChanged={(_manifest, m) => {
-            // Keep the editor's `LoadedFile` mirror in sync with the
-            // server's bumped version so subsequent mutations send the
-            // right `If-Match` header.
-            setLoaded((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    meta: {
-                      ...prev.meta,
-                      version: m.version,
-                      updatedAt: m.updatedAt,
-                      name: m.name,
-                    },
-                  }
-                : prev,
-            );
-          }}
-        />
-        {overlays}
-      </div>
+      <EditorSuspense>
+        <div className="h-dvh w-full">
+          <StaticSiteEditor
+            loaded={loaded}
+            renderHeader={renderHeader}
+            onManifestChanged={(_manifest, m) => {
+              // Keep the editor's `LoadedFile` mirror in sync with the
+              // server's bumped version so subsequent mutations send the
+              // right `If-Match` header.
+              setLoaded((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      meta: {
+                        ...prev.meta,
+                        version: m.version,
+                        updatedAt: m.updatedAt,
+                        name: m.name,
+                      },
+                    }
+                  : prev,
+              );
+            }}
+          />
+          {overlays}
+        </div>
+      </EditorSuspense>
     );
   }
 
   if (meta.kind === "notes") {
     return (
-      <div className="h-dvh w-full overflow-hidden bg-background">
-        <NotesEditor key={editorKey} {...common} />
-        {overlays}
-      </div>
+      <EditorSuspense>
+        <div className="h-dvh w-full overflow-hidden bg-background">
+          <NotesEditor key={editorKey} {...common} />
+          {overlays}
+        </div>
+      </EditorSuspense>
     );
   }
 
   return (
-    <div className="h-dvh w-full overflow-hidden bg-background">
-      <ExcalidrawEditor
-        key={editorKey}
-        {...common}
-        chrome={
-          <MainMenu>
-            {/* File-level actions (rename, tags, share, download…) live
-                in the EditorHeader; the relocated MainMenu keeps only
-                canvas-level items. */}
-            <MainMenu.DefaultItems.SaveAsImage />
-            <MainMenu.Separator />
-            {/* Native three-state theme item (light / dark / system). */}
-            <MainMenu.DefaultItems.ToggleTheme
-              allowSystemTheme
-              theme={themeMode}
-              onSelect={setThemeMode}
-            />
-            <MainMenu.DefaultItems.ClearCanvas />
-            <MainMenu.DefaultItems.Help />
-          </MainMenu>
-        }
-      />
-      {overlays}
-    </div>
+    <EditorSuspense>
+      <div className="h-dvh w-full overflow-hidden bg-background">
+        <ExcalidrawEditor
+          key={editorKey}
+          {...common}
+          chrome={<ExcalidrawMenu variant="owner" theme={themeMode} onSelectTheme={setThemeMode} />}
+        />
+        {overlays}
+      </div>
+    </EditorSuspense>
   );
 }

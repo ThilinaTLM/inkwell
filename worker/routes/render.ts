@@ -90,7 +90,7 @@ ownerSites.get("/:id/:sig/:path{.*}", async (c) => {
   if (!id || !sig) return errorResponse(404, "not found");
 
   const row = await filesRepo.findByIdAnyOwner(c.env, id);
-  if (!row || row.kind !== "static-site") return errorResponse(404, "not found");
+  if (row?.kind !== "static-site") return errorResponse(404, "not found");
 
   // Ownership check: the signed URL binds to (file, owner) but the
   // authoritative gate is the session cookie. An attacker who obtains
@@ -130,7 +130,7 @@ sharedSites.get("/:token/files/:fileId/:sig/:path{.*}", async (c) => {
   if (!token || !fileId || !sig) return errorResponse(404, "not found");
 
   const share = await sharesRepo.findActive(c.env, token);
-  if (!share || share.target_type !== "folder") {
+  if (share?.target_type !== "folder") {
     return errorResponse(403, "share is no longer active");
   }
   if (!(await foldersRepo.fileInSubtree(c.env, share.owner, fileId, share.target_id))) {
@@ -138,7 +138,7 @@ sharedSites.get("/:token/files/:fileId/:sig/:path{.*}", async (c) => {
   }
 
   const row = await filesRepo.findByIdAnyOwner(c.env, fileId);
-  if (!row || row.kind !== "static-site") return errorResponse(404, "not found");
+  if (row?.kind !== "static-site") return errorResponse(404, "not found");
 
   // Same verifier as the file-share path: `shareRenderPayload(token,
   // fileId)`. The fileId is part of the URL, so a folder-share sig
@@ -161,12 +161,12 @@ sharedSites.get("/:token/:sig/:path{.*}", async (c) => {
   // and we want revocation to take effect immediately rather than
   // waiting for the 30-minute signature TTL.
   const share = await sharesRepo.findActive(c.env, token);
-  if (!share || share.target_type !== "file") {
+  if (share?.target_type !== "file") {
     return errorResponse(403, "share is no longer active");
   }
 
   const row = await filesRepo.findByIdAnyOwner(c.env, share.target_id);
-  if (!row || row.kind !== "static-site") return errorResponse(404, "not found");
+  if (row?.kind !== "static-site") return errorResponse(404, "not found");
 
   // Verifier is locked to `shareRenderPayload`. An owner-minted sig
   // produces a payload starting with "owner|" and therefore cannot

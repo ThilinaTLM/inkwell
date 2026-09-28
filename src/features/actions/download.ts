@@ -2,7 +2,6 @@
 // or folders → client-side zip built with fflate.
 
 import type { QueryClient } from "@tanstack/react-query";
-import { zip } from "fflate";
 import { type FileKind, type FileMeta, files, type ItemRef } from "@/lib/api/client";
 import { ensureItems, getFoldersCached } from "./itemCache";
 
@@ -121,6 +120,7 @@ export async function downloadAsZip(
   }
   await Promise.all([worker(), worker(), worker()]);
 
+  const { zip } = await import("fflate");
   const data = await new Promise<Uint8Array>((resolve, reject) =>
     zip(out, { level: 6 }, (err, res) => (err ? reject(err) : resolve(res))),
   );

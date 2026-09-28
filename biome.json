@@ -55,7 +55,7 @@
       "project": "recommended"
     },
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "useImportType": "error",
         "useNodejsImportProtocol": "error",
