@@ -1,6 +1,13 @@
 // Settings → Explorer: every key of `src/lib/explorerPrefs.ts`.
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys } from "@/lib/commands/registry";
 import {
@@ -82,18 +89,21 @@ export function ExplorerSection() {
           />
         </SettingRow>
         <SettingRow label="Sort by">
-          <select
-            aria-label="Sort key"
+          <Select
             value={sort.key}
-            onChange={(e) => setSort({ ...sort, key: e.target.value as SortKey })}
-            className="h-7 w-[140px] rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            onValueChange={(value) => setSort({ ...sort, key: value as SortKey })}
           >
-            <option value="name">Name</option>
-            <option value="modified">Modified</option>
-            <option value="created">Created</option>
-            <option value="size">Size</option>
-            <option value="kind">Kind</option>
-          </select>
+            <SelectTrigger aria-label="Sort key" className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="modified">Modified</SelectItem>
+              <SelectItem value="created">Created</SelectItem>
+              <SelectItem value="size">Size</SelectItem>
+              <SelectItem value="kind">Kind</SelectItem>
+            </SelectContent>
+          </Select>
           <Segmented<"asc" | "desc">
             ariaLabel="Sort direction"
             value={sort.dir}

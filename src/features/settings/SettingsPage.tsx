@@ -20,6 +20,13 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { type ReactNode, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { PageFrame, PageToolbar, StatusBar, ToolbarSearch } from "@/components/shell/page";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMe } from "@/data/auth";
 import { cn } from "@/lib/utils";
 import { AboutSection } from "./sections/AboutSection";
@@ -212,21 +219,24 @@ export function SettingsPage() {
         </nav>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7">
           {/* Mobile section picker */}
-          <select
-            aria-label="Settings section"
+          <Select
             value={current.id}
-            onChange={(e) => {
-              const id = e.target.value;
+            onValueChange={(value) => {
+              const id = value as SectionId;
               navigate(id === "profile" ? "/settings" : `/settings/${id}`);
             }}
-            className="mb-4 h-8 w-full rounded-md border border-input bg-background px-2 text-sm md:hidden"
           >
-            {ALL.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="Settings section" className="mb-4 w-full md:hidden">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ALL.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="mx-auto max-w-[760px]">
             <header className="mt-1 mb-[18px] flex flex-wrap items-end gap-x-3 gap-y-1">
               <h1 className="font-brand text-[28px] leading-none font-normal text-foreground">

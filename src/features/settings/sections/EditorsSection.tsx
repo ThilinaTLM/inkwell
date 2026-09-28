@@ -3,6 +3,13 @@
 // edited).
 
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   NOTES_FONTS,
   NOTES_WIDTHS,
   type NotesEditorFont,
@@ -50,18 +57,21 @@ export function EditorsSection() {
           />
         </SettingRow>
         <SettingRow label="Typeface" help="Fonts load the first time you open a note">
-          <select
-            aria-label="Notes typeface"
+          <Select
             value={notes.font}
-            onChange={(e) => notes.setFont(e.target.value as NotesEditorFont)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            onValueChange={(value) => notes.setFont(value as NotesEditorFont)}
           >
-            {NOTES_FONTS.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label} · {f.family}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="Notes typeface" className="h-8 min-w-52 text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {NOTES_FONTS.map((font) => (
+                <SelectItem key={font.value} value={font.value}>
+                  {font.label} · {font.family}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span
             className="text-[13px]"
             style={{ fontFamily: NOTES_FONTS.find((f) => f.value === notes.font)?.stack }}

@@ -10,6 +10,7 @@
 //   <ChipGroup value onChange options ariaLabel />          – single-select pill chips
 
 import type { ReactNode } from "react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export interface SegOption<T extends string> {
@@ -118,28 +119,14 @@ export function Toggle({
   id?: string;
 }) {
   return (
-    <button
+    <Switch
       id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
+      checked={checked}
       aria-label={label}
       title={title}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-5 w-[34px] shrink-0 items-center rounded-full border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "border-primary bg-primary" : "border-input bg-muted",
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "absolute top-[2px] size-3.5 rounded-full transition-[left]",
-          checked ? "left-[16px] bg-primary-foreground" : "left-[2px] bg-muted-foreground",
-        )}
-      />
-    </button>
+      onCheckedChange={onChange}
+    />
   );
 }
 
