@@ -42,7 +42,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PaperSurface } from "@/components/PaperSurface";
+import { Surface } from "@/components/Surface";
 import { Button } from "@/components/ui/button";
 import {
   type FileMeta,
@@ -191,7 +191,7 @@ export default function StaticSiteEditor({
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <PaperSurface variant="page" className="flex h-dvh flex-col">
+    <Surface variant="page" className="flex h-dvh flex-col">
       {renderHeader?.(
         staticBridge({
           toolbar: (
@@ -218,7 +218,6 @@ export default function StaticSiteEditor({
         >
           <div className={cn("lg:col-span-7", !writable && "lg:col-span-12")}>
             <SiteCard
-              id={id}
               entry={manifest.entry}
               isEmpty={isEmpty}
               fileCount={manifest.assets.length}
@@ -231,7 +230,6 @@ export default function StaticSiteEditor({
           {writable ? (
             <div className="lg:col-span-5">
               <UploadPanel
-                id={id}
                 isEmpty={isEmpty}
                 filesPending={uploadFilesMutation.isPending}
                 zipPending={uploadZipMutation.isPending}
@@ -243,7 +241,6 @@ export default function StaticSiteEditor({
 
           <div className="lg:col-span-12">
             <FilesList
-              id={id}
               manifest={manifest}
               totalLabel={totalLabel}
               writable={writable}
@@ -254,7 +251,7 @@ export default function StaticSiteEditor({
           </div>
         </div>
       </main>
-    </PaperSurface>
+    </Surface>
   );
 }
 

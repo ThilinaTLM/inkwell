@@ -58,10 +58,9 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          // A sheet of paper laid on the desk: popover fill, hairline ring,
-          // soft offset shadow, slight tilt-on-open animation. The shadow
-          // literal is preserved — it mixes the warm ink colour and there
-          // is no token utility for it.
+          // Clean elevated panel: popover fill, hairline ring, soft offset
+          // shadow, fade/zoom on open. The shadow literal mixes the warm
+          // ink colour and has no token utility.
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-5 font-sans text-sm text-popover-foreground ring-1 ring-border shadow-[0_24px_60px_-20px_rgba(28,24,20,0.45)] duration-150 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
@@ -129,7 +128,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-sans text-lg font-semibold tracking-tight text-foreground", className)}
+      className={cn("font-display text-xl font-medium text-foreground", className)}
       {...props}
     />
   )

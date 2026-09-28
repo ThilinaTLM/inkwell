@@ -7,17 +7,12 @@
 // Tab → action list for the highlighted item (⇧Tab / Esc back) ·
 // ⌘/Ctrl+⇧+↵ create an Excalidraw drawing named after the query.
 
-import {
-  FileAddIcon,
-  FolderLibraryIcon,
-  HashtagIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+import { FileAddIcon, Folder01Icon, HashtagIcon, Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
+import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFolders } from "@/data/folders";
 import { useTags } from "@/data/tags";
@@ -90,7 +85,7 @@ function KindIcon({ kind }: { kind?: FileKind }) {
     <FileKindGlyph kind={kind} variant="full" className="size-[18px] shrink-0 rounded" />
   ) : (
     <HugeiconsIcon
-      icon={FolderLibraryIcon}
+      icon={Folder01Icon}
       strokeWidth={1.7}
       className="size-[18px] shrink-0 text-folder"
     />

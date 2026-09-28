@@ -9,10 +9,8 @@
 // fetched, the result is cached in-memory and the browser's font cache
 // keeps subsequent reads off the network.
 //
-// Manrope is intentionally NOT lazy — `src/index.css` imports it
-// eagerly because it's the chrome heading typeface used by every
-// route (folder grid, dialogs, save status, etc.). Calling
-// `loadNotesFont("manrope")` is therefore a no-op.
+// Geist is the app's UI typeface, so `src/index.css` already imports it
+// eagerly; `loadNotesFont("geist")` resolves without a network fetch.
 
 import type { NotesEditorFont } from "./preferences";
 
@@ -30,9 +28,11 @@ export function loadNotesFont(font: NotesEditorFont): Promise<void> {
         await import("@fontsource-variable/inter/index.css");
         break;
       case "manrope":
-        // Already shipped eagerly by `src/index.css`; nothing to load.
+        await import("@fontsource-variable/manrope/index.css");
         break;
       case "geist":
+        // Also shipped eagerly as the UI font by `src/index.css`; the
+        // import is a no-op then, but keeps this switch uniform.
         await import("@fontsource-variable/geist/index.css");
         break;
       case "lora":

@@ -314,7 +314,9 @@ export function ExplorerPage() {
     folderName,
     ariaLabel: folderName,
     empty: filtered ? (
-      <p className="p-6 font-hand text-2xl text-muted-foreground">Nothing matches the filter.</p>
+      <p className="p-6 font-display text-xl italic text-muted-foreground">
+        Nothing matches the filter.
+      </p>
     ) : (
       <EmptyFolder folderId={folderId} name={folderName} />
     ),

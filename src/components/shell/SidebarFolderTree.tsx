@@ -13,7 +13,7 @@
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
-  FolderLibraryIcon,
+  Folder01Icon,
   FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -193,8 +193,8 @@ const TreeNode = memo(function TreeNode({
             title={folder.name}
           >
             <HugeiconsIcon
-              icon={active ? FolderOpenIcon : FolderLibraryIcon}
-              strokeWidth={1.7}
+              icon={active ? FolderOpenIcon : Folder01Icon}
+              strokeWidth={1.6}
               className="size-4 shrink-0 text-folder"
             />
             <span className="truncate">{folder.name}</span>

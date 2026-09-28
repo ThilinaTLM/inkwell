@@ -11,11 +11,11 @@
 //   LIBRARY_ITEM_MENU_IDS         – row context-menu command ids
 //   kindShortLabel(kind?)         – "Excalidraw" · "draw.io" · "Notes" · "Site" · "Folder"
 
-import { FolderLibraryIcon, Link04Icon, StarIcon } from "@hugeicons/core-free-icons";
+import { Folder01Icon, Link04Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Fragment, useMemo } from "react";
+import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { tagColor } from "@/components/shell/tagColor";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useItemActions } from "@/features/actions/useItemActions";
 import type { FileKind } from "@/lib/api/client";
@@ -82,7 +82,7 @@ export function ItemIcon({ kind, className }: { kind?: FileKind; className?: str
     />
   ) : (
     <HugeiconsIcon
-      icon={FolderLibraryIcon}
+      icon={Folder01Icon}
       strokeWidth={1.7}
       className={cn("size-[18px] shrink-0 text-folder", className)}
     />

@@ -61,7 +61,7 @@ export function InkwellMark({
       viewBox="0 0 64 64"
       fill="none"
       stroke="currentColor"
-      strokeWidth={4.5}
+      strokeWidth={4}
       strokeLinecap="round"
       strokeLinejoin="round"
       role={labelled ? "img" : "presentation"}

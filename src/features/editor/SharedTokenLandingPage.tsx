@@ -21,8 +21,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
-import { PaperSurface } from "@/components/PaperSurface";
-import { EmptyDeskNote } from "@/components/sketch/EmptyDeskNote";
+import { EmptyState } from "@/components/EmptyState";
+import { Surface } from "@/components/Surface";
 import { shares } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
@@ -49,13 +49,12 @@ export function SharedTokenLandingPage() {
 
   if (peek.isError) {
     return (
-      <PaperSurface variant="page" className="grid place-items-center px-4">
-        <EmptyDeskNote
-          seed="shared-link-error"
+      <Surface variant="page" className="grid place-items-center px-4">
+        <EmptyState
           title="Couldn't open this link"
           body={errorMessage(peek.error, "could not open this link")}
         />
-      </PaperSurface>
+      </Surface>
     );
   }
 

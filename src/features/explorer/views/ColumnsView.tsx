@@ -262,7 +262,9 @@ function PreviewColumn({ scope, items }: { scope: string; items: ExplorerItem[] 
           </div>
         </>
       ) : sel.length > 1 ? (
-        <p className="font-hand text-xl text-muted-foreground">{sel.length} items selected</p>
+        <p className="font-display text-lg italic text-muted-foreground">
+          {sel.length} items selected
+        </p>
       ) : null}
     </div>
   );

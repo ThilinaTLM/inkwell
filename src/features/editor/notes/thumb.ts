@@ -3,7 +3,7 @@
 // Notes files have no canvas, so the existing thumbnail pipeline
 // (client-side SVG → R2) is fed a synthesised "page card" SVG instead:
 // a few lines of plain text extracted from the BlockNote document,
-// styled as a sketch-paper card so it slots in next to Excalidraw and
+// styled as a plain page card so it slots in next to Excalidraw and
 // drawio thumbnails on the dashboard.
 //
 // Why SVG instead of a separate D1 `summary` column:

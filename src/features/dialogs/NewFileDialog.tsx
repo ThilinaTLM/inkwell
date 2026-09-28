@@ -10,8 +10,8 @@ import { Upload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { Kbd } from "@/components/shell/Kbd";
-import { FileKindGlyph } from "@/components/sketch/file-kind-icons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -109,7 +109,7 @@ export function NewFileDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="gap-3 sm:max-w-[480px]" onKeyDown={onKeyDown}>
         <div className="flex items-baseline gap-2 pr-8">
-          <DialogTitle className="font-hand text-2xl font-semibold">New file</DialogTitle>
+          <DialogTitle>New file</DialogTitle>
           <DialogDescription className="truncate">in {folderName}</DialogDescription>
         </div>
         <fieldset className="grid grid-cols-4 gap-2" aria-label="File kind">

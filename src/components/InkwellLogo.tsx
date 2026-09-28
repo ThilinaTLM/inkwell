@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 type LogoSize = "sm" | "md" | "lg";
 
 const SIZES: Record<LogoSize, { mark: string; wordmark: string; gap: string }> = {
-  sm: { mark: "size-5", wordmark: "h-4", gap: "gap-2" },
-  md: { mark: "size-6", wordmark: "h-5", gap: "gap-2.5" },
-  lg: { mark: "size-10", wordmark: "h-8", gap: "gap-3" },
+  sm: { mark: "size-5", wordmark: "h-[15px]", gap: "gap-2" },
+  md: { mark: "size-6", wordmark: "h-[18px]", gap: "gap-2.5" },
+  lg: { mark: "size-10", wordmark: "h-7", gap: "gap-3" },
 };
 
 interface InkwellLogoProps {
@@ -36,8 +36,7 @@ export function InkwellLogo({
   return (
     <span className={cn("inline-flex items-center", s.gap, className)}>
       <InkwellMark animate={animate} className={s.mark} />
-      {/* Optical alignment: Excalifont's descender sits below the baseline. */}
-      <InkwellWordmark className={cn(s.wordmark, "translate-y-[4%]", wordmarkClassName)} />
+      <InkwellWordmark className={cn(s.wordmark, wordmarkClassName)} />
     </span>
   );
 }

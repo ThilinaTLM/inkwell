@@ -6,7 +6,7 @@
 // Visual notes:
 //   - The entry row gets a 1px primary stripe down its left edge (a
 //     subtle "this is the page that publishes" marker) and a
-//     handwritten "entry" washi ribbon on the right.
+//     small "entry" pill on the right.
 //   - Non-entry rows reveal a two-icon cluster (set-as-entry + delete)
 //     on hover / focus-within, identical in behaviour to the previous
 //     implementation. The reservation column is always present so the
@@ -113,17 +113,14 @@ function KindChip({
 
 // ─── EntryRibbon ─────────────────────────────────────────────────────
 //
-// A handwritten "entry" washi-tape ribbon, sized to fit inside the
-// row. Inline emulation of `<TapeChip>`'s look without the rough.js
-// roundtrip (which would be wasteful on every list row); the chip
-// itself is a pill with the primary-accent fill and the Caveat hand.
+// A small "entry" pill marking the site's entry file: primary-tinted
+// fill with a hairline ring, sized to fit inside the row.
 
 function EntryRibbon() {
   return (
     <span
       aria-hidden
-      className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 font-hand text-sm leading-none text-primary ring-1 ring-primary/30"
-      style={{ transform: "rotate(-1.2deg)" }}
+      className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] leading-none font-medium text-primary ring-1 ring-primary/30"
     >
       entry
     </span>

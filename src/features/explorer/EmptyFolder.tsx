@@ -17,13 +17,11 @@ export function EmptyFolder({ folderId, name }: { folderId: string | null; name:
   const clip = useClipboard();
   const k = (id: string) => getEffectiveKeys(id)[0];
   return (
-    <div className="absolute inset-6 flex flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-border p-6 text-center transition-colors in-data-[drop-over=true]:border-primary in-data-[drop-over=true]:bg-accent/30 in-data-[file-drop-over=true]:border-primary in-data-[file-drop-over=true]:bg-accent/30 sm:inset-10">
-      <p className="font-hand text-3xl leading-tight text-foreground sm:text-4xl">
+    <div className="absolute inset-6 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border p-6 text-center transition-colors in-data-[drop-over=true]:border-primary in-data-[drop-over=true]:bg-accent/30 in-data-[file-drop-over=true]:border-primary in-data-[file-drop-over=true]:bg-accent/30 sm:inset-10">
+      <p className="font-display text-3xl leading-tight font-normal italic text-foreground sm:text-4xl">
         “{name}” is empty
       </p>
-      <p className="font-hand text-xl text-muted-foreground">
-        drop files here, or pick something to start drawing
-      </p>
+      <p className="text-sm text-muted-foreground">Drop files here, or pick something to start.</p>
       <div className="mt-1.5 flex flex-wrap justify-center gap-2.5" data-no-marquee="">
         {KIND_ORDER.map((kind) => (
           <Button

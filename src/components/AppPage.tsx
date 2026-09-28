@@ -1,7 +1,7 @@
 // AppPage / AppPageHeader — shared shell for authenticated settings-style
 // pages (Settings, Shared Links, Users).
 //
-// These pages share the same outer geometry: paper background, sticky
+// These pages share the same outer geometry: flat page background, sticky
 // Topbar, a centered `<main>` column, and a page header with optional
 // back link, icon, title, description, and right-aligned actions.
 //
@@ -16,7 +16,7 @@ import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { PaperSurface } from "@/components/PaperSurface";
+import { Surface } from "@/components/Surface";
 import { useInShell } from "@/components/shell/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ interface AppPageProps {
   children: ReactNode;
   /** Right-side topbar actions. Empty by default. */
   actions?: ReactNode;
-  /** Class names applied to the outer `<PaperSurface>`. */
+  /** Class names applied to the outer `<Surface>`. */
   className?: string;
   /** Class names applied to the centered `<main>` column. */
   mainClassName?: string;
@@ -64,14 +64,14 @@ export function AppPage({
     );
   }
   return (
-    <PaperSurface variant="page" className={cn("flex flex-col", className)}>
+    <Surface variant="page" className={cn("flex flex-col", className)}>
       <Topbar user={user} actions={actions} />
       <main
         className={cn("mx-auto w-full flex-1 px-4 py-8 sm:px-6 sm:py-10", maxWidth, mainClassName)}
       >
         {children}
       </main>
-    </PaperSurface>
+    </Surface>
   );
 }
 

@@ -67,7 +67,7 @@ function SheetBody() {
   return (
     <div className="flex min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3.5 pr-12">
-        <DialogTitle className="font-brand text-2xl font-normal">Keyboard shortcuts</DialogTitle>
+        <DialogTitle>Keyboard shortcuts</DialogTitle>
         <span className="flex-1" />
         <label className="flex h-7 w-60 items-center gap-1.5 rounded-md border border-border bg-card px-2 text-muted-foreground">
           <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-3.5" />

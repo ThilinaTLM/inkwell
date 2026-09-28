@@ -70,7 +70,7 @@ export function TagsSection({ query }: { query: string }) {
     >
       {tags.isPending ? <p className="py-4 text-xs text-muted-foreground">Loading…</p> : null}
       {!tags.isPending && list.length === 0 ? (
-        <p className="py-6 text-center font-hand text-xl text-muted-foreground">
+        <p className="py-6 text-center font-display text-lg italic text-muted-foreground">
           {needle ? "No tags match." : "No tags yet — press T on any item."}
         </p>
       ) : null}
