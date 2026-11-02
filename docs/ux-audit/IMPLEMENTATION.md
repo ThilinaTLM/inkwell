@@ -1,5 +1,17 @@
 # Redesign implementation plan
 
+> **Status (2026-11-04):** Stages 1–3 are complete on `feat/ui-redesign`.
+> - **Checks:** `pnpm check:ci`, `pnpm typecheck`, `pnpm test` (129), `pnpm build` and `pnpm smoke` (31/31) all pass.
+> - **Screenshots:** progress screenshots per agent are in `progress/`.
+> - **Delivered beyond the original stages:** generic file storage and viewer (Phase 4), and whiteboard Present mode (Phase 5, first cut).
+>
+> **Follow-ups**
+> - PDF thumbnails (needs pdf.js).
+> - Sessions (board + notes template), item links and embeds.
+> - PWA/offline.
+> - A server-side note excerpt for card previews.
+> - Unused-dependency audit for note fonts and `@blocknote/core` (still used by legacy note conversion).
+
 Branch: `feat/ui-redesign`. Read [`README.md`](./README.md) for the audit and decisions, and see [`mockups/b-warm.html`](./mockups/b-warm.html) for the visual direction (look and feel only).
 
 ## Product decisions (binding)
