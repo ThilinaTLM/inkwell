@@ -37,7 +37,7 @@ export function NewFolderDialog({
   const qc = useQueryClient();
   const actions = useItemActions();
   const c = useClosable(onClose);
-  const where = parentId ? (findFolderMeta(qc, parentId)?.name ?? "folder") : "Home";
+  const where = parentId ? (findFolderMeta(qc, parentId)?.name ?? "folder") : "Inbox";
   return (
     <RenameDialog
       open={c.open}

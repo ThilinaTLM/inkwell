@@ -41,6 +41,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { invalidations } from "@/data/invalidations";
+import { defaultCaptureName } from "@/features/capture/captureActions";
 import { confirmDialog, openDialog } from "@/features/dialogs/dialogStore";
 import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import {
@@ -107,16 +108,10 @@ function nav(to: string, opts?: { replace?: boolean }) {
 }
 
 export function defaultNameForKind(kind: FileKind): string {
-  switch (kind) {
-    case "drawio":
-      return "Untitled diagram";
-    case "notes":
-      return "Untitled markdown";
-    case "static-site":
-      return "Untitled site";
-    default:
-      return "Untitled drawing";
+  if (kind === "notes" || kind === "excalidraw" || kind === "drawio") {
+    return defaultCaptureName(kind);
   }
+  return kind === "static-site" ? "Untitled site" : "Untitled file";
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -130,7 +125,7 @@ function describe(refs: ItemRef[]): string {
 }
 
 function folderName(id: string | null): string {
-  if (id === null) return "Home";
+  if (id === null) return "Inbox";
   return findFolderMeta(qc(), id)?.name ?? "folder";
 }
 
@@ -508,8 +503,8 @@ async function restore(refs: ItemRef[]) {
       {
         description: relocated
           ? relocated === 1
-            ? "1 item was restored to Home because its original folder is unavailable."
-            : `${relocated} items were restored to Home because their original folders are unavailable.`
+            ? "1 item was restored to Inbox because its original folder is unavailable."
+            : `${relocated} items were restored to Inbox because their original folders are unavailable.`
           : undefined,
       },
     );

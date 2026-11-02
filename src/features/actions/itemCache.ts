@@ -9,7 +9,7 @@
 //   findFileMeta(qc, id) / findFolderMeta(qc, id)
 //   useItemMeta(ref): FileMeta | FolderMeta | null   – reactive (query-cache subscription)
 //   getFoldersCached(qc): FolderMeta[]
-//   folderPathLabel(folders, folderId): string    – "Home / A / B"
+//   folderPathLabel(folders, folderId): string    – "Inbox / A / B"
 //   descendantFolderIds(folders, rootIds): Set<string>  (includes roots)
 //   patchFileLists / patchFolderList / removeFromLists – optimistic helpers
 
@@ -134,7 +134,7 @@ export function folderPathLabel(all: FolderMeta[], folderId: string | null): str
     names.unshift(cur.name);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
-  return ["Home", ...names].join(" / ");
+  return ["Inbox", ...names].join(" / ");
 }
 
 export function descendantFolderIds(all: FolderMeta[], rootIds: Iterable<string>): Set<string> {
