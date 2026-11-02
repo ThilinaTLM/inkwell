@@ -53,7 +53,6 @@
     "@hugeicons/react": "^1.1.10",
     "@lezer/highlight": "^1.2.4",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.103.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
