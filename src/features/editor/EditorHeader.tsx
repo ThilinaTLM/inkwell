@@ -23,6 +23,7 @@
 //   • mod+S          save now (capture phase, preventDefault: beats
 //                    Excalidraw's file dialog / the browser's Save Page)
 //   • mod+shift+S    Export as…
+//   • mod+shift+P    Present (whiteboards)
 //   • mod+[          back (window listener, bubble phase — editors that
 //                    consume the chord themselves, e.g. Excalidraw's
 //                    "send backward" while editing, keep it)
@@ -184,6 +185,12 @@ export function EditorHeader(props: EditorHeaderProps) {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.shiftKey && !e.altKey && e.code === "KeyP" && bridgeRef.current.present) {
+        e.preventDefault();
+        e.stopPropagation();
+        bridgeRef.current.present();
+        return;
+      }
       if (!mod || e.altKey || e.code !== "KeyS") return;
       e.preventDefault();
       e.stopPropagation();

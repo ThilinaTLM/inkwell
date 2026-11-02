@@ -53,6 +53,8 @@ export interface EditorHeaderBridge {
   menuExtras?: EditorMenuExtra[];
   /** Formats for "Export as…" (Ctrl/⌘+Shift+S). Empty/absent hides Export. */
   exporters?: EditorExporter[];
+  /** Starts present mode (whiteboards). Bound to Ctrl/⌘+Shift+P. */
+  present?: () => void;
   /** Editor-specific controls rendered in the header's right cluster
    *  (Markdown view toggles, static-site "Open"). */
   toolbar?: ReactNode;
@@ -62,7 +64,7 @@ export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
 
 /** Bridge for editors without a save lifecycle (static sites). */
 export function staticBridge(
-  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar" | "exporters"> = {},
+  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar" | "exporters" | "present"> = {},
 ): EditorHeaderBridge {
   return {
     status: null,

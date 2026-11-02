@@ -24,9 +24,13 @@ import {
 } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { PlayIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
+import { usePresentation } from "./ExcalidrawPresent";
 import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { fingerprintScene, pickPersistableAppState } from "./excalidrawScene";
 import { renderExcalidrawThumbSvg } from "./excalidrawThumb";
@@ -36,6 +40,8 @@ import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
 import { useThumbPipeline } from "./lifecycle/useThumbPipeline";
 import { downloadBlob, downloadText, exportBaseName } from "./shared/exportFile";
+
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -92,6 +98,10 @@ export default function ExcalidrawEditor({
   const receiveApi = useCallback((api: ExcalidrawImperativeAPI) => {
     apiRef.current = api;
   }, []);
+
+  const presentation = usePresentation(apiRef);
+  const presentingRef = useRef(false);
+  presentingRef.current = presentation.presenting;
 
   // App theme is the single source of truth; Excalidraw renders as a
   // controlled consumer via the `theme` prop below.
@@ -192,7 +202,8 @@ export default function ExcalidrawEditor({
   // ─── Wire onChange ──────────────────────────────────────────────────
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      if (readOnly) return;
+      // Present mode is view-only: nothing it does may reach the save loop.
+      if (readOnly || presentingRef.current) return;
       const snap = makeExcalidrawSnapshot(elements, appState, files);
       latestSnapshotRef.current = snap;
       if (!baselinedRef.current) {
@@ -303,8 +314,22 @@ export default function ExcalidrawEditor({
       discard: discardPendingLocalWork,
       requestLeave,
       exporters,
+      present: presentation.start,
+      toolbar: (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={presentation.start}
+          title={`Present (${IS_MAC ? "⌘⇧P" : "Ctrl+Shift+P"})`}
+          data-testid="editor-present"
+        >
+          <HugeiconsIcon icon={PlayIcon} strokeWidth={1.8} />
+          <span className="hidden sm:inline">Present</span>
+        </Button>
+      ),
     }),
     [
+      presentation.start,
       exporters,
       readOnly,
       lifecycle.status,
@@ -317,14 +342,15 @@ export default function ExcalidrawEditor({
 
   return (
     <div className="flex h-full w-full flex-col">
-      {renderHeader?.(bridge)}
+      {presentation.presenting ? null : renderHeader?.(bridge)}
       <div className="relative min-h-0 w-full flex-1">
         <div className="absolute inset-0">
           <Excalidraw
             excalidrawAPI={receiveApi}
             initialData={initial}
             onChange={onChange}
-            viewModeEnabled={readOnly}
+            viewModeEnabled={readOnly || presentation.presenting}
+            zenModeEnabled={presentation.presenting}
             theme={themeResolved}
             name={loaded.meta.name}
             UIOptions={{
@@ -349,6 +375,7 @@ export default function ExcalidrawEditor({
           </Excalidraw>
         </div>
       </div>
+      {presentation.overlay}
       <LeaveConfirmDialog
         open={leave.open}
         busy={leave.busy}

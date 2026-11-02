@@ -15,7 +15,7 @@ import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 // bodies.
 //
 // AppState-side signal: a whitelist of persisted-relevant fields. Covers
-// (a) document settings (background, grid, theme, name, zen/snap modes)
+// (a) document settings (background, grid, snap mode)
 // and (b) the `currentItem*` style memory — colors / fonts / stroke /
 // arrowheads / roundness — because changing those is a real user action
 // that doesn't bump any element version. Anything not on this list
@@ -46,7 +46,6 @@ export function fingerprintScene(
     // likewise excluded: it mirrors the file name (renamed through the
     // PATCH endpoint, synced into Excalidraw by an effect), so a stale
     // stored value must not make an untouched file look edited.
-    a.zenModeEnabled ? 1 : 0,
     a.objectsSnapModeEnabled ? 1 : 0,
     // Current-item style memory — user-chosen defaults for the next shape.
     a.currentItemStrokeColor ?? "",
@@ -91,6 +90,9 @@ export function pickPersistableAppState(
     originSnapOffset: _osn,
     // Theme is owned app-side now; don't persist it on the blob.
     theme: _t,
+    // Present mode toggles these transiently; they are not document content.
+    zenModeEnabled: _z,
+    viewModeEnabled: _v,
     ...rest
   } = appState as unknown as Record<string, unknown>;
   return { ...rest, name: (rest.name as string | undefined) || fallbackName };

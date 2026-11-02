@@ -32,6 +32,7 @@ import {
   FileExportIcon,
   FloppyDiskIcon,
   KeyboardIcon,
+  PresentationBarChart01Icon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -314,6 +315,15 @@ export function EditorPage() {
           const save = bridgeRef.current?.saveNow;
           if (save) void save().then((ok) => ok && notifySaved());
         },
+      },
+      {
+        id: "view.present",
+        icon: PresentationBarChart01Icon,
+        label: "Present",
+        keys: ["mod+shift+p"],
+        group: "file",
+        when: () => !!bridgeRef.current?.present,
+        run: () => bridgeRef.current?.present?.(),
       },
       {
         id: "file.export",
