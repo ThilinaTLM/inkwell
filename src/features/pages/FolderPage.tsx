@@ -106,7 +106,7 @@ export function FolderPage() {
           <EmptyState
             title="Nothing here yet"
             body="Create a board, note or diagram, or drop files anywhere on this page to upload."
-            action={<NewMenu label="New…" />}
+            action={<NewMenu label="New…" mobile />}
           />
         }
       />

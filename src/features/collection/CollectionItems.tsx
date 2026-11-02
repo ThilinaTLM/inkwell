@@ -143,7 +143,7 @@ export function QuickActions({ item, className }: { item: CollectionItem; classN
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={1.8} className="size-3.5" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-64">
           <CommandMenuItems
             ids={COLLECTION_MENU_IDS}
             as="dropdown"

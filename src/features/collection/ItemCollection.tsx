@@ -86,7 +86,8 @@ export interface ItemCollectionProps {
 }
 
 const FOLDER_GRID = "grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3";
-const FILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4";
+const FILE_GRID =
+  "grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] sm:gap-4";
 
 function colCount(el: HTMLElement | null): number {
   if (!el) return 1;
@@ -397,7 +398,7 @@ export function ItemCollection({
               </div>
             )}
           </ContextMenuTrigger>
-          <ContextMenuContent className="w-56">
+          <ContextMenuContent className="w-64">
             <CommandMenuItems ids={COLLECTION_MENU_IDS} as="context" />
           </ContextMenuContent>
         </ContextMenu>

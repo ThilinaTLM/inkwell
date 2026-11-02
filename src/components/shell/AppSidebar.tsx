@@ -107,7 +107,7 @@ export function AppSidebar({ user, onNavigate }: { user: User; onNavigate?: () =
       >
         <HugeiconsIcon icon={Search01Icon} strokeWidth={1.8} className="size-4 shrink-0" />
         <span className="flex-1 text-left">Search</span>
-        <CommandKeys id="app.palette" />
+        <CommandKeys id="app.palette" className="max-md:hidden" />
       </button>
 
       <div className="flex flex-col gap-px">
