@@ -16,24 +16,26 @@ import {
   Folder01Icon,
   Home01Icon,
   InboxIcon,
+  PinIcon,
   Search01Icon,
   Settings02Icon,
   SidebarLeftIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Link, matchPath, useLocation } from "react-router-dom";
 import { InkwellLogo } from "@/components/InkwellLogo";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
-import type { ProjectFields } from "@/components/project/projectStyle";
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFiles } from "@/data/files";
 import { useFolders } from "@/data/folders";
-import { itemActions } from "@/features/actions/useItemActions";
+import { ProjectMenuItems } from "@/features/projects/ProjectMenuItems";
+import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import { toggleUploadTray, useUploadSummary } from "@/features/upload";
-import type { User } from "@/lib/api/client";
+import type { FolderMeta, User } from "@/lib/api/client";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys, useRegistryVersion } from "@/lib/commands/registry";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,7 @@ import { CommandKeys } from "./Kbd";
 import { SidebarUserMenu } from "./SidebarUserMenu";
 import { openPalette, toggleSidebar } from "./shellStore";
 
+const PROJECT_LIMIT = 12;
 const ROOT_FILES = { folderId: "root" } as const;
 
 const DROP_CLASSES = cn(
@@ -60,10 +63,21 @@ export function AppSidebar({ user, onNavigate }: { user: User; onNavigate?: () =
     () =>
       (folders.data ?? [])
         .filter((f) => f.parentId === null)
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+        .sort(
+          (a, b) =>
+            Number(b.pinnedAt !== null) - Number(a.pinnedAt !== null) ||
+            a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+        ),
     [folders.data],
   );
+  const [showAll, setShowAll] = useState(false);
   const activeProjectId = useActiveProjectId(pathname, folders.data);
+  const visibleProjects = useMemo(() => {
+    if (showAll || projects.length <= PROJECT_LIMIT) return projects;
+    const head = projects.slice(0, PROJECT_LIMIT);
+    const active = projects.find((p) => p.id === activeProjectId);
+    return active && !head.includes(active) ? [...head.slice(0, -1), active] : head;
+  }, [projects, showAll, activeProjectId]);
 
   return (
     <nav aria-label="Sidebar" className="flex h-full min-h-0 flex-col px-3 pt-3.5 pb-3">
@@ -154,18 +168,27 @@ export function AppSidebar({ user, onNavigate }: { user: User; onNavigate?: () =
           </div>
         ) : (
           <ul className="flex flex-col gap-px">
-            {projects.map((p) => (
+            {visibleProjects.map((p) => (
               <li key={p.id}>
                 <ProjectRow folder={p} active={activeProjectId === p.id} onNavigate={onNavigate} />
               </li>
             ))}
           </ul>
         )}
+        {projects.length > PROJECT_LIMIT ? (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            {showAll ? "Show fewer" : `Show all ${projects.length}`}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => {
             onNavigate?.();
-            itemActions.newFolder(null);
+            openProjectDialog();
           }}
           className="mt-0.5 flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
         >
@@ -273,30 +296,43 @@ function ProjectRow({
   active,
   onNavigate,
 }: {
-  folder: {
-    id: string;
-    name: string;
-    fileCount: number;
-    subfolderCount: number;
-  } & ProjectFields;
+  folder: FolderMeta;
   active: boolean;
   onNavigate?: () => void;
 }) {
   const count = (folder.fileCount ?? 0) + (folder.subfolderCount ?? 0);
   return (
-    <Link
-      to={`/folders/${folder.id}`}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      data-active={active}
-      data-drop-folder={folder.id}
-      data-spring-folder={folder.id}
-      title={folder.name}
-      className={cn(navRowClass, "gap-2.5 px-2")}
-    >
-      <ProjectIcon folder={folder} size="sm" />
-      <span className="truncate">{folder.name}</span>
-      {count ? <Count>{count}</Count> : null}
-    </Link>
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={
+          <Link
+            to={`/folders/${folder.id}`}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            data-active={active}
+            data-drop-folder={folder.id}
+            data-spring-folder={folder.id}
+            title={folder.name}
+            className={cn(navRowClass, "gap-2.5 px-2")}
+          />
+        }
+      >
+        <ProjectIcon folder={folder} size="sm" />
+        <span className="truncate">{folder.name}</span>
+        {folder.pinnedAt !== null ? (
+          <HugeiconsIcon
+            icon={PinIcon}
+            strokeWidth={1.8}
+            aria-label="Pinned"
+            className="ml-auto size-3 shrink-0 text-faint"
+          />
+        ) : count ? (
+          <Count>{count}</Count>
+        ) : null}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <ProjectMenuItems folder={folder} as="context" includeOpen />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

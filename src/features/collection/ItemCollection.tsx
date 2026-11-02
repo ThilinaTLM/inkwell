@@ -271,8 +271,57 @@ export function ItemCollection({
     }
   };
 
+  // ── Marquee (rubber-band) selection — mouse only ───────────────────
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const marqueed = useRef(false);
+
+  const onMarqueeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const root = rootRef.current;
+    if (!root || (e.target as HTMLElement).closest("[data-item-key], button, a, input")) return;
+    const start = { x: e.clientX, y: e.clientY };
+    const base = e.metaKey || e.ctrlKey || e.shiftKey ? [...selRef.current.selected] : [];
+    const mode = base.length ? "add" : "replace";
+    let active = false;
+    const rects = () =>
+      [...root.querySelectorAll<HTMLElement>("[data-item-key]")].map(
+        (el) => [el.dataset.itemKey as string, el.getBoundingClientRect()] as const,
+      );
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (!active && Math.hypot(dx, dy) < 5) return;
+      active = true;
+      const left = Math.min(start.x, ev.clientX);
+      const top = Math.min(start.y, ev.clientY);
+      const right = Math.max(start.x, ev.clientX);
+      const bottom = Math.max(start.y, ev.clientY);
+      const rr = root.getBoundingClientRect();
+      setBox({ x: left - rr.left, y: top - rr.top, w: right - left, h: bottom - top });
+      const hits = rects()
+        .filter(([, r]) => r.left < right && r.right > left && r.top < bottom && r.bottom > top)
+        .map(([k]) => k);
+      dispatch({ type: "marquee", hits, base, mode });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (active) {
+        marqueed.current = true;
+        setTimeout(() => {
+          marqueed.current = false;
+        }, 0);
+      }
+      setBox(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
   const onBackgroundClick = (e: ReactMouseEvent) => {
-    if ((e.target as HTMLElement).closest("[data-item-key]")) return;
+    if ((e.target as HTMLElement).closest("[data-item-key]") || marqueed.current) return;
     dispatch({ type: "clear" });
   };
 
@@ -291,7 +340,10 @@ export function ItemCollection({
   );
 
   const showToolbar =
-    filterChips || layoutToggle || toolbarStart !== undefined || toolbarEnd !== undefined;
+    filterChips ||
+    (layoutToggle && items.length > 0) ||
+    toolbarStart !== undefined ||
+    toolbarEnd !== undefined;
 
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
@@ -320,7 +372,7 @@ export function ItemCollection({
           ) : null}
           <div className="ml-auto flex items-center gap-2">
             {toolbarEnd}
-            {layoutToggle ? <LayoutToggle /> : null}
+            {layoutToggle && items.length > 0 ? <LayoutToggle /> : null}
           </div>
         </div>
       ) : null}
@@ -342,8 +394,9 @@ export function ItemCollection({
                 aria-label={ariaLabel}
                 onKeyDown={onKeyDown}
                 onClick={onBackgroundClick}
+                onPointerDown={onMarqueeDown}
                 onContextMenuCapture={onContextMenuCapture}
-                className="min-h-24 outline-none"
+                className="relative min-h-64 select-none outline-none"
               />
             }
           >
@@ -357,7 +410,6 @@ export function ItemCollection({
                   )}
                 >
                   <span>Name</span>
-                  <span>Kind</span>
                   {showLocation ? <span>Location</span> : null}
                   <span>Modified</span>
                   <span>Size</span>
@@ -397,6 +449,13 @@ export function ItemCollection({
                 ) : null}
               </div>
             )}
+            {box ? (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute z-10 rounded-sm border border-primary/70 bg-primary/10"
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+              />
+            ) : null}
           </ContextMenuTrigger>
           <ContextMenuContent className="w-64">
             <CommandMenuItems ids={COLLECTION_MENU_IDS} as="context" />

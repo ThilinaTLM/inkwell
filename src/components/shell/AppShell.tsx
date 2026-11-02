@@ -33,6 +33,7 @@ import { useMe } from "@/data/auth";
 import { registerAppCommands, setCommandNavigate } from "@/features/actions/itemCommands";
 import { bindItemActionsRuntime } from "@/features/actions/useItemActions";
 import { DialogHost } from "@/features/dialogs/DialogHost";
+import { ProjectDialogHost } from "@/features/projects/ProjectDialog";
 import { UploadTray, useGlobalFileDrop } from "@/features/upload";
 import { setCommandContext } from "@/lib/commands/registry";
 import { useGlobalHotkeys } from "@/lib/commands/useGlobalHotkeys";
@@ -160,6 +161,7 @@ export function AppShell() {
       <CommandPalette />
       <ShortcutSheet />
       <DialogHost />
+      <ProjectDialogHost />
       <UploadTray />
     </InShellContext.Provider>
   );

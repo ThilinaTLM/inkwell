@@ -15,11 +15,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { itemActions } from "@/features/actions/useItemActions";
 import { useIsDragSource } from "@/features/explorer/dnd/itemDnd";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
-import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CollectionPreview, KindIcon } from "./CollectionPreview";
 import { COLLECTION_MENU_IDS } from "./menus";
 import { type CollectionItem, formatBytes, kindLabel } from "./model";
+import { relativeTime as relTime } from "./relativeTime";
 
 export interface ItemHandlers {
   onItemClick(item: CollectionItem, e: MouseEvent): void;
@@ -233,8 +233,8 @@ export const FileCard = memo(function FileCard(props: ItemProps) {
 
 export const LIST_COLS = {
   withLocation:
-    "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_96px_minmax(0,180px)_104px_80px]",
-  plain: "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_96px_104px_80px]",
+    "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_minmax(0,200px)_104px_80px]",
+  plain: "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_104px_80px]",
 };
 
 export const ListRow = memo(function ListRow(props: ItemProps & { withLocation: boolean }) {
@@ -260,8 +260,8 @@ export const ListRow = memo(function ListRow(props: ItemProps & { withLocation: 
         )}
         <span className="truncate font-medium text-foreground">{item.name}</span>
         <StarBadge item={item} />
+        <span className="hidden shrink-0 text-xs text-faint lg:inline">{kindLabel(item.kind)}</span>
       </div>
-      <span className="hidden text-muted-foreground md:block">{kindLabel(item.kind)}</span>
       {withLocation ? (
         <span className="hidden truncate text-muted-foreground md:block">
           {props.location ?? ""}
@@ -271,7 +271,9 @@ export const ListRow = memo(function ListRow(props: ItemProps & { withLocation: 
         {relTime(item.updatedAt)}
       </span>
       <span className="hidden text-muted-foreground tabular-nums md:block">
-        {item.type === "folder" ? `${item.itemCount ?? 0} items` : formatBytes(item.sizeBytes ?? 0)}
+        {item.type === "folder"
+          ? `${item.itemCount ?? 0} ${item.itemCount === 1 ? "item" : "items"}`
+          : formatBytes(item.sizeBytes ?? 0)}
       </span>
       <QuickActions
         item={item}

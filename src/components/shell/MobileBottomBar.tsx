@@ -1,5 +1,5 @@
 // Mobile (<768px) bottom bar: Home · Inbox · ＋ · Search · Files.
-// ＋ opens the existing "new" command menu (new file kinds, folder, upload).
+// ＋ opens the capture dialog (targets the current folder, else the Inbox).
 
 import {
   Add01Icon,
@@ -10,14 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link, useLocation } from "react-router-dom";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { NEW_MENU_IDS } from "@/features/actions/itemCommands";
-import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
+import { openCapture } from "@/features/capture/openCapture";
 import { cn } from "@/lib/utils";
 import { openPalette } from "./shellStore";
 
@@ -60,18 +53,14 @@ export function MobileBottomBar() {
       <BarLink to="/" icon={Home01Icon} label="Home" active={pathname === "/"} />
       <BarLink to="/inbox" icon={InboxIcon} label="Inbox" active={pathname.startsWith("/inbox")} />
       <div className="flex flex-1 items-center justify-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="New"
-            className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-pop outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <HugeiconsIcon icon={Add01Icon} strokeWidth={2.2} className="size-5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" side="top" sideOffset={10} className="w-60">
-            <DropdownMenuLabel>Create</DropdownMenuLabel>
-            <CommandMenuItems ids={NEW_MENU_IDS} as="dropdown" />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button
+          type="button"
+          aria-label="Capture"
+          onClick={() => openCapture()}
+          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-pop outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <HugeiconsIcon icon={Add01Icon} strokeWidth={2.2} className="size-5" />
+        </button>
       </div>
       <button type="button" onClick={() => openPalette()} className={itemClass}>
         <HugeiconsIcon icon={Search01Icon} strokeWidth={1.8} className="size-[22px]" />

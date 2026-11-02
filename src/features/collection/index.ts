@@ -12,3 +12,4 @@ export {
   sortCollectionItems,
   toCollectionItems,
 } from "./model";
+export { relativeTime } from "./relativeTime";
