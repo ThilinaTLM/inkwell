@@ -241,6 +241,15 @@ function scheduleInvalidate(): void {
   }, 250);
 }
 
+let navigateFn: ((to: string) => void) | null = null;
+/** Bound by `<UploadTray>` so toasts can deep-link without a router import. */
+export function bindUploadNavigate(fn: (to: string) => void): () => void {
+  navigateFn = fn;
+  return () => {
+    if (navigateFn === fn) navigateFn = null;
+  };
+}
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
@@ -265,8 +274,17 @@ async function maybeFinishBatch(batchId: string): Promise<void> {
   ].filter(Boolean);
   const head = done > 0 ? `Uploaded ${plural(done, "file")} to ${target}` : "Nothing uploaded";
   const msg = [head, ...extra].join(" · ");
-  if (done > 0 && extra.length === 0) toast.success(msg);
-  else if (done === 0 && failed > 0) toast.error(msg);
+  // A single uploaded file gets an "Open" action straight into its viewer/editor.
+  const openId =
+    done === 1 && jobs.length === 1 ? jobs.find((j) => j.stage === "done")?.fileId : undefined;
+  if (done > 0 && extra.length === 0) {
+    toast.success(
+      msg,
+      openId && navigateFn
+        ? { action: { label: "Open", onClick: () => navigateFn?.(`/f/${openId}`) } }
+        : undefined,
+    );
+  } else if (done === 0 && failed > 0) toast.error(msg);
   else toast.warning(msg);
 }
 
@@ -388,7 +406,7 @@ async function runJob(id: string): Promise<void> {
 
     // 3. Thumbnail (best-effort).
     const fileId = rt.created?.id ?? rt.replaceTarget?.id;
-    if (fileId && job.kind && hasClientThumb(job.kind)) {
+    if (fileId && job.kind && hasClientThumb(job.kind, prepared)) {
       setStage(id, "thumbnail");
       try {
         await writeThumb(prepared, fileId);
@@ -479,7 +497,7 @@ async function enqueue(entries: DroppedEntry[], folderId: string | null): Promis
     folderId,
     targetName:
       folderId === null
-        ? Promise.resolve("Home")
+        ? Promise.resolve("Inbox")
         : getFolders().then((all) => all.find((f) => f.id === folderId)?.name ?? "folder"),
     toasted: false,
   };

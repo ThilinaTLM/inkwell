@@ -10,6 +10,7 @@ import {
   renderSceneThumb,
   sceneToStoredBlob,
 } from "./excalidraw";
+import { imageToThumbSvg, isThumbnailableImage } from "./imageThumb";
 import { normalizeMarkdownSource } from "./textBlocks";
 import type { PlannedJob } from "./types";
 
@@ -140,6 +141,8 @@ export async function writeThumb(prepared: Prepared, fileId: string): Promise<vo
   let svg: string | null = null;
   if (prepared.kind === "excalidraw") {
     svg = await renderSceneThumb(prepared.scene);
+  } else if (prepared.kind === "file") {
+    svg = await imageToThumbSvg(prepared.file);
   } else if (prepared.kind === "notes") {
     const { markdownToThumbSvg } = await import("@/features/editor/markdown/thumb");
     svg = markdownToThumbSvg(prepared.source);
@@ -147,6 +150,7 @@ export async function writeThumb(prepared: Prepared, fileId: string): Promise<vo
   if (svg) await filesApi.putThumb(fileId, svg);
 }
 
-export function hasClientThumb(kind: FileKind): boolean {
+export function hasClientThumb(kind: FileKind, prepared?: Prepared): boolean {
+  if (kind === "file") return prepared?.kind === "file" && isThumbnailableImage(prepared.file);
   return kind === "excalidraw" || kind === "notes";
 }

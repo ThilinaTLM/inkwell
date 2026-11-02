@@ -56,6 +56,7 @@ import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
 import { EditorOverlays } from "./EditorOverlays";
 import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import { FileViewerPage } from "./FileViewerPage";
 import { EditorDropZone } from "./shared/EditorDropZone";
 import { notifySaved } from "./shared/saveFeedback";
 
@@ -389,6 +390,10 @@ export function EditorPage() {
 
   // A failed *refetch* keeps the editor (and unsaved work) on screen;
   // only a failed first load shows the error page.
+  // Uploaded files (`kind: "file"`) have no JSON blob: `files.load` 415s.
+  if (fileQuery.error instanceof ApiError && fileQuery.error.status === 415) {
+    return <FileViewerPage id={id} />;
+  }
   if (fileQuery.isError && !loaded) {
     return <EditorErrorState message={errorMessage(fileQuery.error, "load failed")} />;
   }

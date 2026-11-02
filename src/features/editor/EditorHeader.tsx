@@ -39,6 +39,7 @@ import {
   Download01Icon,
   Edit02Icon,
   EyeIcon,
+  File01Icon,
   FileExportIcon,
   FolderExportIcon,
   HashtagIcon,
@@ -263,7 +264,15 @@ export function EditorHeader(props: EditorHeaderProps) {
             />
           )}
           <span className="flex min-w-0 items-center gap-1.5" aria-current="page">
-            <FileKindGlyph kind={file.kind} className="size-4 shrink-0" />
+            {file.kind === "file" ? (
+              <HugeiconsIcon
+                icon={File01Icon}
+                strokeWidth={1.8}
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+            ) : (
+              <FileKindGlyph kind={file.kind} className="size-4 shrink-0" />
+            )}
             {renaming && canRename ? (
               <InlineRename
                 initial={file.name}

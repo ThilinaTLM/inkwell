@@ -42,6 +42,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { invalidations } from "@/data/invalidations";
 import { confirmDialog, openDialog } from "@/features/dialogs/dialogStore";
+import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import {
   ApiError,
   type FileKind,
@@ -581,6 +582,11 @@ async function newFile(
 }
 
 function newFolder(parentId: string | null) {
+  // Top-level folders are projects.
+  if (parentId === null) {
+    openProjectDialog();
+    return;
+  }
   openDialog("newFolder", { parentId });
 }
 

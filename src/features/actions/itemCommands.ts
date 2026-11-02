@@ -65,6 +65,7 @@ import {
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { openPalette, openShortcutSheet, toggleSidebar } from "@/components/shell/shellStore";
+import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import { openUploadPicker } from "@/features/upload";
 import type { FileKind, ItemRef } from "@/lib/api/client";
 import { type Command, type CommandContext, registerCommands } from "@/lib/commands/registry";
@@ -430,7 +431,7 @@ export function registerAppCommands(_opts?: { isAdmin: () => boolean }): () => v
       icon: FolderAddIcon,
       group: "file",
       when: (ctx) => !inTrash(ctx),
-      run: () => a.newFolder(null),
+      run: () => openProjectDialog(),
     },
     {
       id: "file.newFile",

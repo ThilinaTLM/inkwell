@@ -20,7 +20,8 @@ import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
-import type { RenderEditorHeader } from "./editorHeaderBridge";
+import { type RenderEditorHeader, staticBridge } from "./editorHeaderBridge";
+import { FileViewer } from "./FileViewer";
 import { SharedStaticSitePreviewRedirect } from "./StaticSitePreviewRedirect";
 
 const DrawioEditor = lazy(() => import("@/features/editor/DrawioEditor"));
@@ -126,6 +127,47 @@ export function SharedEditorPage({ preloaded }: SharedEditorProps = {}) {
     // the outstanding session immediately.
     return (
       <SharedStaticSitePreviewRedirect token={token} fileId={fileId ?? null} blob={loaded.blob} />
+    );
+  }
+
+  if (loaded.meta.kind === "file") {
+    // Uploaded file: read-only viewer under the visitor header.
+    const rawUrl = fileId ? shares.folderFileRawUrl(token, fileId) : shares.rawUrl(token);
+    return (
+      <div className="flex h-dvh w-full flex-col overflow-hidden bg-background">
+        <EditorHeader
+          bridge={staticBridge()}
+          file={{
+            id: loaded.meta.id,
+            name: loaded.meta.name,
+            kind: loaded.meta.kind,
+            version: loaded.meta.version,
+            folderId: null,
+          }}
+          onBack={fileId ? () => navigate(`/share/${token}`) : null}
+          backLabel="Back to shared folder"
+          visitor={{
+            expiresAt: loaded.shareExpiresAt,
+            sharedBy: loaded.sharedBy
+              ? `${loaded.sharedBy.firstName} ${loaded.sharedBy.lastName}`.trim() || null
+              : null,
+            permission: "read",
+            allowDownload: loaded.allowDownload,
+            onDownload: () => {
+              window.location.href = downloadHref;
+            },
+          }}
+        />
+        <main className="min-h-0 flex-1">
+          <FileViewer
+            name={loaded.meta.name}
+            mime={loaded.meta.mime ?? null}
+            sizeBytes={loaded.meta.sizeBytes ?? null}
+            rawUrl={rawUrl}
+            downloadUrl={loaded.allowDownload ? downloadHref : null}
+          />
+        </main>
+      </div>
     );
   }
 

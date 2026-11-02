@@ -29,7 +29,7 @@ interface CodeMirrorEditorProps {
   dark: boolean;
   fontFamily: string;
   /** Syntax mode. Defaults to Markdown. */
-  language?: "markdown" | "html";
+  language?: "markdown" | "html" | "text";
   /** Accessible name of the text area. */
   ariaLabel?: string;
 }
@@ -175,9 +175,17 @@ export function CodeMirrorEditor({
         EditorView.contentAttributes.of({
           "aria-label":
             mountConfig.ariaLabel ??
-            (mountConfig.language === "html" ? "HTML source editor" : "Markdown source editor"),
+            (mountConfig.language === "html"
+              ? "HTML source editor"
+              : mountConfig.language === "text"
+                ? "File contents"
+                : "Markdown source editor"),
         }),
-        mountConfig.language === "html" ? html() : markdown(),
+        ...(mountConfig.language === "html"
+          ? [html()]
+          : mountConfig.language === "text"
+            ? []
+            : [markdown()]),
         keymap.of([
           ...closeBracketsKeymap,
           ...defaultKeymap,
