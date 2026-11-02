@@ -13,15 +13,22 @@ import { useEffect, useMemo, useRef } from "react";
  * `flush()` to invoke immediately and `cancel()` to drop the pending
  * call. Latest closure of `fn` is always used, so the consumer doesn't
  * need to memoize it.
+ *
+ * `maxWait` (optional) caps how long a continuous burst of calls can
+ * postpone the invocation: once the first pending call is `maxWait`ms
+ * old, the next timer fires no later than that deadline.
  */
 export function useDebounced<A extends unknown[]>(
   fn: (...args: A) => void,
   delay: number,
+  maxWait?: number,
 ): { (...args: A): void; flush(): void; cancel(): void } {
   const fnRef = useRef(fn);
   fnRef.current = fn;
   const timer = useRef<number | null>(null);
   const lastArgs = useRef<A | null>(null);
+  // Timestamp of the first call in the current burst (for `maxWait`).
+  const burstStart = useRef<number | null>(null);
 
   const wrapped = useMemo(() => {
     const cancel = () => {
@@ -36,11 +43,13 @@ export function useDebounced<A extends unknown[]>(
       // the leave dialog still persists the discarded edits via
       // the unmount flush.
       lastArgs.current = null;
+      burstStart.current = null;
     };
     const flush = () => {
       if (lastArgs.current) {
         const args = lastArgs.current;
         lastArgs.current = null;
+        burstStart.current = null;
         if (timer.current !== null) {
           clearTimeout(timer.current);
           timer.current = null;
@@ -49,17 +58,23 @@ export function useDebounced<A extends unknown[]>(
       }
     };
     const debounced = (...args: A) => {
-      lastArgs.current = args;
+      const now = Date.now();
+      const started = burstStart.current ?? now;
       cancel();
+      lastArgs.current = args;
+      burstStart.current = started;
+      const wait =
+        maxWait === undefined ? delay : Math.max(0, Math.min(delay, started + maxWait - now));
       timer.current = window.setTimeout(() => {
         timer.current = null;
+        burstStart.current = null;
         const a = lastArgs.current;
         lastArgs.current = null;
         if (a) fnRef.current(...a);
-      }, delay);
+      }, wait);
     };
     return Object.assign(debounced, { flush, cancel });
-  }, [delay]);
+  }, [delay, maxWait]);
 
   // Cancel on unmount so we don't fire stale saves.
   useEffect(() => () => wrapped.cancel(), [wrapped]);

@@ -13,6 +13,8 @@
 //
 // Source SVGs are inlined as React components in `./brand-logos`.
 
+import { File01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { FileKind } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +44,14 @@ export function FileKindGlyph({
   if (kind === "drawio") return <DrawioLogo variant={variant} className={className} />;
   if (kind === "notes") return <MarkdownLogo variant={variant} className={className} />;
   if (kind === "static-site") return <StaticSiteLogo variant={variant} className={className} />;
+  if (kind === "file")
+    return (
+      <HugeiconsIcon
+        icon={File01Icon}
+        strokeWidth={1.8}
+        className={cn("size-3.5 text-muted-foreground", className)}
+      />
+    );
   return <ExcalidrawLogo variant={variant} className={className} />;
 }
 
@@ -53,6 +63,8 @@ export function fileKindLabel(kind: FileKind): string {
       return "Markdown file";
     case "static-site":
       return "static site";
+    case "file":
+      return "file";
     default:
       return "excalidraw file";
   }
@@ -73,6 +85,8 @@ export function downloadLabelForKind(kind: FileKind): string {
       return "Download .md";
     case "static-site":
       return "Download .zip";
+    case "file":
+      return "Download";
     default:
       return "Download .excalidraw";
   }

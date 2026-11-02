@@ -2,30 +2,29 @@
 // shell toggles) with the wireframe keyboard-map defaults.
 //
 // PUBLIC CONTRACT
-//   registerAppCommands(opts: { isAdmin: () => boolean }): () => void
+//   registerAppCommands(_opts?: { isAdmin: () => boolean }): () => void
 //     – called once by AppShell. Pages may override any id by registering
 //       a command with the same id (newest registration wins), e.g. the
 //       explorer overrides `item.rename` (inline rename) and `select.all`.
 //   targetsOf(ctx): ItemRef[]   – selection, or [focused] when nothing is selected
 //   ITEM_MENU_IDS / FOLDER_TREE_MENU_IDS / BACKGROUND_MENU_IDS / NEW_MENU_IDS – canonical
-//     orderings for CommandMenuItems (wireframe screen 08)
+//     orderings for CommandMenuItems
 //
 // Command ids (default keys):
-//   navigate: nav.home (g h) · nav.recent (g r) · nav.starred · nav.shares (g s) ·
-//             nav.trash (g t) · nav.settings (g ,) · nav.users · nav.parent (backspace, mod+arrowup) ·
-//             nav.back (mod+[) · nav.forward (mod+]) · app.palette (mod+k) ·
-//             view.focusFilter (/)
-//   select:   select.all (mod+a; emits signal — explorer overrides) · select.none (escape)
+//   navigate: nav.home (g h) · nav.recents (g r) · nav.projects (g p) · nav.files (g f) ·
+//             nav.starred · nav.shares (g s) · nav.trash (g t) ·
+//             nav.settings (g ,) · nav.parent (backspace, mod+arrowup) · nav.back (mod+[) ·
+//             app.palette (mod+k) · view.focusFilter (/)
+//   select:   select.all (mod+a; emits signal) · select.none (escape)
 //   file:     item.open (enter) · item.openNewTab (mod+enter) · item.quickLook (space) ·
 //             item.share (shift+s) · item.copyLink (mod+shift+c) · item.download (mod+shift+d) ·
-//             item.rename (f2) · item.reveal · file.newFile (n) · file.newFolder (shift+n) ·
-//             file.upload (u) · file.uploadFolder · file.new.{excalidraw,drawio,notes,static-site}
+//             item.rename (f2) · item.reveal · project.new · file.newFile (n = new note) ·
+//             file.newFolder (shift+n) · file.upload (u) · file.uploadFolder ·
+//             file.new.{excalidraw,drawio,notes,static-site}
 //   organise: item.star (s) · item.tags (t) · item.move (m) · item.duplicate (mod+d) ·
 //             item.cut (mod+x) · item.copy (mod+c) · item.paste (mod+v) ·
 //             item.trash (delete, mod+backspace) · item.restore · item.purge · trash.empty
-//   view:     view.grid (1) · view.compact (2) · view.list (3) · view.columns (4) ·
-//             view.thumbBigger (mod+=) · view.thumbSmaller (mod+-) · view.details (i) ·
-//             view.sidebar (mod+\)
+//   view:     view.sidebar (mod+\)
 //   app:      app.undo (mod+z) · app.shortcuts (?)
 //
 // Scopes: everything is app-scoped; EDITOR_USABLE ids (+ file.new.*) are
@@ -40,22 +39,19 @@ import {
   Delete02Icon,
   Download01Icon,
   Edit02Icon,
+  File01Icon,
   FileAddIcon,
   FilterIcon,
   FolderAddIcon,
+  FolderLibraryIcon,
   FolderOpenIcon,
   FolderTransferIcon,
-  GridViewIcon,
   HashtagIcon,
   Home01Icon,
-  InformationCircleIcon,
   KeyboardIcon,
-  LayoutThreeColumnIcon,
-  LeftToRightListBulletIcon,
   Link04Icon,
   LinkSquare02Icon,
   Location01Icon,
-  Menu01Icon,
   RestoreBinIcon,
   Scissor01Icon,
   Search01Icon,
@@ -65,28 +61,14 @@ import {
   StarIcon,
   Undo02Icon,
   Upload01Icon,
-  UserMultipleIcon,
   ViewIcon,
-  ZoomInAreaIcon,
 } from "@hugeicons/core-free-icons";
-import {
-  openPalette,
-  openShortcutSheet,
-  toggleDetails,
-  toggleSidebar,
-} from "@/components/shell/shellStore";
+import { openPalette, openShortcutSheet, toggleSidebar } from "@/components/shell/shellStore";
+import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import { openUploadPicker } from "@/features/upload";
 import type { FileKind, ItemRef } from "@/lib/api/client";
 import { type Command, type CommandContext, registerCommands } from "@/lib/commands/registry";
 import { emitCommandSignal, requestQuickLook } from "@/lib/commands/signals";
-import {
-  type ExplorerView,
-  getExplorerPref,
-  setExplorerPref,
-  setFolderView,
-  stepThumbSize,
-  viewKeyFor,
-} from "@/lib/explorerPrefs";
 import { clearSelection } from "@/lib/selection";
 import { undoLast } from "@/lib/undo";
 import { getClipboard } from "./clipboard";
@@ -100,7 +82,7 @@ export function targetsOf(ctx: CommandContext): ItemRef[] {
 
 const one = (ctx: CommandContext) => targetsOf(ctx).length === 1;
 const some = (ctx: CommandContext) => targetsOf(ctx).length > 0;
-const inTrash = (ctx: CommandContext) => ctx.route.startsWith("/trash");
+const inTrash = (ctx: CommandContext) => ctx.route.startsWith("/files/trash");
 const liveItems = (ctx: CommandContext) => some(ctx) && !inTrash(ctx);
 const onePrimary = (ctx: CommandContext) => targetsOf(ctx)[0];
 const pasteTarget = (ctx: CommandContext) => ctx.currentFolderId ?? null;
@@ -125,14 +107,6 @@ const KIND_ITEMS: Array<{ kind: FileKind; label: string }> = [
   { kind: "static-site", label: "New static site" },
 ];
 
-const VIEW_ITEMS: Array<{ view: ExplorerView; label: string; key: string; icon: Command["icon"] }> =
-  [
-    { view: "grid", label: "Grid view", key: "1", icon: GridViewIcon },
-    { view: "compact", label: "Compact view", key: "2", icon: Menu01Icon },
-    { view: "list", label: "Details view", key: "3", icon: LeftToRightListBulletIcon },
-    { view: "columns", label: "Columns view", key: "4", icon: LayoutThreeColumnIcon },
-  ];
-
 /** App commands that also make sense from the editor's palette (they act
  *  on the open file, which EditorOverlays sets as the focused item, or
  *  just navigate). Their app keys are NOT active in editors, so the
@@ -140,13 +114,14 @@ const VIEW_ITEMS: Array<{ view: ExplorerView; label: string; key: string; icon: 
  *  described by EditorOverlays' editor-only overrides. */
 const EDITOR_USABLE = new Set([
   "nav.home",
-  "nav.recent",
   "nav.starred",
   "nav.shares",
   "nav.trash",
   "nav.settings",
-  "nav.shortcutSettings",
-  "nav.users",
+  "nav.recents",
+  "nav.projects",
+  "nav.files",
+  "project.new",
   "item.reveal",
   "item.share",
   "item.copyLink",
@@ -179,7 +154,6 @@ export const ITEM_MENU_IDS = [
   "item.copy",
   "-",
   "item.rename",
-  "view.details",
   "-",
   "item.restore",
   "item.purge",
@@ -216,11 +190,6 @@ export const BACKGROUND_MENU_IDS = [
   "-",
   "item.paste",
   "-",
-  "view.grid",
-  "view.compact",
-  "view.list",
-  "view.columns",
-  "-",
   "select.all",
 ] as const;
 
@@ -236,7 +205,7 @@ export const NEW_MENU_IDS = [
   "file.uploadFolder",
 ] as const;
 
-export function registerAppCommands(opts: { isAdmin: () => boolean }): () => void {
+export function registerAppCommands(_opts?: { isAdmin: () => boolean }): () => void {
   const a = itemActions;
   const cmds: Command[] = [
     // ─── Navigate ─────────────────────────────────────────────────────
@@ -249,19 +218,35 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       run: () => go("/"),
     },
     {
-      id: "nav.recent",
-      label: "Go to Recent",
+      id: "nav.recents",
+      label: "Go to Recents",
       icon: Clock01Icon,
       keys: ["g r"],
       group: "navigate",
-      run: () => go("/recent"),
+      run: () => go("/recents"),
+    },
+    {
+      id: "nav.projects",
+      label: "Go to Projects",
+      icon: FolderLibraryIcon,
+      keys: ["g p"],
+      group: "navigate",
+      run: () => go("/projects"),
+    },
+    {
+      id: "nav.files",
+      label: "Go to Files",
+      icon: File01Icon,
+      keys: ["g f"],
+      group: "navigate",
+      run: () => go("/files"),
     },
     {
       id: "nav.starred",
       label: "Go to Starred",
       icon: StarIcon,
       group: "navigate",
-      run: () => go("/starred"),
+      run: () => go("/files/starred"),
     },
     {
       id: "nav.shares",
@@ -269,7 +254,7 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       icon: Link04Icon,
       keys: ["g s"],
       group: "navigate",
-      run: () => go("/shares"),
+      run: () => go("/files/shared"),
     },
     {
       id: "nav.trash",
@@ -277,7 +262,7 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       icon: Delete02Icon,
       keys: ["g t"],
       group: "navigate",
-      run: () => go("/trash"),
+      run: () => go("/files/trash"),
     },
     {
       id: "nav.settings",
@@ -286,21 +271,6 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       keys: ["g ,"],
       group: "navigate",
       run: () => go("/settings"),
-    },
-    {
-      id: "nav.shortcutSettings",
-      label: "Customize keyboard shortcuts",
-      icon: KeyboardIcon,
-      group: "navigate",
-      run: () => go("/settings/shortcuts"),
-    },
-    {
-      id: "nav.users",
-      label: "Go to Users",
-      icon: UserMultipleIcon,
-      group: "navigate",
-      when: () => opts.isAdmin(),
-      run: () => go("/users"),
     },
     {
       id: "nav.parent",
@@ -313,7 +283,7 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
         const parent = ctx.currentFolderId
           ? (findFolderMetaSafe(ctx.currentFolderId)?.parentId ?? null)
           : null;
-        go(parent ? `/folders/${parent}` : "/");
+        go(parent ? `/folders/${parent}` : "/projects");
       },
     },
     {
@@ -323,14 +293,6 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       group: "navigate",
       palette: false,
       run: () => history.back(),
-    },
-    {
-      id: "nav.forward",
-      label: "Forward",
-      keys: ["mod+]"],
-      group: "navigate",
-      palette: false,
-      run: () => history.forward(),
     },
     {
       id: "app.palette",
@@ -362,12 +324,8 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       icon: CheckmarkSquare02Icon,
       keys: ["mod+a"],
       group: "select",
-      // Pages listen for the signal (explorer, library lists, Shared links,
-      // Users table) so ⌘A works without the list having focus.
-      when: (ctx) =>
-        ctx.currentFolderId !== undefined ||
-        /^\/(recent|starred|trash|tags|shares)/.test(ctx.route) ||
-        /^\/users\/?(users)?$/.test(ctx.route),
+      // Collections listen for the signal so ⌘A works without the list having focus.
+      when: (ctx) => ctx.currentFolderId !== undefined || /^\/files(\/|$)/.test(ctx.route),
       run: () => emitCommandSignal("select.all"),
     },
     {
@@ -458,13 +416,21 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
       run: (ctx) => a.renameDialog(onePrimary(ctx)),
     },
     {
+      id: "project.new",
+      label: "New project…",
+      icon: FolderAddIcon,
+      group: "file",
+      when: (ctx) => !inTrash(ctx),
+      run: () => openProjectDialog(),
+    },
+    {
       id: "file.newFile",
-      label: "New file…",
+      label: "New note",
       icon: FileAddIcon,
       keys: ["n"],
       group: "file",
       when: (ctx) => !inTrash(ctx),
-      run: (ctx) => void a.newFile(ctx.currentFolderId ?? null),
+      run: (ctx) => void a.newFile(ctx.currentFolderId ?? null, "notes"),
     },
     ...KIND_ITEMS.map(
       ({ kind, label }): Command => ({
@@ -610,46 +576,6 @@ export function registerAppCommands(opts: { isAdmin: () => boolean }): () => voi
     },
 
     // ─── View ─────────────────────────────────────────────────────────
-    ...VIEW_ITEMS.map(
-      ({ view, label, key, icon }): Command => ({
-        id: `view.${view}`,
-        label,
-        icon,
-        keys: [key],
-        group: "view",
-        when: (ctx) =>
-          ctx.currentFolderId !== undefined || /^\/(recent|starred|tags)/.test(ctx.route),
-        run: (ctx) => setFolderView(viewKeyFor(ctx), view),
-      }),
-    ),
-    {
-      id: "view.thumbBigger",
-      label: "Larger thumbnails",
-      icon: ZoomInAreaIcon,
-      keys: ["mod+="],
-      group: "view",
-      when: (ctx) =>
-        ctx.currentFolderId !== undefined || /^\/(recent|starred|tags)/.test(ctx.route),
-      run: () => setExplorerPref("thumbSize", stepThumbSize(getExplorerPref("thumbSize"), 1)),
-    },
-    {
-      id: "view.thumbSmaller",
-      label: "Smaller thumbnails",
-      icon: ZoomInAreaIcon,
-      keys: ["mod+-"],
-      group: "view",
-      when: (ctx) =>
-        ctx.currentFolderId !== undefined || /^\/(recent|starred|tags)/.test(ctx.route),
-      run: () => setExplorerPref("thumbSize", stepThumbSize(getExplorerPref("thumbSize"), -1)),
-    },
-    {
-      id: "view.details",
-      label: "Details panel",
-      icon: InformationCircleIcon,
-      keys: ["i"],
-      group: "view",
-      run: () => toggleDetails(),
-    },
     {
       id: "view.sidebar",
       label: "Toggle sidebar",

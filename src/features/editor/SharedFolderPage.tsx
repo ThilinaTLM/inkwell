@@ -1,108 +1,52 @@
-// SharedFolderPage — public folder share (`/share/:token`), wireframe
-// screen 21.
+// SharedFolderPage — public folder share (`/share/:token`).
 //
-//   toolbar : [↑] breadcrumb (inside the shared subtree) · filter `/` ·
-//             Download all (if allowed) · Grid / Compact / List
-//   banner  : Shared by <name> · View only / Can edit · "label" · Sign in
-//   pane    : the explorer's GridView / CompactView / ListView, read-only
-//   status  : counts · selection
-//
-// Visitors get the same selection model as the explorer (click, ⌘/⇧,
-// arrows, marquee, ↵ opens) plus Space quick look. The context menu is
-// local to this page — Open, Quick look, Download, Copy link — so no
-// global item commands are registered for anonymous visitors.
-//
-// The current subfolder lives in `?folder=<id>` so browser back/forward
-// walk the subtree. Files open at /share/:token/files/:fileId
-// (SharedEditorPage in folder-share mode). Like the previous page this
-// one is read-only for every permission: edit links grant editing of the
-// files themselves (inside the editor), not create/delete here.
+// Light visitor view of a shared folder tree: wordmark bar (Sign in /
+// Open Inkwell), then a header with the folder name, a
+// "Shared · View only / Can edit" chip and — when the link allows it —
+// "Download all" (client-side zip). Items render through the shared
+// `<ItemCollection readOnly>` (cards / list) so the page looks like the
+// owner's folder pages, without any owner command: no context menu,
+// drag-and-drop, quick actions or selection mirrored to the command
+// registry. Double-click / tap / Enter opens: files at
+// /share/:token/files/:fileId (SharedEditorPage in folder-share mode),
+// sub-folders in place via `?folder=<id>` so browser back/forward walk
+// the subtree. Read-only for every permission: edit links grant editing
+// of the files themselves (inside the editor), not create/delete here.
 
 import {
-  ArrowUp02Icon,
   Download01Icon,
   EyeIcon,
-  FolderOpenIcon,
-  GridViewIcon,
-  LayoutTwoColumnIcon,
-  LeftToRightListBulletIcon,
-  Link04Icon,
+  Folder01Icon,
   PencilEdit02Icon,
-  ViewIcon,
 } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
 import { InkwellLogo } from "@/components/InkwellLogo";
+import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { Surface } from "@/components/Surface";
-import { StatusBar, ToolbarSearch } from "@/components/shell/page";
 import { Button } from "@/components/ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { useMe } from "@/data/auth";
 import { useSharedFolder } from "@/data/shares";
 import {
-  type ExplorerItem,
-  fileToItem,
-  filterItems,
-  folderToItem,
-  formatBytes,
-  sortItems,
-  summarize,
-} from "@/features/explorer/model";
-import { QuickLook } from "@/features/explorer/QuickLook";
-import { dispatchSelection, getSelState, useSelectedKeys } from "@/features/explorer/state";
-import { CompactView } from "@/features/explorer/views/CompactView";
-import { GridView } from "@/features/explorer/views/GridView";
-import { ListView } from "@/features/explorer/views/ListView";
+  type CollectionItem,
+  fileToCollectionItem,
+  folderToCollectionItem,
+  ItemCollection,
+} from "@/features/collection";
 import { folderPath } from "@/features/folders/FolderTree";
 import type { FolderMeta, FolderSharePayload } from "@/lib/api/client";
 import { shares } from "@/lib/api/client";
-import { copyToClipboard } from "@/lib/clipboard";
-import { requestQuickLook } from "@/lib/commands/signals";
 import { errorMessage } from "@/lib/errors";
 import { expiresPhrase } from "@/lib/format";
-import { parseRefKey } from "@/lib/selection";
-import { useMediaQuery } from "@/lib/useMediaQuery";
-import { cn } from "@/lib/utils";
-import { downloadShareZip, triggerDownload } from "./shared/shareZip";
+import { downloadShareZip } from "./shared/shareZip";
 
 interface SharedFolderProps {
   /** Optional preloaded payload; used by SharedTokenLanding. */
   preloaded?: FolderSharePayload;
-}
-
-type ShareView = "grid" | "compact" | "list";
-const VIEW_KEY = "inkwell.share.view";
-const VIEWS: Array<{ id: ShareView; label: string; icon: IconSvgElement }> = [
-  { id: "grid", label: "Grid", icon: GridViewIcon },
-  { id: "compact", label: "Compact", icon: LayoutTwoColumnIcon },
-  { id: "list", label: "List", icon: LeftToRightListBulletIcon },
-];
-
-function readView(fallback: ShareView): ShareView {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === "grid" || v === "compact" || v === "list" ? v : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 export default function SharedFolderPage({ preloaded }: SharedFolderProps = {}) {
@@ -137,7 +81,6 @@ function SharedFolderExplorer({ token, payload }: { token: string; payload: Fold
   const navigate = useNavigate();
   const me = useMe();
   const [search, setSearch] = useSearchParams();
-  const isMobile = useMediaQuery("(max-width: 767px)");
   const { share, root } = payload;
   const writable = share.permission === "write";
   const allowDownload = share.allowDownload;
@@ -169,176 +112,65 @@ function SharedFolderExplorer({ token, payload }: { token: string; payload: Fold
     [search, setSearch, root.id],
   );
 
-  const [view, setViewState] = useState<ShareView>(() => readView(isMobile ? "list" : "grid"));
-  const setView = (v: ShareView) => {
-    setViewState(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      /* ignore */
-    }
-  };
-  const [text, setText] = useState("");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on folder change only
-  useEffect(() => setText(""), [folderId]);
-
-  const scope = `share:${token}:${folderId}`;
-  const thumbUrl = useCallback(
-    (fileId: string, v: number) => `${shares.folderFileThumbUrl(token, fileId)}?v=${v}`,
-    [token],
-  );
-
-  const rawItems = useMemo<ExplorerItem[]>(() => {
+  const items = useMemo<CollectionItem[]>(() => {
     const folders = allFolders
       .filter((f) => f.parentId === folderId && f.id !== root.id)
-      .map((f) => {
-        const it = folderToItem(f);
-        const p = f.previews?.[0];
-        return {
-          ...it,
-          starred: false,
-          shareCount: 0,
-          thumbUrl: p?.hasThumb ? thumbUrl(p.id, p.thumbUpdatedAt) : null,
-        };
-      });
-    const files = payload.files
-      .filter((f) => f.folderId === folderId)
       .map((f) => ({
-        ...fileToItem(f, { thumbUrl: (m) => thumbUrl(m.id, m.thumbUpdatedAt) }),
+        ...folderToCollectionItem(f),
+        thumbUrl: null,
         starred: false,
         shareCount: 0,
       }));
+    const files = payload.files
+      .filter((f) => f.folderId === folderId)
+      .map((f) => ({
+        ...fileToCollectionItem(f),
+        starred: false,
+        shareCount: 0,
+        tags: [],
+        thumbUrl: f.hasThumb
+          ? `${shares.folderFileThumbUrl(token, f.id)}?v=${f.thumbUpdatedAt}`
+          : null,
+        visitor: { rawUrl: shares.folderFileRawUrl(token, f.id) },
+      }));
     return [...folders, ...files];
-  }, [allFolders, payload.files, folderId, root.id, thumbUrl]);
-
-  const items = useMemo(
-    () => sortItems(filterItems(rawItems, { text }), { key: "name", dir: "asc" }),
-    [rawItems, text],
-  );
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+  }, [allFolders, payload.files, folderId, root.id, token]);
 
   const open = useCallback(
-    (item: ExplorerItem) => {
+    (item: CollectionItem) => {
       if (item.type === "folder") goFolder(item.id);
       else navigate(`/share/${token}/files/${item.id}`);
     },
     [goFolder, navigate, token],
   );
 
-  // ─── Download ─────────────────────────────────────────────────────
-  const zip = useCallback(
-    async (folderIds: string[], fileIds: string[], zipName: string) => {
-      const id = toast.loading("Preparing zip…");
-      try {
-        await downloadShareZip({
-          token,
-          folders: allFolders,
-          files: payload.files,
-          pickFolderIds: folderIds,
-          pickFileIds: fileIds,
-          zipName,
-          onProgress: (d, t) => toast.loading(`Zipping ${d}/${t} files…`, { id }),
-        });
-        toast.success("Download ready", { id });
-      } catch (e) {
-        toast.error(errorMessage(e, "could not build zip"), { id });
-      }
-    },
-    [token, allFolders, payload.files],
-  );
-
-  const download = useCallback(
-    (targets: ExplorerItem[]) => {
-      if (!allowDownload || !targets.length) return;
-      if (targets.length === 1 && targets[0].type === "file") {
-        triggerDownload(shares.folderFileDownloadUrl(token, targets[0].id));
-        return;
-      }
-      const name =
-        targets.length === 1 ? `${targets[0].name}.zip` : `${current.name} (selection).zip`;
-      void zip(
-        targets.filter((t) => t.type === "folder").map((t) => t.id),
-        targets.filter((t) => t.type === "file").map((t) => t.id),
-        name,
-      );
-    },
-    [allowDownload, token, current.name, zip],
-  );
-
-  const copyLink = useCallback(
-    async (item: ExplorerItem) => {
-      const url =
-        item.type === "file"
-          ? `${location.origin}/share/${token}/files/${item.id}`
-          : `${location.origin}/share/${token}${item.id === root.id ? "" : `?folder=${item.id}`}`;
-      const ok = await copyToClipboard(url);
-      if (ok) toast.success("Link copied");
-      else toast.error("Couldn't access the clipboard");
-    },
-    [token, root.id],
-  );
-
-  // ─── Page keys: `/` filter, Space quick look, Backspace up ────────
-  const filterWrapRef = useRef<HTMLDivElement>(null);
-  const focusedItem = () => {
-    const s = getSelState(scope);
-    const k = s.focus ?? s.selected[0];
-    return k ? itemsRef.current.find((i) => i.key === k) : undefined;
-  };
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    const t = e.target as HTMLElement;
-    if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
-    if (document.querySelector('[role="dialog"]:not([data-closed]),[role="menu"]')) return;
-    if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      filterWrapRef.current?.querySelector("input")?.focus();
-    } else if (e.key === " " && !e.metaKey && !e.ctrlKey) {
-      const it = focusedItem();
-      if (it) {
-        e.preventDefault();
-        requestQuickLook(it.ref);
-      }
-    } else if (
-      (e.key === "Backspace" || (e.key === "ArrowUp" && (e.metaKey || e.altKey))) &&
-      path.length > 1
-    ) {
-      e.preventDefault();
-      goFolder(path[path.length - 2].id);
+  const downloadAll = useCallback(async () => {
+    const id = toast.loading("Preparing zip…");
+    try {
+      await downloadShareZip({
+        token,
+        folders: allFolders,
+        files: payload.files,
+        pickFolderIds: [current.id],
+        pickFileIds: [],
+        zipName: `${current.name}.zip`,
+        onProgress: (d, t) => toast.loading(`Zipping ${d}/${t} files…`, { id }),
+      });
+      toast.success("Download ready", { id });
+    } catch (e) {
+      toast.error(errorMessage(e, "could not build zip"), { id });
     }
-  };
-
-  const selKeys = useSelectedKeys(scope);
-  const selItems = useMemo(() => items.filter((i) => selKeys.includes(i.key)), [items, selKeys]);
-  const counts = summarize(items);
-  const selSummary = summarize(selItems);
-
-  const common = {
-    items,
-    scope,
-    readOnly: true,
-    onOpen: open,
-    menu: false as const,
-    ariaLabel: current.name,
-    empty: (
-      <div className="grid h-full place-items-center px-6 py-16 text-center text-sm text-muted-foreground">
-        {text ? `Nothing matches “${text}”.` : `“${current.name}” is empty.`}
-      </div>
-    ),
-  };
+  }, [token, allFolders, payload.files, current.id, current.name]);
 
   const sharerName = share.sharedBy
     ? `${share.sharedBy.firstName} ${share.sharedBy.lastName}`.trim()
     : "";
+  const count = items.length;
+  const expires = expiresPhrase(share.expiresAt ?? null);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: page-level keyboard shortcuts
-    <div
-      className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
-      onKeyDown={onKeyDown}
-    >
-      {/* Top bar: wordmark + sign in */}
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 px-4">
         <Link to="/" className="flex items-center text-foreground" aria-label="Inkwell">
           <InkwellLogo />
         </Link>
@@ -354,271 +186,97 @@ function SharedFolderExplorer({ token, payload }: { token: string; payload: Fold
         ) : null}
       </header>
 
-      {/* Toolbar */}
-      <div className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-2 sm:px-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Up one folder"
-          title="Up one folder (Backspace)"
-          disabled={path.length <= 1}
-          onClick={() => goFolder(path[path.length - 2].id)}
-        >
-          <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
-        </Button>
-        <nav
-          aria-label="Folder path"
-          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-sm"
-        >
-          {path.map((f, i) => {
-            const last = i === path.length - 1;
-            // On phones only the current folder is shown.
-            return (
-              <span
-                key={f.id}
-                className={cn("min-w-0 items-center gap-0.5", last ? "flex" : "hidden sm:flex")}
-              >
-                {i > 0 ? <span className="px-0.5 text-muted-foreground/60">›</span> : null}
-                <button
-                  type="button"
-                  onClick={() => goFolder(f.id)}
-                  aria-current={last ? "page" : undefined}
-                  className={cn(
-                    "truncate rounded-sm px-1 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                    last ? "font-semibold text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {f.name}
-                </button>
-              </span>
-            );
-          })}
-        </nav>
-        <div ref={filterWrapRef} className="hidden sm:block">
-          <ToolbarSearch value={text} onChange={setText} className="w-44" />
-        </div>
-        {allowDownload ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void zip([current.id], [], `${current.name}.zip`)}
-            title="Download everything in this folder as a zip"
-          >
-            <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-            <span className="hidden sm:inline">Download all</span>
-          </Button>
-        ) : null}
-        <fieldset className="flex items-center rounded-md border border-border p-0.5">
-          <legend className="sr-only">View</legend>
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              aria-pressed={view === v.id}
-              aria-label={`${v.label} view`}
-              title={`${v.label} view`}
-              onClick={() => setView(v.id)}
-              className={cn(
-                "inline-flex size-7 items-center justify-center rounded-[5px] text-muted-foreground hover:text-foreground",
-                view === v.id && "bg-accent text-accent-foreground",
-              )}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-12 sm:px-8 md:pt-10">
+          {path.length > 1 ? (
+            <nav
+              aria-label="Folder path"
+              className="mb-3 flex flex-wrap items-center gap-1 text-sm"
             >
-              <HugeiconsIcon icon={v.icon} strokeWidth={1.8} className="size-4" />
-            </button>
-          ))}
-        </fieldset>
-      </div>
-
-      {/* Ownership banner */}
-      <div
-        data-testid="share-banner"
-        className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-primary/[0.06] px-3 py-2 text-[12.5px] sm:px-4"
-      >
-        <HugeiconsIcon
-          icon={writable ? PencilEdit02Icon : EyeIcon}
-          strokeWidth={1.8}
-          className="size-4 text-muted-foreground"
-        />
-        <span>
-          {sharerName ? (
-            <>
-              Shared by <b className="font-semibold">{sharerName}</b>
-            </>
-          ) : (
-            "Shared folder"
-          )}
-          {" · "}
-          <span className="rounded-full bg-accent px-2 py-0.5 text-accent-foreground">
-            {writable ? "Can edit" : "View only"}
-          </span>
-          {share.label ? <span className="text-muted-foreground"> · “{share.label}”</span> : null}
-          {expiresPhrase(share.expiresAt ?? null) ? (
-            <span className="text-muted-foreground">
-              {" "}
-              · link {expiresPhrase(share.expiresAt ?? null)}
-            </span>
+              {path.map((f, i) => {
+                const last = i === path.length - 1;
+                return (
+                  <span key={f.id} className="flex items-center gap-1">
+                    {i > 0 ? <span className="text-muted-foreground/60">/</span> : null}
+                    {last ? (
+                      <span aria-current="page" className="text-muted-foreground">
+                        {f.name}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => goFolder(f.id)}
+                        className="rounded-md px-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      >
+                        {f.name}
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </nav>
           ) : null}
-        </span>
-        {writable ? <span className="text-muted-foreground">· open a file to edit it</span> : null}
-      </div>
 
-      {/* Mobile filter row */}
-      <div className="border-b border-border px-2 py-1.5 sm:hidden">
-        <ToolbarSearch value={text} onChange={setText} className="w-full" />
-      </div>
-
-      <ShareContextMenu
-        scope={scope}
-        items={items}
-        allowDownload={allowDownload}
-        onOpen={open}
-        onDownload={download}
-        onCopyLink={(i) => void copyLink(i)}
-      >
-        {view === "grid" ? (
-          <GridView {...common} />
-        ) : view === "compact" ? (
-          <CompactView {...common} />
-        ) : (
-          <ListView
-            {...common}
-            columns={["name", "kind", "modified", "size"]}
-            persistColumns={false}
-          />
-        )}
-      </ShareContextMenu>
-
-      <StatusBar
-        left={
-          <span>
-            <b className="font-semibold text-foreground">{counts.folders}</b> folder
-            {counts.folders === 1 ? "" : "s"} ·{" "}
-            <b className="font-semibold text-foreground">{counts.files}</b> file
-            {counts.files === 1 ? "" : "s"}
-            {selItems.length ? (
-              <b className="font-semibold text-accent-foreground">
-                {" "}
-                · {selItems.length} selected
-                {selSummary.files ? ` · ${formatBytes(selSummary.bytes)}` : ""}
-              </b>
+          <div className="mb-6 flex flex-wrap items-start gap-4">
+            {current.id === root.id ? (
+              <ProjectIcon folder={root} size="xl" />
+            ) : (
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+                <HugeiconsIcon icon={Folder01Icon} strokeWidth={1.8} className="size-6" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate font-display text-3xl leading-tight font-medium tracking-tight">
+                {current.name}
+              </h1>
+              <div
+                data-testid="share-banner"
+                className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground"
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
+                  <HugeiconsIcon
+                    icon={writable ? PencilEdit02Icon : EyeIcon}
+                    strokeWidth={1.8}
+                    className="size-3.5"
+                  />
+                  Shared · {writable ? "Can edit" : "View only"}
+                </span>
+                {sharerName ? <span>by {sharerName}</span> : null}
+                {share.label ? <span>· “{share.label}”</span> : null}
+                <span>
+                  · {count} {count === 1 ? "item" : "items"}
+                </span>
+                {expires ? <span>· link {expires}</span> : null}
+                {writable ? <span>· open a file to edit it</span> : null}
+              </div>
+            </div>
+            {allowDownload ? (
+              <Button
+                variant="outline"
+                className="h-9 rounded-[10px] px-3 text-[13px]"
+                onClick={() => void downloadAll()}
+                title="Download everything in this folder as a zip"
+              >
+                <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
+                <span className="max-sm:sr-only">Download all</span>
+              </Button>
             ) : null}
-          </span>
-        }
-        right={
-          <span className="hidden sm:inline">
-            {writable ? "Can edit files" : "Read-only"} · right-click for Open / Download / Copy
-            link
-          </span>
-        }
-      />
-      <QuickLook items={items} scope={scope} onOpen={open} />
-    </div>
-  );
-}
+          </div>
 
-// ─── Local context menu ─────────────────────────────────────────────────
-
-function ShareContextMenu({
-  scope,
-  items,
-  allowDownload,
-  onOpen,
-  onDownload,
-  onCopyLink,
-  children,
-}: {
-  scope: string;
-  items: ExplorerItem[];
-  allowDownload: boolean;
-  onOpen: (item: ExplorerItem) => void;
-  onDownload: (items: ExplorerItem[]) => void;
-  onCopyLink: (item: ExplorerItem) => void;
-  children: React.ReactNode;
-}) {
-  const lastTarget = useRef<Element | null>(null);
-  const [open, setOpen] = useState(false);
-  const [targets, setTargets] = useState<ExplorerItem[]>([]);
-
-  const resolve = (): boolean => {
-    const el = lastTarget.current?.closest<HTMLElement>("[data-item]");
-    const key = el?.dataset.key;
-    const item = key ? items.find((i) => i.key === key) : undefined;
-    if (!item) return false;
-    const order = items.map((i) => i.key);
-    let sel = getSelState(scope).selected;
-    if (!sel.includes(item.key)) {
-      dispatchSelection(scope, { type: "click", key: item.key, order });
-      sel = [item.key];
-    }
-    const picked = sel
-      .map((k) => (parseRefKey(k) ? items.find((i) => i.key === k) : undefined))
-      .filter((i): i is ExplorerItem => !!i);
-    setTargets(picked.length ? picked : [item]);
-    return true;
-  };
-
-  const primary = targets[0];
-  const many = targets.length > 1;
-
-  return (
-    <ContextMenu
-      open={open}
-      onOpenChange={(o) => {
-        // Only items get a menu; the background has nothing to offer.
-        if (o && !resolve()) return;
-        setOpen(o);
-      }}
-    >
-      <ContextMenuTrigger
-        render={
-          <div
-            className="relative flex min-h-0 flex-1 flex-col"
-            onContextMenuCapture={(e) => {
-              lastTarget.current = e.target as Element;
-            }}
-            onTouchStartCapture={(e) => {
-              lastTarget.current = e.target as Element;
-            }}
+          <ItemCollection
+            items={items}
+            readOnly
+            onOpen={open}
+            scope={`share:${token}:${folderId}`}
+            ariaLabel={current.name}
+            empty={
+              <p className="text-center text-sm text-muted-foreground">
+                “{current.name}” is empty.
+              </p>
+            }
           />
-        }
-      >
-        {children}
-      </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-52">
-        {primary && !many ? (
-          <>
-            <ContextMenuItem onClick={() => onOpen(primary)}>
-              <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={1.8} />
-              Open
-              <ContextMenuShortcut>↵</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => requestQuickLook(primary.ref)}>
-              <HugeiconsIcon icon={ViewIcon} strokeWidth={1.8} />
-              Quick look
-              <ContextMenuShortcut>Space</ContextMenuShortcut>
-            </ContextMenuItem>
-          </>
-        ) : null}
-        {allowDownload && primary ? (
-          <ContextMenuItem onClick={() => onDownload(targets)}>
-            <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-            {many
-              ? `Download ${targets.length} items (.zip)`
-              : primary.type === "folder"
-                ? "Download (.zip)"
-                : "Download"}
-          </ContextMenuItem>
-        ) : null}
-        {primary && !many ? (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => onCopyLink(primary)}>
-              <HugeiconsIcon icon={Link04Icon} strokeWidth={1.8} />
-              Copy link
-            </ContextMenuItem>
-          </>
-        ) : null}
-      </ContextMenuContent>
-    </ContextMenu>
+        </div>
+      </div>
+    </div>
   );
 }

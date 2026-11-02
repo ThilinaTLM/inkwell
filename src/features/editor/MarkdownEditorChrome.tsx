@@ -1,149 +1,33 @@
-import {
-  ComputerIcon,
-  Layout01Icon,
-  Moon02Icon,
-  SunIcon,
-  TextFontIcon,
-} from "@hugeicons/core-free-icons";
+// Markdown toolbar slot: one Write / Source segmented control
+// and a single "Aa" popover for reading width, typeface and theme
+// (replaces the previous three dropdowns that shared one icon).
+
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+import { ComputerIcon, Moon02Icon, SunIcon, TextFontIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { type ThemeMode, useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import {
-  type MarkdownEditorLayout,
-  NOTES_FONTS,
+  type MarkdownEditorMode,
   NOTES_WIDTHS,
   type NotesEditorFont,
   type NotesEditorWidth,
   useNotesPreferences,
 } from "./notes/preferences";
 
-const LAYOUTS: ReadonlyArray<{ value: MarkdownEditorLayout; label: string }> = [
-  { value: "source", label: "Source" },
-  { value: "split", label: "Split" },
-  { value: "preview", label: "Preview" },
+const MODES: ReadonlyArray<{ value: MarkdownEditorMode; label: string; hint: string }> = [
+  { value: "write", label: "Write", hint: "Rich text editing" },
+  { value: "source", label: "Source", hint: "Raw Markdown" },
 ];
 
-export function MarkdownEditorChrome() {
-  const { layout, setLayout } = useNotesPreferences();
-  return (
-    <div className="flex items-center gap-0.5" role="toolbar" aria-label="Markdown view">
-      <div className="sm:hidden">
-        <LayoutQuickToggle />
-      </div>
-      <div className="mr-1 hidden items-center rounded-md border p-0.5 sm:flex">
-        {LAYOUTS.map((item) => (
-          <Button
-            key={item.value}
-            variant={layout === item.value ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 px-2 text-xs"
-            aria-pressed={layout === item.value}
-            onClick={() => setLayout(item.value)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </div>
-      <div className="hidden sm:contents">
-        <WidthQuickToggle />
-        <FontQuickToggle />
-      </div>
-      <ThemeQuickToggle />
-    </div>
-  );
-}
-
-function LayoutQuickToggle() {
-  const { layout, setLayout } = useNotesPreferences();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="icon" aria-label="Markdown view" title="Markdown view">
-            <HugeiconsIcon icon={Layout01Icon} strokeWidth={1.8} className="size-4" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end" className="min-w-[9rem]">
-        <DropdownMenuRadioGroup
-          value={layout}
-          onValueChange={(value) => setLayout(value as MarkdownEditorLayout)}
-        >
-          {LAYOUTS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function WidthQuickToggle() {
-  const { width, setWidth } = useNotesPreferences();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="icon" aria-label="Editor width" title="Editor width">
-            <HugeiconsIcon icon={Layout01Icon} strokeWidth={1.8} className="size-4" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end" className="min-w-[10rem]">
-        <DropdownMenuRadioGroup
-          value={width}
-          onValueChange={(v) => setWidth(v as NotesEditorWidth)}
-        >
-          {NOTES_WIDTHS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function FontQuickToggle() {
-  const { font, setFont } = useNotesPreferences();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="icon" aria-label="Markdown font" title="Markdown font">
-            <HugeiconsIcon icon={TextFontIcon} strokeWidth={1.8} className="size-4" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end" className="min-w-[14rem]">
-        <DropdownMenuRadioGroup value={font} onValueChange={(v) => setFont(v as NotesEditorFont)}>
-          {NOTES_FONTS.map((option) => (
-            <DropdownMenuRadioItem
-              key={option.value}
-              value={option.value}
-              style={{ fontFamily: option.stack }}
-            >
-              <span className="flex-1">{option.label}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                {option.family}
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+// Curated roster (design direction: Inter UI + Source Serif for
+// reading). Other stored values still render; they just aren't offered.
+const FONT_CHOICES: ReadonlyArray<{ value: NotesEditorFont; label: string; sample: string }> = [
+  { value: "inter", label: "Sans", sample: "Aa" },
+  { value: "source-serif", label: "Serif", sample: "Aa" },
+  { value: "jetbrains-mono", label: "Mono", sample: "Aa" },
+];
 
 const THEMES: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunIcon }> = [
   { value: "light", label: "Light", icon: SunIcon },
@@ -151,28 +35,113 @@ const THEMES: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunI
   { value: "system", label: "System", icon: ComputerIcon },
 ];
 
-function ThemeQuickToggle() {
-  const { mode, resolved, setMode } = useTheme();
-  const icon = resolved === "dark" ? Moon02Icon : SunIcon;
+export function MarkdownEditorChrome() {
+  const { mode, setMode } = useNotesPreferences();
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <div className="flex items-center gap-1" role="toolbar" aria-label="Markdown view">
+      <div className="flex items-center rounded-lg bg-muted p-0.5">
+        {MODES.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            aria-pressed={mode === item.value}
+            title={item.hint}
+            data-testid={`markdown-mode-${item.value}`}
+            onClick={() => setMode(item.value)}
+            className={cn(
+              "h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors",
+              "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              mode === item.value && "bg-background text-foreground shadow-xs",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <DisplayPopover />
+    </div>
+  );
+}
+
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string; icon?: typeof SunIcon }>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-muted p-0.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors",
+              "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              value === o.value && "bg-background font-medium text-foreground shadow-xs",
+            )}
+          >
+            {o.icon ? <HugeiconsIcon icon={o.icon} strokeWidth={1.8} className="size-3.5" /> : null}
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DisplayPopover() {
+  const { width, setWidth, font, setFont } = useNotesPreferences();
+  const { mode, setMode } = useTheme();
+  return (
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Theme" title="Theme">
-            <HugeiconsIcon icon={icon} strokeWidth={1.8} className="size-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Display options"
+            title="Width, font and theme"
+            data-testid="markdown-display"
+          >
+            <HugeiconsIcon icon={TextFontIcon} strokeWidth={1.8} className="size-4" />
           </Button>
         }
       />
-      <DropdownMenuContent align="end" className="min-w-[10rem]">
-        <DropdownMenuRadioGroup value={mode} onValueChange={(v) => setMode(v as ThemeMode)}>
-          {THEMES.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              <HugeiconsIcon icon={option.icon} strokeWidth={1.8} />
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Positioner align="end" sideOffset={6} className="isolate z-50">
+          <PopoverPrimitive.Popup
+            aria-label="Display options"
+            className="w-72 space-y-3 rounded-xl bg-popover p-3 text-popover-foreground shadow-[0_18px_40px_-14px_rgba(28,24,20,0.35)] ring-1 ring-border outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95"
+          >
+            <Segmented<NotesEditorWidth>
+              label="Width"
+              value={width}
+              options={NOTES_WIDTHS.map((w) => ({
+                value: w.value,
+                label: w.value === "full" ? "Full" : w.label,
+              }))}
+              onChange={setWidth}
+            />
+            <Segmented<NotesEditorFont>
+              label="Font"
+              value={FONT_CHOICES.some((f) => f.value === font) ? font : "inter"}
+              options={FONT_CHOICES}
+              onChange={setFont}
+            />
+            <Segmented<ThemeMode> label="Theme" value={mode} options={THEMES} onChange={setMode} />
+          </PopoverPrimitive.Popup>
+        </PopoverPrimitive.Positioner>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }

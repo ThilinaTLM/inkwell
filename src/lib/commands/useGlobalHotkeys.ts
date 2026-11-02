@@ -10,22 +10,13 @@
 //     (base-ui popups carry these roles) — except the explorer's own
 //     `role="listbox"` pane, which is marked `data-hotkeys="allow"`.
 //   - elements (or ancestors) with `data-hotkeys="off"` opt out.
-//   - honours the `singleKeyShortcuts` explorer pref: when off, bindings
-//     without ⌘/Ctrl/Alt (letters, digits, chords) are skipped.
 //   - commands whose `when(ctx)` is false are skipped, so the same key
 //     can be bound to different commands on different surfaces.
 //   - `preventDefault()` only when a command actually runs (or a chord
 //     is pending), so native shortcuts keep working otherwise.
 
 import { useEffect } from "react";
-import { getExplorerPref } from "@/lib/explorerPrefs";
-import {
-  type ChordBinding,
-  createChordMatcher,
-  eventToCombo,
-  isSingleKeyBinding,
-  parseBinding,
-} from "./keymap";
+import { type ChordBinding, createChordMatcher, eventToCombo, parseBinding } from "./keymap";
 import {
   getCommand,
   getCommandContext,
@@ -67,13 +58,10 @@ export function useGlobalHotkeys(): void {
         return;
       }
       const ctx = getCommandContext();
-      const singleKeysOn = getExplorerPref("singleKeyShortcuts");
       const bindings: ChordBinding[] = [];
       for (const cmd of getCommands()) {
         if (!isCommandAvailable(cmd, ctx)) continue;
         for (const k of getEffectiveKeys(cmd.id)) {
-          const single = cmd.singleKey ?? isSingleKeyBinding(k);
-          if (single && !singleKeysOn) continue;
           bindings.push({ id: cmd.id, combos: parseBinding(k) });
         }
       }

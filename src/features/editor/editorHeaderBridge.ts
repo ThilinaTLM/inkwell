@@ -12,6 +12,17 @@
 // navigation (back, breadcrumb, duplicate, trash) through the
 // editor's leave-confirm guard.
 
+// ADDITIVE FIELDS (header redesign)
+//   • `subbar?: ReactNode` — optional full-width secondary row rendered
+//     under the header bar (own hairline, horizontally scrollable). Use
+//     it for tabs / view switchers (HTML-site Preview|Code, Markdown
+//     Source|Split|Preview) that would crowd the main bar. Omit = no row.
+//   • `toolbar` is still the right-hand cluster; the header measures its
+//     width and collapses the breadcrumb to make room, so keep it
+//     compact. The header draws the divider after it.
+//   • Save UI: `status === "dirty"` renders a primary "Save ⌘S" button
+//     (needs `saveNow`), "saved" a calm check, error → retry button.
+//
 import type { ReactNode } from "react";
 import type { EditorSaveStatus } from "./lifecycle/types";
 
@@ -22,14 +33,26 @@ export interface EditorMenuExtra {
   onSelect: () => void;
 }
 
+/** One "Export as…" format offered by the header (per editor kind). */
+export interface EditorExporter {
+  id: string;
+  /** Short pill label, e.g. "PNG". */
+  label: string;
+  /** One-line description shown under the pill group, e.g. "Image · light background". */
+  hint?: string;
+  /** Produce and download the file. May reject; the header toasts it. */
+  run: () => Promise<void> | void;
+}
+
 export interface EditorHeaderBridge {
   /** `null` when the editor has no save lifecycle (static sites) or
    *  the session is read-only. `"loading"` while the editor is still
    *  booting (draw.io iframe before `init`). */
   status: EditorSaveStatus | "loading" | null;
   errorMessage: string | null;
-  /** Force an immediate save. `null` on read-only sessions. */
-  saveNow: (() => void) | null;
+  /** Force an immediate save; resolves `true` when the server is in sync.
+   *  `null` on read-only sessions. */
+  saveNow: (() => Promise<boolean>) | null;
   /** Persist pending edits and resolve `true` when the server is in
    *  sync (used before duplicate / download / trash). */
   flush: () => Promise<boolean>;
@@ -39,16 +62,25 @@ export interface EditorHeaderBridge {
   requestLeave: (cont: () => void) => void;
   /** Editor-specific entries for the header's ⋯ menu. */
   menuExtras?: EditorMenuExtra[];
+  /** Formats for "Export as…" (Ctrl/⌘+Shift+S). Empty/absent hides Export. */
+  exporters?: EditorExporter[];
+  /** Starts present mode (whiteboards). Bound to Ctrl/⌘+Shift+P. */
+  present?: () => void;
   /** Editor-specific controls rendered in the header's right cluster
    *  (Markdown view toggles, static-site "Open"). */
   toolbar?: ReactNode;
+  /** Optional secondary row under the header (tabs / view switchers). */
+  subbar?: ReactNode;
 }
 
 export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
 
 /** Bridge for editors without a save lifecycle (static sites). */
 export function staticBridge(
-  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar"> = {},
+  extra: Pick<
+    EditorHeaderBridge,
+    "menuExtras" | "toolbar" | "subbar" | "exporters" | "present"
+  > = {},
 ): EditorHeaderBridge {
   return {
     status: null,

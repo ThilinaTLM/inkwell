@@ -1,6 +1,6 @@
 // Compact share dialog (wireframe screen 16): active links on top, a
 // create-new form with sensible defaults below, "Create & copy link"
-// (⌘↵) and "Manage all links →" to the Shared links page.
+// (⌘↵) and "All shared links →" to the Shared links page.
 //
 // PUBLIC CONTRACT (unchanged; mounted by DialogHost's "share" entry)
 //   <ShareDialog open onOpenChange targetType targetId targetName targetKind? />
@@ -31,19 +31,21 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateShare, useRevokeShare, useRotateShare, useShareList } from "@/data/shares";
 import { confirmDialog } from "@/features/dialogs/dialogStore";
-import { ItemIcon } from "@/features/library/ItemTable";
-import { PermBadge } from "@/features/library/ListTable";
+import { TargetIcon } from "@/features/library/TargetIcon";
+import { expiresIn } from "@/features/library/time";
 import type { FileKind, Share, SharePermission, ShareTargetType } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isMacPlatform } from "@/lib/commands/keymap";
 import { errorMessage } from "@/lib/errors";
+import { fmtDateTime } from "@/lib/format";
 import { shareUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { AllowDownloadField } from "./fields/AllowDownloadField";
 import { ExpiryChips, type ExpiryChoice } from "./fields/ExpiryChips";
 import { LabelField } from "./fields/LabelField";
 import { PermissionSegment } from "./fields/PermissionSegment";
-import { presetToExpiresAt, shareStatus, shortExpiry } from "./shareStatus";
+import { ShareEditDialog } from "./ShareEditDialog";
+import { presetToExpiresAt, shareStatus } from "./shareStatus";
 
 interface ShareDialogProps {
   open: boolean;
@@ -76,6 +78,7 @@ export function ShareDialog({
   const now = Date.now();
   const active = (list.data ?? []).filter((s) => shareStatus(s, now) !== "expired");
 
+  const [editing, setEditing] = useState<Share | null>(null);
   const [label, setLabel] = useState("");
   const [permission, setPermission] = useState<SharePermission>("read");
   const [expiry, setExpiry] = useState<ExpiryChoice>("7d");
@@ -122,15 +125,15 @@ export function ShareDialog({
 
   const manageAll = () => {
     onOpenChange(false);
-    navigate("/shares");
+    navigate("/files/shared");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 p-[18px] sm:max-w-[520px]" onKeyDown={onKeyDown}>
+      <DialogContent className="gap-0 p-5 sm:max-w-[540px]" onKeyDown={onKeyDown}>
         <div className="flex items-center gap-2 pr-8">
-          <ItemIcon kind={targetType === "file" ? (targetKind ?? "excalidraw") : undefined} />
-          <DialogTitle className="truncate text-[15px] font-semibold">
+          <TargetIcon type={targetType} kind={targetKind} />
+          <DialogTitle className="truncate font-display text-lg font-medium">
             Share “{targetName}”
           </DialogTitle>
         </div>
@@ -152,10 +155,7 @@ export function ShareDialog({
                 now={now}
                 targetType={targetType}
                 targetId={targetId}
-                onEdit={() => {
-                  onOpenChange(false);
-                  navigate(`/shares?token=${encodeURIComponent(s.token)}`);
-                }}
+                onEdit={() => setEditing(s)}
               />
             ))}
           </div>
@@ -202,7 +202,7 @@ export function ShareDialog({
             onClick={manageAll}
             className="text-xs text-primary underline-offset-4 hover:underline"
           >
-            Manage all links →
+            All shared links →
           </button>
           <span className="flex-1" />
           <Button onClick={() => void submit()} disabled={create.isPending}>
@@ -219,13 +219,24 @@ export function ShareDialog({
           </Button>
         </div>
       </DialogContent>
+      {editing ? (
+        <ShareEditDialog
+          share={editing}
+          targetName={targetName}
+          targetKind={targetKind}
+          open
+          onOpenChange={(o) => {
+            if (!o) setEditing(null);
+          }}
+        />
+      ) : null}
     </Dialog>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-3.5 mb-2 flex items-center gap-2 text-[11px] tracking-[0.08em] text-muted-foreground uppercase">
+    <div className="mt-4 mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-[0.08em] text-faint uppercase">
       {children}
       <span className="h-px flex-1 bg-border" />
     </div>
@@ -259,12 +270,21 @@ function ActiveLinkRow({
       <span className="min-w-0 flex-1 truncate">
         {share.label || <span className="text-muted-foreground">Untitled link</span>}
       </span>
-      <PermBadge permission={share.permission} />
       <span
-        className={cn("w-10 text-right text-xs text-muted-foreground", expiring && "text-chart-3")}
-        title={share.expiresAt ? new Date(share.expiresAt).toLocaleString() : "Never expires"}
+        className={cn(
+          "inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium",
+          share.permission === "write"
+            ? "bg-accent-soft text-accent-text"
+            : "bg-surface-2 text-muted-foreground",
+        )}
       >
-        {shortExpiry(share.expiresAt, now)}
+        {share.permission === "write" ? "Edit" : "View"}
+      </span>
+      <span
+        className={cn("w-32 text-right text-xs text-muted-foreground", expiring && "text-warning")}
+        title={share.expiresAt ? fmtDateTime(share.expiresAt) : "Never expires"}
+      >
+        {expiresIn(share.expiresAt, now)}
       </span>
       <Button
         variant="ghost"
@@ -290,7 +310,7 @@ function ActiveLinkRow({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onEdit}>
             <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} />
-            Edit in Shared links
+            Edit…
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={async () => {

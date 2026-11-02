@@ -39,7 +39,7 @@ export function LoginPage() {
   return (
     <AuthShell
       title="Welcome back"
-      description="Sign in to your drawings."
+      description="Sign in to your notes and diagrams."
       footer="Forgot your password or new here? Ask an admin for an invite link."
     >
       <form onSubmit={submit} className="flex flex-col gap-3" aria-busy={busy}>

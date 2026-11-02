@@ -20,6 +20,7 @@ import {
   r2ThumbKey,
   serveR2WithCache,
   streamFileResponse,
+  streamRawFile,
 } from "../lib/responses";
 import { parseJsonOrEmpty } from "../middleware/body";
 import { requireShareToken } from "../middleware/share-token";
@@ -121,6 +122,21 @@ r.post(
   },
 );
 
+// File-share raw bytes of an uploaded file (kind "file"), inline — the
+// viewer path (image/PDF/video preview). Read-only; `allow_download` only
+// gates the attachment endpoint below. HTML/SVG are CSP-sandboxed.
+r.get(
+  "/:token/raw",
+  requireShareToken({ target: "file", targetMismatchMessage: "not a file share" }),
+  async (c) => {
+    const tk = c.get("share");
+    const file = await filesRepo.findByIdAnyOwner(c.env, tk.target_id);
+    if (!file) return errorResponse(404, "file not found");
+    if (file.kind !== "file") return errorResponse(400, "not an uploaded file");
+    return await streamRawFile(c.env, file, { request: c.req.raw });
+  },
+);
+
 // File-share download (file-share only, allow_download required).
 r.get(
   "/:token/download",
@@ -180,7 +196,12 @@ r.get(
     );
     const out = folders.map((f) =>
       rowToFolderMeta(
-        { ...f, parent_id: f.id === tk.target_id ? null : f.parent_id, starred_at: null },
+        {
+          ...f,
+          parent_id: f.id === tk.target_id ? null : f.parent_id,
+          starred_at: null,
+          pinned_at: null,
+        },
         { tags: folderTags.get(f.id) ?? [] },
       ),
     );
@@ -227,6 +248,19 @@ r.get("/:token/files/:fileId/thumb", requireShareToken(), async (c) => {
   const file = await filesRepo.findByIdAnyOwner(c.env, fileId);
   if (!file?.has_thumb) return errorResponse(404, "no thumbnail");
   return await serveR2WithCache(c.env, c.executionCtx ?? null, c.req.raw, r2ThumbKey(file.id));
+});
+
+r.get("/:token/files/:fileId/raw", requireShareToken(), async (c) => {
+  const tk = c.get("share");
+  const fileId = c.req.param("fileId");
+  if (!fileId) return errorResponse(404, "file not in shared folder");
+  if (!(await ensureFolderShareCoversFile(c.env, tk, fileId))) {
+    return errorResponse(404, "file not in shared folder");
+  }
+  const file = await filesRepo.findByIdAnyOwner(c.env, fileId);
+  if (!file) return errorResponse(404, "file not found");
+  if (file.kind !== "file") return errorResponse(400, "not an uploaded file");
+  return await streamRawFile(c.env, file, { request: c.req.raw });
 });
 
 r.get("/:token/files/:fileId/download", requireShareToken(), async (c) => {
@@ -338,7 +372,7 @@ async function renderFolderShareListing(
   const folderOut = folders.map((f) => {
     const parent = f.id === rootId ? null : f.parent_id;
     return rowToFolderMeta(
-      { ...f, parent_id: parent, starred_at: null },
+      { ...f, parent_id: parent, starred_at: null, pinned_at: null },
       {
         tags: folderTags.get(f.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === f.id).length,
@@ -358,7 +392,7 @@ async function renderFolderShareListing(
       expiresAt: tk.expires_at,
     },
     root: rowToFolderMeta(
-      { ...rootRow, parent_id: null, starred_at: null },
+      { ...rootRow, parent_id: null, starred_at: null, pinned_at: null },
       {
         tags: folderTags.get(rootRow.id) ?? [],
         fileCount: files.filter((s) => s.folder_id === rootRow.id).length,

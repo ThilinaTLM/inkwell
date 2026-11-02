@@ -1,5 +1,6 @@
-// Tier 2 of the responsive plan — sidebar / format toggles for
-// narrow Kennedy viewports.
+// Shapes / Format panel toggles for the Kennedy (classic) UI. Rendered
+// in the editor header's `toolbar` slot (same ghost buttons as
+// Excalidraw's Library / Present) at every width.
 //
 // Drawio's `Editor.smallScreenWidth = 1024` (grapheditor/Editor.js)
 // collapses both side panels (shape library on the left, format on
@@ -12,15 +13,13 @@
 // watching the actual panel widths, so drawio's keyboard shortcuts
 // (Ctrl+Shift+K / Ctrl+Shift+P) keep the toggles in sync.
 //
-// Visibility is gated by CSS (`@media (max-width: 1024px)` on
-// `.inkwell-trailing-container` in MENUBAR_CSS) and by the React
-// caller — the component itself doesn't try to know if it's mobile.
 // Sketch theme has its own touch UI for shapes / format and skips
 // rendering this component entirely.
 
 import { LayoutLeftIcon, Settings02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface DrawioSidebarTogglesProps {
   iframe: HTMLIFrameElement | null;
@@ -106,28 +105,32 @@ export function DrawioSidebarToggles({ iframe }: DrawioSidebarTogglesProps) {
 
   return (
     <>
-      <button
-        type="button"
-        className="inkwell-toggle-btn"
-        data-pressed={shapesOpen ? "true" : "false"}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="aria-pressed:bg-muted"
         aria-pressed={shapesOpen}
-        title="Insert shape (Ctrl+Shift+K)"
-        aria-label="Insert shape"
+        title="Shapes (Ctrl+Shift+K)"
+        data-testid="drawio-toggle-shapes"
+        disabled={!iframe}
         onClick={toggleShapes}
       >
-        <HugeiconsIcon icon={LayoutLeftIcon} strokeWidth={2} />
-      </button>
-      <button
-        type="button"
-        className="inkwell-toggle-btn"
-        data-pressed={formatOpen ? "true" : "false"}
+        <HugeiconsIcon icon={LayoutLeftIcon} strokeWidth={1.8} />
+        <span className="hidden lg:inline">Shapes</span>
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="aria-pressed:bg-muted"
         aria-pressed={formatOpen}
-        title="Format (Ctrl+Shift+P)"
-        aria-label="Format"
+        title="Format panel (Ctrl+Shift+P)"
+        data-testid="drawio-toggle-format"
+        disabled={!iframe}
         onClick={toggleFormat}
       >
-        <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-      </button>
+        <HugeiconsIcon icon={Settings02Icon} strokeWidth={1.8} />
+        <span className="hidden lg:inline">Format</span>
+      </Button>
     </>
   );
 }
