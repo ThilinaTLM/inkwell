@@ -58,7 +58,6 @@ import { keys } from "@/lib/api/query-keys";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getCommandContext } from "@/lib/commands/registry";
 import { errorMessage } from "@/lib/errors";
-import { getExplorerPref } from "@/lib/explorerPrefs";
 import { clearSelection } from "@/lib/selection";
 import { toastWithUndo } from "@/lib/undo";
 import { shareUrl } from "@/lib/url";
@@ -183,7 +182,7 @@ function dedupe(refs: ItemRef[]): ItemRef[] {
 // ─── Operations ────────────────────────────────────────────────────────
 
 function open(ref: ItemRef, opts: { newTab?: boolean } = {}) {
-  const newTab = opts.newTab ?? (ref.type === "file" && getExplorerPref("openFilesIn") === "new");
+  const newTab = opts.newTab ?? false;
   if (newTab) {
     window.open(urlFor(ref), "_blank", "noopener");
     return;
@@ -193,7 +192,7 @@ function open(ref: ItemRef, opts: { newTab?: boolean } = {}) {
 
 function reveal(ref: ItemRef) {
   const [info] = resolveItems(qc(), [ref]);
-  const base = info.parentId ? `/folders/${info.parentId}` : "/";
+  const base = info.parentId ? `/folders/${info.parentId}` : "/inbox";
   nav(`${base}?select=${ref.type}:${ref.id}`);
 }
 
@@ -312,13 +311,16 @@ async function move(refs: ItemRef[], targetFolderId: string | null) {
     toast(`Already in ${folderName(targetFolderId)}`);
     return;
   }
+  // Resolve the label BEFORE the optimistic patch: it can drop the file from the
+  // only cached list that knew its name (→ "Untitled" in the toast).
+  const movedLabel = describe(toMove);
   applyMoveToCache(client, toMove, targetFolderId);
   try {
     const { previous } = await itemsApi.move(toMove, targetFolderId);
     invalidations.itemsMutated(client);
     pushRecentDestination(targetFolderId);
     clearSelection();
-    toastWithUndo(`Moved ${describe(toMove)} to ${folderName(targetFolderId)}`, async () => {
+    toastWithUndo(`Moved ${movedLabel} to ${folderName(targetFolderId)}`, async () => {
       // Group by original parent and move back.
       const groups = new Map<string, ItemRef[]>();
       for (const p of previous) {
@@ -457,14 +459,6 @@ async function trash(refs: ItemRef[]) {
   await ensureItems(client, refs);
   const top = topLevel(refs);
   if (!top.length) return;
-  if (getExplorerPref("confirmTrash")) {
-    const ok = await confirmDialog({
-      title: `Move ${describe(top)} to Trash?`,
-      description: "Items stay in Trash for 30 days before they are deleted permanently.",
-      confirmLabel: "Move to Trash",
-    });
-    if (!ok) return;
-  }
   // If the user is inside a folder being trashed, step out first.
   const ctx = getCommandContext();
   const trashedFolders = descendantFolderIds(
@@ -478,14 +472,15 @@ async function trash(refs: ItemRef[]) {
     ).find((i) =>
       descendantFolderIds(getFoldersCached(client), [i.ref.id]).has(ctx.currentFolderId as string),
     );
-    nav(topFolder?.parentId ? `/folders/${topFolder.parentId}` : "/");
+    nav(topFolder?.parentId ? `/folders/${topFolder.parentId}` : "/projects");
   }
+  const trashedLabel = describe(top);
   removeFromLists(client, top);
   try {
     await itemsApi.trash(top);
     invalidations.itemsMutated(client);
     clearSelection();
-    toastWithUndo(`Moved ${describe(top)} to Trash`, async () => {
+    toastWithUndo(`Moved ${trashedLabel} to Trash`, async () => {
       await itemsApi.restore(top);
       invalidations.itemsMutated(client);
     });

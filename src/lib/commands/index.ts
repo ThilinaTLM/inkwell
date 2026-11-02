@@ -9,13 +9,9 @@ export {
   formatBinding,
   formatBindingParts,
   formatKeys,
-  getKeyOverrides,
   isMacPlatform,
   normalizeBinding,
   parseBinding,
-  resetAllKeyOverrides,
-  setKeyOverride,
-  useKeyOverridesVersion,
 } from "./keymap";
 export {
   COMMAND_GROUP_LABELS,

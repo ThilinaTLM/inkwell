@@ -18,8 +18,7 @@
 //     - palette / menus / hotkeys hide commands whose scopes exclude ctx.scope
 //     - the shortcut sheet in the editor lists only editor-only commands
 //       (scopes === ["editor"]); those are the editor overrides whose `keys`
-//       describe what the editor really handles (user key overrides are not
-//       applied to them — see getEffectiveKeys)
+//       describe what the editor really handles
 //   scopeForRoute(pathname) / isEditorOnly(cmd)
 //
 //   interface Command {
@@ -41,9 +40,9 @@
 //   useRegisterCommands(cmds, deps)      – hook form, unregisters on unmount
 //   runCommand(id, ctxOverride?)         – runs if `when` passes; returns true when it ran
 //   getCommand(id) / getCommands()
-//   useCommandList(): Command[]          – reactive list (registry + key overrides)
+//   useCommandList(): Command[]          – reactive list
 //   useCommand(id): Command | undefined
-//   getEffectiveKeys(id): string[]       – defaults merged with user overrides
+//   getEffectiveKeys(id): string[]       – the command's default keys (rebinding was removed)
 //   formatKeys(keys)                     – re-exported from keymap
 //   setCommandContext(partial) / getCommandContext(override?) / useCommandContext()
 //   commandLabel(cmd, ctx)
@@ -53,7 +52,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { ItemRef } from "@/lib/api/client";
 import { getSelection, selectionStore } from "@/lib/selection";
 import { createStore, useStore } from "@/lib/store";
-import { getKeyOverrides, setBindingsProvider, subscribeKeyOverrides } from "./keymap";
+import { setBindingsProvider } from "./keymap";
 
 export { formatKeys } from "./keymap";
 
@@ -146,12 +145,6 @@ export function getCommands(): Command[] {
 }
 
 export function getEffectiveKeys(id: string): string[] {
-  const cmd = getCommand(id);
-  // Editor-only registrations describe hard-wired editor keys; user
-  // rebinds (Settings → Shortcuts) apply to the app keymap only.
-  if (cmd && isEditorOnly(cmd)) return cmd.keys ?? [];
-  const o = getKeyOverrides()[id];
-  if (o) return o;
   return getCommand(id)?.keys ?? [];
 }
 
@@ -161,10 +154,7 @@ setBindingsProvider(() => {
   return out;
 });
 
-// Combined version: registry changes + key overrides.
-const combined = createStore(0);
-versionStore.subscribe(() => combined.set((v) => v + 1));
-subscribeKeyOverrides(() => combined.set((v) => v + 1));
+const combined = versionStore;
 
 export function useCommandList(): Command[] {
   useStore(combined);
@@ -176,7 +166,7 @@ export function useCommand(id: string): Command | undefined {
   return getCommand(id);
 }
 
-/** Re-render on registry or key-override changes; returns a version. */
+/** Re-render on registry changes; returns a version. */
 export function useRegistryVersion(): number {
   return useStore(combined);
 }
