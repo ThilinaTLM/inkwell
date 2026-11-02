@@ -45,7 +45,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFolders } from "@/data/folders";
 import { folderPathLabel } from "@/features/actions/itemCache";
 import { itemActions } from "@/features/actions/useItemActions";
+import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
+import { onCommandSignal } from "@/lib/commands/signals";
 import { startItemDrag, useItemDropTargets } from "@/lib/dnd/itemDnd";
+import { type CollectionLayout, useCollectionLayout } from "@/lib/explorerPrefs";
+import { clearSelection, parseRefKey, setSelection, useSelection } from "@/lib/selection";
 import {
   EMPTY_SEL,
   type NavLayout,
@@ -53,10 +57,6 @@ import {
   nextIndex,
   selectionReducer,
 } from "@/lib/selection-logic";
-import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
-import { onCommandSignal } from "@/lib/commands/signals";
-import { type CollectionLayout, useCollectionLayout } from "@/lib/explorerPrefs";
-import { clearSelection, parseRefKey, setSelection, useSelection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 import { FileCard, FolderCard, type ItemHandlers, LIST_COLS, ListRow } from "./CollectionItems";
 import { LayoutToggle } from "./LayoutToggle";
@@ -68,6 +68,7 @@ import {
   matchesKindFilter,
   sortCollectionItems,
 } from "./model";
+import { QuickLook } from "./QuickLook";
 
 export interface ItemCollectionProps {
   items: CollectionItem[];
@@ -82,6 +83,8 @@ export interface ItemCollectionProps {
   sort?: boolean;
   scope?: string;
   ariaLabel?: string;
+  /** Hug the content (no minimum height) — for embedded strips such as Home. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -108,6 +111,7 @@ export function ItemCollection({
   sort = true,
   scope = "collection",
   ariaLabel = "Items",
+  compact = false,
   className,
 }: ItemCollectionProps) {
   const [prefLayout] = useCollectionLayout();
@@ -396,7 +400,7 @@ export function ItemCollection({
                 onClick={onBackgroundClick}
                 onPointerDown={onMarqueeDown}
                 onContextMenuCapture={onContextMenuCapture}
-                className="relative min-h-64 select-none outline-none"
+                className={cn("relative select-none outline-none", !compact && "min-h-64")}
               />
             }
           >
@@ -462,6 +466,11 @@ export function ItemCollection({
           </ContextMenuContent>
         </ContextMenu>
       )}
+      <QuickLook
+        items={ordered}
+        onOpen={(i) => itemActions.open(i.ref)}
+        onStep={(i) => dispatch({ type: "click", key: i.key, order: orderRef.current })}
+      />
     </div>
   );
 }

@@ -123,8 +123,8 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
       const matches = fuzzyFilter(query, all, (f) => f.name, 50);
       if ("inbox".includes(query.trim().toLowerCase())) out.push(folderRow(null, 0, "Loose files"));
       for (const m of matches) {
-        const parentPath = folderPathLabel(all, m.item.parentId);
-        out.push(folderRow(m.item, 0, `${parentPath} /`));
+        const hint = m.item.parentId ? `${folderPathLabel(all, m.item.parentId)} /` : "Project";
+        out.push(folderRow(m.item, 0, hint));
       }
       if (creating) out.push({ kind: "new", key: "new", parentId: creating.parentId, depth: 0 });
       return out;

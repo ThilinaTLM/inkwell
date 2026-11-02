@@ -177,6 +177,7 @@ export function HomePage() {
                 showLocation
                 layoutToggle={false}
                 sort={false}
+                compact
                 scope="home"
                 ariaLabel="Recent files"
               />

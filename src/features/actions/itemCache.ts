@@ -9,7 +9,7 @@
 //   findFileMeta(qc, id) / findFolderMeta(qc, id)
 //   useItemMeta(ref): FileMeta | FolderMeta | null   – reactive (query-cache subscription)
 //   getFoldersCached(qc): FolderMeta[]
-//   folderPathLabel(folders, folderId): string    – "Inbox / A / B"
+//   folderPathLabel(folders, folderId): string    – "A / B" (root → "Inbox")
 //   descendantFolderIds(folders, rootIds): Set<string>  (includes roots)
 //   patchFileLists / patchFolderList / removeFromLists – optimistic helpers
 
@@ -134,7 +134,8 @@ export function folderPathLabel(all: FolderMeta[], folderId: string | null): str
     names.unshift(cur.name);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
-  return ["Inbox", ...names].join(" / ");
+  // The Inbox is the loose-root-files bucket, not a parent of projects.
+  return names.length ? names.join(" / ") : "Inbox";
 }
 
 export function descendantFolderIds(all: FolderMeta[], rootIds: Iterable<string>): Set<string> {
