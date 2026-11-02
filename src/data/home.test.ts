@@ -47,6 +47,12 @@ describe("buildProjects", () => {
     expect(projects[0]).toMatchObject({ totalFileCount: 6, totalFolderCount: 2, itemCount: 8 });
     expect(projects[1]).toMatchObject({ totalFileCount: 0, totalFolderCount: 0, itemCount: 0 });
   });
+  it("uses the newest activity across the subtree as updatedAt", () => {
+    const f = { ...file("n", "c"), updatedAt: 500 };
+    const projects = buildProjects(tree, [f, file("o", null)]);
+    expect(projects[0].updatedAt).toBe(500);
+    expect(projects[1].updatedAt).toBe(1);
+  });
 });
 
 describe("folderPath / withLocation", () => {

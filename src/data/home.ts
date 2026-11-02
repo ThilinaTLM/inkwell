@@ -61,8 +61,23 @@ export function folderPath(all: readonly FolderMeta[], folderId: string | null):
   return out;
 }
 
-/** Top-level folders with recursive counts, in `name` order of the input. */
-export function buildProjects(all: readonly FolderMeta[]): Project[] {
+/**
+ * Top-level folders with recursive counts, in the order of the input.
+ * `updatedAt` becomes the project's last activity: the newest `updatedAt`
+ * across its subtree's folders and (when `allFiles` is given) files.
+ */
+export function buildProjects(
+  all: readonly FolderMeta[],
+  allFiles: readonly Pick<FileMeta, "folderId" | "updatedAt">[] = [],
+): Project[] {
+  const newestInFolder = new Map<string, number>();
+  for (const file of allFiles) {
+    if (!file.folderId) continue;
+    newestInFolder.set(
+      file.folderId,
+      Math.max(newestInFolder.get(file.folderId) ?? 0, file.updatedAt),
+    );
+  }
   const children = new Map<string, FolderMeta[]>();
   for (const f of all) {
     if (!f.parentId) continue;
@@ -70,17 +85,22 @@ export function buildProjects(all: readonly FolderMeta[]): Project[] {
     if (arr) arr.push(f);
     else children.set(f.parentId, [f]);
   }
-  const totals = (f: FolderMeta, seen: Set<string>): { files: number; folders: number } => {
+  const totals = (
+    f: FolderMeta,
+    seen: Set<string>,
+  ): { files: number; folders: number; newest: number } => {
     seen.add(f.id);
     let files = f.fileCount;
     let subs = 0;
+    let newest = Math.max(f.updatedAt, newestInFolder.get(f.id) ?? 0);
     for (const c of children.get(f.id) ?? []) {
       if (seen.has(c.id)) continue;
       const t = totals(c, seen);
       files += t.files;
       subs += 1 + t.folders;
+      newest = Math.max(newest, t.newest);
     }
-    return { files, folders: subs };
+    return { files, folders: subs, newest };
   };
   return all
     .filter((f) => !f.parentId)
@@ -88,6 +108,7 @@ export function buildProjects(all: readonly FolderMeta[]): Project[] {
       const t = totals(f, new Set());
       return {
         ...f,
+        updatedAt: t.newest,
         totalFileCount: t.files,
         totalFolderCount: t.folders,
         itemCount: t.files + t.folders,
@@ -108,7 +129,11 @@ export function withLocation(
 // ─── Hooks ────────────────────────────────────────────────────────────
 export function useProjects() {
   const q = useFolders();
-  const data = useMemo(() => (q.data ? buildProjects(q.data) : undefined), [q.data]);
+  const filesQ = useFiles({});
+  const data = useMemo(
+    () => (q.data ? buildProjects(q.data, filesQ.data ?? []) : undefined),
+    [q.data, filesQ.data],
+  );
   return { ...q, data };
 }
 

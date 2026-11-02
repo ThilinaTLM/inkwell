@@ -15,8 +15,7 @@ import { cn } from "@/lib/utils";
 
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]";
 
-const byName = (a: Project, b: Project) =>
-  a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+const byActivity = (a: Project, b: Project) => b.updatedAt - a.updatedAt;
 
 export function ProjectsPage() {
   const projects = useProjects();
@@ -26,9 +25,9 @@ export function ProjectsPage() {
     const rest = all.filter((p) => !pinned.includes(p));
     return {
       pinned: pinned.sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0)),
-      active: rest.filter((p) => projectStatusOf(p) === "active").sort(byName),
-      paused: rest.filter((p) => projectStatusOf(p) === "paused").sort(byName),
-      done: rest.filter((p) => projectStatusOf(p) === "done").sort(byName),
+      active: rest.filter((p) => projectStatusOf(p) === "active").sort(byActivity),
+      paused: rest.filter((p) => projectStatusOf(p) === "paused").sort(byActivity),
+      done: rest.filter((p) => projectStatusOf(p) === "done").sort(byActivity),
     };
   }, [projects.data]);
   const total = projects.data?.length ?? 0;
