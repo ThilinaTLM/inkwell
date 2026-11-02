@@ -47,7 +47,15 @@ import { cn } from "@/lib/utils";
 import { Kbd } from "./Kbd";
 import { closePalette, useShellState } from "./shellStore";
 
-type Group = "Recent" | "Projects" | "Files" | "Folders" | "Commands" | "Tags" | "In project" | "Actions";
+type Group =
+  | "Recent"
+  | "Projects"
+  | "Files"
+  | "Folders"
+  | "Commands"
+  | "Tags"
+  | "In project"
+  | "Actions";
 
 interface Result {
   key: string;
