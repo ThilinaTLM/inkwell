@@ -43,7 +43,13 @@ export interface Invite {
   note: string | null;
 }
 
-export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site";
+/** `"file"` is a generic uploaded file (image, PDF, docx, video, …): its
+ *  bytes are served by `files.rawUrl` / `files.downloadUrl`, it has no JSON
+ *  blob, and it cannot be edited or write-shared. */
+export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site" | "file";
+
+/** Largest accepted generic upload (`files.uploadRaw`), in bytes. */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 export interface FileMeta {
   id: string;
@@ -54,6 +60,8 @@ export interface FileMeta {
   tags: string[];
   version: number;
   sizeBytes: number;
+  /** Content-Type of an uploaded `kind: "file"`; `null` for every other kind. */
+  mime: string | null;
   hasThumb: boolean;
   /** Cache-bust token for `/api/files/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
@@ -96,8 +104,62 @@ export interface FolderMeta {
   activeShareCount: number;
   /** unix-ms when the owner starred this item, `null` if not starred. */
   starredAt: number | null;
+  /** Curated icon key (see `FOLDER_ICONS`); `null` = default folder icon. */
+  icon: string | null;
+  /** Curated colour key (see `FOLDER_COLORS`); `null` = default. */
+  color: string | null;
+  /** Free text, at most `MAX_FOLDER_DESCRIPTION` chars. */
+  description: string | null;
+  /** `null` = not set (display as active). */
+  status: FolderStatus | null;
+  /** unix-ms when pinned to Home; `null` = not pinned. */
+  pinnedAt: number | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export const FOLDER_ICONS = [
+  "folder",
+  "rocket",
+  "book",
+  "flask",
+  "chart",
+  "code",
+  "presentation",
+  "star",
+  "briefcase",
+  "palette",
+  "server",
+  "globe",
+] as const;
+export type FolderIcon = (typeof FOLDER_ICONS)[number];
+
+export const FOLDER_COLORS = [
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "blue",
+  "indigo",
+  "violet",
+  "rose",
+  "slate",
+] as const;
+export type FolderColor = (typeof FOLDER_COLORS)[number];
+
+export const FOLDER_STATUSES = ["active", "paused", "done"] as const;
+export type FolderStatus = (typeof FOLDER_STATUSES)[number];
+export const MAX_FOLDER_DESCRIPTION = 280;
+
+/** Project metadata accepted by `folders.create` / `folders.update`.
+ *  `null` clears a field; omitted fields are left alone. */
+export interface FolderMetaInput {
+  icon?: FolderIcon | null;
+  color?: FolderColor | null;
+  description?: string | null;
+  status?: FolderStatus | null;
+  /** `PATCH` only. unix-ms (use `Date.now()`) to pin, `null` to unpin. */
+  pinnedAt?: number | null;
 }
 
 /** Polymorphic reference used by bulk item endpoints and the client
@@ -224,6 +286,10 @@ export interface LoadedFile {
     /** Owner loads only (`x-file-starred-at`); always `null` for share
      *  visitors because stars are private. */
     starredAt: number | null;
+    /** `kind: "file"` only: Content-Type and size of the uploaded bytes
+     *  (`blob` is meaningless for this kind — use the raw/download URLs). */
+    mime?: string | null;
+    sizeBytes?: number | null;
   };
   blob: FileBlob;
   /** Permission when loaded via a share token. Owner-loaded files are 'write'. */
@@ -373,10 +439,16 @@ export const admin = {
 // ─── Folders ──────────────────────────────────────────────────────────
 export const folders = {
   list: () => request<{ folders: FolderMeta[] }>("/api/folders").then((r) => r.folders),
-  create: (body: { name: string; parentId?: string | null; tags?: string[] }) =>
-    postJson<FolderMeta>("/api/folders", body),
-  update: (id: string, body: { name?: string; parentId?: string | null; tags?: string[] }) =>
-    patchJson<FolderMeta>(`/api/folders/${id}`, body),
+  create: (
+    body: { name: string; parentId?: string | null; tags?: string[] } & Omit<
+      FolderMetaInput,
+      "pinnedAt"
+    >,
+  ) => postJson<FolderMeta>("/api/folders", body),
+  update: (
+    id: string,
+    body: { name?: string; parentId?: string | null; tags?: string[] } & FolderMetaInput,
+  ) => patchJson<FolderMeta>(`/api/folders/${id}`, body),
   delete: (id: string) => request<{ ok: true }>(`/api/folders/${id}`, { method: "DELETE" }),
 
   listShares: (id: string) =>
@@ -441,6 +513,13 @@ function buildImportUrl(opts: { name: string; folderId?: string | null }): strin
   return url.pathname + url.search;
 }
 
+function buildUploadUrl(opts: { name: string; folderId?: string | null }): string {
+  const url = new URL("/api/files/upload", location.origin);
+  url.searchParams.set("name", opts.name);
+  if (opts.folderId) url.searchParams.set("folderId", opts.folderId);
+  return url.pathname + url.search;
+}
+
 // ─── Files ────────────────────────────────────────────────────────────
 export const files = {
   list: (query: FilesQuery = {}) =>
@@ -459,6 +538,18 @@ export const files = {
       headers: { "content-type": "application/json" },
       body: file,
     }),
+
+  /** Uploads arbitrary bytes as a `kind: "file"` file (raw request body,
+   *  not multipart). Max `MAX_UPLOAD_BYTES`; the worker answers 413 above
+   *  that. `mime` defaults to `file.type`. */
+  uploadRaw: (file: Blob, opts: { name: string; folderId?: string | null; mime?: string }) =>
+    request<FileMeta>(buildUploadUrl(opts), {
+      method: "POST",
+      headers: { "content-type": opts.mime || file.type || "application/octet-stream" },
+      body: file,
+    }),
+  /** Metadata for any kind (works for uploaded files, which have no JSON blob). */
+  meta: (id: string) => request<FileMeta>(`/api/files/${id}/meta`),
   rename: (id: string, name: string) => patchJson<FileMeta>(`/api/files/${id}`, { name }),
   /** Move a file. `folderId === null` moves to the root level. */
   move: (id: string, folderId: string | null) =>
@@ -517,6 +608,11 @@ export const files = {
 
   /** Same-origin download URL that triggers a `Content-Disposition: attachment`. */
   downloadUrl: (id: string) => `/api/files/${id}/download`,
+
+  /** Inline bytes of a `kind: "file"` file with its stored Content-Type
+   *  (use for `<img>`, `<video>`, PDF `<iframe>`/`<object>`). HTML/SVG are
+   *  served with a sandbox CSP. Supports Range requests. */
+  rawUrl: (id: string) => `/api/files/${id}/raw`,
 
   /** Owner-side file shares. */
   listShares: (id: string) =>
@@ -691,6 +787,9 @@ export const shares = {
   },
 
   downloadUrl: (token: string) => `/api/share/${token}/download`,
+  /** Inline bytes of a shared `kind: "file"` file. */
+  rawUrl: (token: string) => `/api/share/${token}/raw`,
+  folderFileRawUrl: (token: string, fileId: string) => `/api/share/${token}/files/${fileId}/raw`,
 
   /**
    * Resolves a token without committing to file/folder semantics. The
@@ -782,12 +881,24 @@ async function readFileResponse(
   const hasThumb = resp.headers.get("x-file-has-thumb") === "1";
   const starredHeader = resp.headers.get("x-file-starred-at");
   const starredAt = starredHeader ? Number(starredHeader) : null;
+  const sizeHeader = resp.headers.get("x-file-size");
   const sharedBy = parseSharedBy(resp.headers.get("x-share-shared-by"));
   const expHeader = resp.headers.get("x-share-expires-at");
   const shareExpiresAt = expHeader ? Number(expHeader) : null;
   const blob = (await resp.json()) as FileBlob;
   return {
-    meta: { id, name, kind, version, updatedAt, folderId, hasThumb, starredAt },
+    meta: {
+      id,
+      name,
+      kind,
+      version,
+      updatedAt,
+      folderId,
+      hasThumb,
+      starredAt,
+      mime: resp.headers.get("x-file-mime"),
+      sizeBytes: sizeHeader ? Number(sizeHeader) : null,
+    },
     blob,
     permission,
     allowDownload,
