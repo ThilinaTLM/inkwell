@@ -9,7 +9,7 @@
 //     than racing
 //   * `savedFpRef` — fingerprint of the last successfully persisted
 //     content, used to dedup no-op saves
-//   * The 30s `useDebounced` wrapper around the loop, plus `saveNow`
+//   * The 2.5s/15s-max `useDebounced` wrapper around the loop, plus `saveNow`
 //     / `discardPendingLocalWork`
 //   * The `beforeunload` (with `e.returnValue = ""` while dirty) +
 //     `visibilitychange` flush listeners
@@ -27,10 +27,19 @@ import { errorMessage } from "@/lib/errors";
 import type { EditorSaveStatus, SaveLifecycleTransport } from "./types";
 import { useDebounced } from "./useDebounced";
 
-// 30s autosave debounce. Both editors used this exact value
-// independently — keeping it in one place is the whole point of this
-// extraction.
-export const SAVE_DEBOUNCE_MS = 30_000;
+// Autosave timing. 2.5s of idle time after the last change batches a
+// burst of edits (typing, dragging) into one PUT while keeping the
+// window for data loss short; the 15s max-wait guarantees a save even
+// during continuous activity (e.g. a long drawing stroke session).
+// Each save bumps the file version and fires a thumbnail upload, so we
+// stay well above "per keystroke". Ctrl/⌘+S saves immediately.
+export const SAVE_DEBOUNCE_MS = 2_500;
+export const SAVE_MAX_WAIT_MS = 15_000;
+
+/** True for the status message set after a 409 → reload. */
+export function isConflictMessage(msg: string | null): boolean {
+  return !!msg && /^(Refreshed:|Conflict)/.test(msg);
+}
 
 /**
  * Snapshot returned by `getLatest()`. The fingerprint is a cheap
@@ -59,6 +68,7 @@ export interface UseSaveLifecycleOptions<TBlob, TLoaded> {
    *  internal version ref before invoking this. */
   onReload?: (loaded: TLoaded, freshVersion: number) => void;
   debounceMs?: number;
+  maxWaitMs?: number;
 }
 
 export interface UseSaveLifecycleResult {
@@ -92,6 +102,7 @@ export function useSaveLifecycle<TBlob, TLoaded>(
     onSaved,
     onReload,
     debounceMs = SAVE_DEBOUNCE_MS,
+    maxWaitMs = SAVE_MAX_WAIT_MS,
   } = opts;
 
   // A freshly loaded scene matches the server by construction, so the
@@ -206,9 +217,13 @@ export function useSaveLifecycle<TBlob, TLoaded>(
     return task;
   }, []);
 
-  const debouncedSave = useDebounced(() => {
-    void saveLatest();
-  }, debounceMs);
+  const debouncedSave = useDebounced(
+    () => {
+      void saveLatest();
+    },
+    debounceMs,
+    maxWaitMs,
+  );
 
   // ─── Public API ────────────────────────────────────────────────────
   const notifyChange = useCallback(() => {
@@ -220,7 +235,7 @@ export function useSaveLifecycle<TBlob, TLoaded>(
     // content, drop the change. Without this, the editor's onChange
     // (which fires on cursor / selection / zoom / pan ticks for
     // Excalidraw, or on every drawio autosave reply) would queue a
-    // save every 30s of canvas activity even when the user isn't
+    // save every few seconds of canvas activity even when the user isn't
     // editing.
     if (snapshot.fp === savedFpRef.current) {
       if (inflightRef.current) {
@@ -271,7 +286,15 @@ export function useSaveLifecycle<TBlob, TLoaded>(
   // ─── Browser unload guard ──────────────────────────────────────────
   // Live-ref the dirty flag so the listener doesn't re-bind on every
   // status tick.
-  const isDirty = !readOnly && (status === "dirty" || status === "saving" || status === "error");
+  // A conflict reload leaves `status === "error"` but the editor was
+  // re-seeded with the server copy: nothing is unsaved, so it must not
+  // trigger the unload guard. Other errors (offline, 5xx) are real
+  // unsaved work.
+  const isDirty =
+    !readOnly &&
+    (status === "dirty" ||
+      status === "saving" ||
+      (status === "error" && !isConflictMessage(errorMsg)));
   const isDirtyRef = useRef(isDirty);
   useEffect(() => {
     isDirtyRef.current = isDirty;
