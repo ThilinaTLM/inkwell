@@ -49,7 +49,7 @@ export interface Invite {
 export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site" | "file";
 
 /** Largest accepted generic upload (`files.uploadRaw`), in bytes. */
-export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_FILE_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 export interface FileMeta {
   id: string;
@@ -540,7 +540,7 @@ export const files = {
     }),
 
   /** Uploads arbitrary bytes as a `kind: "file"` file (raw request body,
-   *  not multipart). Max `MAX_UPLOAD_BYTES`; the worker answers 413 above
+   *  not multipart). Max `MAX_FILE_UPLOAD_BYTES`; the worker answers 413 above
    *  that. `mime` defaults to `file.type`. */
   uploadRaw: (file: Blob, opts: { name: string; folderId?: string | null; mime?: string }) =>
     request<FileMeta>(buildUploadUrl(opts), {

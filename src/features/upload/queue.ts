@@ -295,16 +295,9 @@ function pump(): void {
 
 class Cancelled extends Error {}
 
-function readConflictPref(): ConflictChoice | null {
-  try {
-    // Tolerate a JSON-encoded string value too.
-    const v = localStorage.getItem(CONFLICT_PREF_KEY)?.replace(/^"|"$/g, "");
-    if (v === "keepBoth" || v === "replace" || v === "skip") return v;
-  } catch {
-    /* storage unavailable */
-  }
-  return null;
-}
+/** Upload conflicts always keep both copies (product decision); the old
+ *  explorer preference (`CONFLICT_PREF_KEY`) is no longer read. */
+const DEFAULT_CONFLICT_CHOICE: ConflictChoice = "keepBoth";
 
 async function runJob(id: string): Promise<void> {
   const rt = runtimes.get(id);
@@ -330,7 +323,7 @@ async function runJob(id: string): Promise<void> {
       if (!rt.reserved) {
         const key = nameKey(job.name);
         if (index.byName.has(key)) {
-          const choice = rt.resolution ?? uploadStore.get().applyAll ?? readConflictPref();
+          const choice = rt.resolution ?? uploadStore.get().applyAll ?? DEFAULT_CONFLICT_CHOICE;
           const existing = index.byName.get(key) ?? null;
           const canReplace = !!existing && existing.kind === job.kind;
           if (!choice) {
