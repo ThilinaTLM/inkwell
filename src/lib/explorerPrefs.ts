@@ -8,7 +8,10 @@
 //   interface SortPref { key: SortKey; dir: "asc" | "desc" }
 //   type ListColumn = "name" | "kind" | "modified" | "created" | "size" | "tags" | "location" | "shared"
 //
+//   type CollectionLayout = "cards" | "list"      – redesign: the only layout pref that survives
+//                                                    stage 3 (key `collectionLayout`, default "cards")
 //   interface ExplorerPrefs {
+//     collectionLayout: CollectionLayout;
 //     defaultView: ExplorerView;                 // "grid"
 //     thumbSize: ThumbSize;                      // "m"
 //     sort: SortPref;                            // { key: "name", dir: "asc" }
@@ -56,7 +59,11 @@ export type ListColumn =
   | "location"
   | "shared";
 
+export type CollectionLayout = "cards" | "list";
+
 export interface ExplorerPrefs {
+  /** Redesign: Cards/List layout of <ItemCollection>, remembered per device. */
+  collectionLayout: CollectionLayout;
   defaultView: ExplorerView;
   thumbSize: ThumbSize;
   sort: SortPref;
@@ -75,6 +82,7 @@ export interface ExplorerPrefs {
 export type ExplorerPrefKey = keyof ExplorerPrefs;
 
 export const EXPLORER_PREF_DEFAULTS: ExplorerPrefs = {
+  collectionLayout: "cards",
   defaultView: "grid",
   thumbSize: "m",
   sort: { key: "name", dir: "asc" },
@@ -119,6 +127,7 @@ function isValid<K extends ExplorerPrefKey>(key: K, v: unknown): v is ExplorerPr
   }
   if (key === "listColumnWidths") return !!v && typeof v === "object" && !Array.isArray(v);
   const allowed: Partial<Record<ExplorerPrefKey, readonly string[]>> = {
+    collectionLayout: ["cards", "list"],
     defaultView: VIEWS,
     thumbSize: THUMB_SIZES,
     detailsPanel: ["hidden", "remember", "always"],
@@ -294,4 +303,9 @@ export function viewKeyFor(ctx: {
 }): string | null {
   if (ctx.currentFolderId !== undefined) return ctx.currentFolderId;
   return `route:${ctx.route}`;
+}
+
+/** Cards/List choice for <ItemCollection>, remembered per device (not per folder). */
+export function useCollectionLayout(): [CollectionLayout, (v: CollectionLayout) => void] {
+  return useExplorerPref("collectionLayout");
 }
