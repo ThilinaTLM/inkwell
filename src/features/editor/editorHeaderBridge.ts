@@ -22,14 +22,26 @@ export interface EditorMenuExtra {
   onSelect: () => void;
 }
 
+/** One "Export as…" format offered by the header (per editor kind). */
+export interface EditorExporter {
+  id: string;
+  /** Short pill label, e.g. "PNG". */
+  label: string;
+  /** One-line description shown under the pill group, e.g. "Image · light background". */
+  hint?: string;
+  /** Produce and download the file. May reject; the header toasts it. */
+  run: () => Promise<void> | void;
+}
+
 export interface EditorHeaderBridge {
   /** `null` when the editor has no save lifecycle (static sites) or
    *  the session is read-only. `"loading"` while the editor is still
    *  booting (draw.io iframe before `init`). */
   status: EditorSaveStatus | "loading" | null;
   errorMessage: string | null;
-  /** Force an immediate save. `null` on read-only sessions. */
-  saveNow: (() => void) | null;
+  /** Force an immediate save; resolves `true` when the server is in sync.
+   *  `null` on read-only sessions. */
+  saveNow: (() => Promise<boolean>) | null;
   /** Persist pending edits and resolve `true` when the server is in
    *  sync (used before duplicate / download / trash). */
   flush: () => Promise<boolean>;
@@ -39,6 +51,8 @@ export interface EditorHeaderBridge {
   requestLeave: (cont: () => void) => void;
   /** Editor-specific entries for the header's ⋯ menu. */
   menuExtras?: EditorMenuExtra[];
+  /** Formats for "Export as…" (Ctrl/⌘+Shift+S). Empty/absent hides Export. */
+  exporters?: EditorExporter[];
   /** Editor-specific controls rendered in the header's right cluster
    *  (Markdown view toggles, static-site "Open"). */
   toolbar?: ReactNode;
@@ -48,7 +62,7 @@ export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
 
 /** Bridge for editors without a save lifecycle (static sites). */
 export function staticBridge(
-  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar"> = {},
+  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar" | "exporters"> = {},
 ): EditorHeaderBridge {
   return {
     status: null,

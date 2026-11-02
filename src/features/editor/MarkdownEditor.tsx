@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import type { FileBlob, LoadedFile, MarkdownNotesFileBlob, NotesFileBlob } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
@@ -18,6 +18,7 @@ import { MarkdownPreview } from "./markdown/MarkdownPreview";
 import { markdownToThumbSvg } from "./markdown/thumb";
 import { loadNotesFont } from "./notes/fontLoader";
 import { fontStack, useNotesPreferences, widthMaxClass } from "./notes/preferences";
+import { downloadText, exportBaseName } from "./shared/exportFile";
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -136,17 +137,54 @@ export default function MarkdownEditor({
   });
   const { saveNow, discardPendingLocalWork } = lifecycle;
   const { requestLeave } = leave;
+  const fileName = loaded.meta.name;
+  const exporters = useMemo<EditorExporter[]>(() => {
+    const base = exportBaseName(fileName);
+    const current = () => latestRef.current.source;
+    return [
+      {
+        id: "md",
+        label: ".md",
+        hint: "The Markdown source as plain text.",
+        run: () => downloadText(current(), `${base}.md`, "text/markdown"),
+      },
+      {
+        id: "html",
+        label: "HTML",
+        hint: "A standalone page with styles included (math loads KaTeX from a CDN).",
+        run: async () => {
+          const { markdownToHtmlDocument } = await import("./markdown/exportHtml");
+          downloadText(
+            await markdownToHtmlDocument(current(), fileName),
+            `${base}.html`,
+            "text/html",
+          );
+        },
+      },
+      {
+        id: "pdf",
+        label: "PDF",
+        hint: "Opens the print dialog — choose “Save as PDF”.",
+        run: async () => {
+          const { printMarkdownAsPdf } = await import("./markdown/exportHtml");
+          await printMarkdownAsPdf(current(), fileName);
+        },
+      },
+    ];
+  }, [fileName]);
   const bridge = useMemo<EditorHeaderBridge>(
     () => ({
       status: source === null ? "loading" : readOnly ? null : lifecycle.status,
       errorMessage: loadError ?? lifecycle.errorMessage,
-      saveNow: readOnly || source === null ? null : () => void saveNow(),
+      saveNow: readOnly || source === null ? null : saveNow,
       flush: saveNow,
       discard: discardPendingLocalWork,
       requestLeave,
       toolbar: <MarkdownEditorChrome />,
+      exporters,
     }),
     [
+      exporters,
       source,
       readOnly,
       loadError,

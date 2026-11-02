@@ -32,12 +32,14 @@ import type { DrawioFileBlob, LoadedFile } from "@/lib/api/client";
 import { useDrawioStyle } from "@/lib/preferences";
 import { type ResolvedTheme, useTheme } from "@/lib/theme";
 import { DrawioSidebarToggles } from "./DrawioSidebarToggles";
-import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import type { EditorSaveStatus } from "./lifecycle/types";
 import { useDebounced } from "./lifecycle/useDebounced";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
+import { dataUrlToBlob, downloadBlob, downloadText, exportBaseName } from "./shared/exportFile";
+import { notifySaved } from "./shared/saveFeedback";
 
 // Re-exported so callers using the legacy name keep building.
 export type DrawioSaveStatus = EditorSaveStatus;
@@ -386,6 +388,45 @@ export default function DrawioEditor({
 
   const debouncedThumb = useDebounced(requestThumbExport, THUMB_DEBOUNCE_MS);
 
+  // User-initiated image export through the embed protocol. One at a
+  // time; the reply arrives in `onMessage` and settles this promise.
+  const pendingExportRef = useRef<{
+    formats: string[];
+    resolve: (data: string) => void;
+    reject: (e: Error) => void;
+    timer: number;
+  } | null>(null);
+  const requestExport = useCallback(
+    (format: "png" | "xmlsvg"): Promise<string> =>
+      new Promise((resolve, reject) => {
+        if (pendingExportRef.current) {
+          reject(new Error("Another export is still running"));
+          return;
+        }
+        const timer = window.setTimeout(() => {
+          pendingExportRef.current = null;
+          reject(new Error("draw.io did not answer — is the diagram still loading?"));
+        }, 30_000);
+        pendingExportRef.current = {
+          formats: format === "png" ? ["png"] : ["svg", "xmlsvg"],
+          resolve,
+          reject,
+          timer,
+        };
+        post({
+          action: "export",
+          format,
+          // Always a light, opaque page so exports look the same in dark mode.
+          theme: "light",
+          background: "#ffffff",
+          scale: 2,
+          border: 16,
+          spin: "Exporting…",
+        });
+      }),
+    [post],
+  );
+
   const lifecycle = useSaveLifecycle<DrawioFileBlob, LoadedFile>({
     initialVersion: loaded.meta.version,
     initialFingerprint: hashXml(initialXml),
@@ -488,12 +529,24 @@ export default function DrawioEditor({
         if (readOnly) return;
         latestXmlRef.current = msg.xml;
         // `save` events are explicit user-triggered saves (Cmd-S in
-        // drawio) — bypass the 30s debounce so they go to the server
+        // drawio) — bypass the autosave debounce so they go to the server
         // immediately. `autosave` events are drawio's debounced
         // change ticks; route them through our own debouncer.
-        if (msg.event === "save") void lifecycle.saveNow();
+        if (msg.event === "save") void lifecycle.saveNow().then((ok) => ok && notifySaved());
         else lifecycle.notifyChange();
         return;
+      }
+
+      // Reply to a user-initiated export (header "Export as…").
+      if (msg.event === "export" && pendingExportRef.current) {
+        const pending = pendingExportRef.current;
+        if (msg.format && pending.formats.includes(msg.format)) {
+          pendingExportRef.current = null;
+          window.clearTimeout(pending.timer);
+          if (msg.data) pending.resolve(msg.data);
+          else pending.reject(new Error(msg.error || "draw.io returned an empty export"));
+          return;
+        }
       }
 
       // Thumb export reply. Honour only the export we asked for and
@@ -627,16 +680,54 @@ export default function DrawioEditor({
 
   const { saveNow, discardPendingLocalWork } = lifecycle;
   const { requestLeave } = leave;
+  const fileName = loaded.meta.name;
+  const exporters = useMemo<EditorExporter[]>(() => {
+    const base = exportBaseName(fileName);
+    return [
+      {
+        id: "drawio",
+        label: ".drawio",
+        hint: "Editable diagram — open it in draw.io or re-upload to Inkwell.",
+        run: () => {
+          const xml = latestXmlRef.current;
+          if (!xml) throw new Error("The diagram is not loaded yet");
+          downloadText(xml, `${base}.drawio`, "application/xml");
+        },
+      },
+      {
+        id: "png",
+        label: "PNG",
+        hint: "Image at 2× resolution on a white background.",
+        run: async () => {
+          const data = await requestExport("png");
+          downloadBlob(dataUrlToBlob(data), `${base}.png`);
+        },
+      },
+      {
+        id: "svg",
+        label: "SVG",
+        hint: "Vector image (embeds the diagram so it stays editable in draw.io).",
+        run: async () => {
+          const data = await requestExport("xmlsvg");
+          const svg = decodeDrawioSvgPayload(data);
+          if (!svg) throw new Error("draw.io returned an empty SVG");
+          downloadText(svg, `${base}.svg`, "image/svg+xml");
+        },
+      },
+    ];
+  }, [fileName, requestExport]);
   const bridge = useMemo<EditorHeaderBridge>(
     () => ({
       status: readOnly ? null : !ready ? "loading" : lifecycle.status,
       errorMessage: lifecycle.errorMessage,
-      saveNow: readOnly ? null : () => void saveNow(),
+      saveNow: readOnly ? null : saveNow,
       flush: saveNow,
       discard: discardPendingLocalWork,
       requestLeave,
+      exporters,
     }),
     [
+      exporters,
       readOnly,
       ready,
       lifecycle.status,

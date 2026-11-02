@@ -29,6 +29,8 @@ import {
   Delete02Icon,
   Download01Icon,
   Edit02Icon,
+  FileExportIcon,
+  FloppyDiskIcon,
   KeyboardIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
@@ -54,6 +56,8 @@ import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
 import { EditorHeader } from "./EditorHeader";
 import { EditorOverlays } from "./EditorOverlays";
 import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import { EditorDropZone } from "./shared/EditorDropZone";
+import { notifySaved } from "./shared/saveFeedback";
 
 const DrawioEditor = lazy(() => import("./DrawioEditor"));
 const ExcalidrawEditor = lazy(() => import("./ExcalidrawEditor"));
@@ -66,7 +70,7 @@ function EditorSuspense({ children }: { children: React.ReactNode }) {
 }
 
 function folderUrl(folderId: string | null): string {
-  return folderId ? `/folders/${folderId}` : "/";
+  return folderId ? `/folders/${folderId}` : "/inbox";
 }
 
 export function EditorPage() {
@@ -87,6 +91,8 @@ export function EditorPage() {
   const [starOverride, setStarOverride] = useState<{ id: string; starred: boolean } | null>(null);
   // Bumped to start the header's inline rename (palette "Rename", F2).
   const [renameNonce, setRenameNonce] = useState(0);
+  // Bumped to open the header's "Export as…" dialog (palette, ⌘⇧S).
+  const [exportNonce, setExportNonce] = useState(0);
   // Latest bridge from the mounted editor (flush / requestLeave for
   // palette-driven actions).
   const bridgeRef = useRef<EditorHeaderBridge | null>(null);
@@ -298,6 +304,25 @@ export function EditorPage() {
         run: () => setRenameNonce((n) => n + 1),
       },
       {
+        id: "file.save",
+        icon: FloppyDiskIcon,
+        label: "Save now",
+        keys: ["mod+s"],
+        group: "file",
+        run: () => {
+          const save = bridgeRef.current?.saveNow;
+          if (save) void save().then((ok) => ok && notifySaved());
+        },
+      },
+      {
+        id: "file.export",
+        icon: FileExportIcon,
+        label: "Export as…",
+        keys: ["mod+shift+s"],
+        group: "file",
+        run: () => setExportNonce((n) => n + 1),
+      },
+      {
         id: "item.star",
         icon: StarIcon,
         label: starred ? "Unstar" : "Star",
@@ -314,7 +339,7 @@ export function EditorPage() {
       {
         id: "item.download",
         icon: Download01Icon,
-        label: "Download",
+        label: "Download original",
         group: "file",
         run: () => void download(),
       },
@@ -347,7 +372,20 @@ export function EditorPage() {
     [starred, toggleStar, duplicate, download, trash, handleBack],
   );
 
-  const overlays = <EditorOverlays file={loaded ? ref : null} overrides={overrides} />;
+  const overlays = (
+    <>
+      <EditorOverlays file={loaded ? ref : null} overrides={overrides} />
+      {loaded ? (
+        <EditorDropZone
+          folderId={loaded.meta.folderId}
+          onOpenFolder={() => {
+            const go = () => navigate(folderUrl(loadedRef.current?.meta.folderId ?? null));
+            bridgeRef.current ? bridgeRef.current.requestLeave(go) : go();
+          }}
+        />
+      ) : null}
+    </>
+  );
 
   // A failed *refetch* keeps the editor (and unsaved work) on screen;
   // only a failed first load shows the error page.
@@ -382,7 +420,7 @@ export function EditorPage() {
         onDownload={() => void download()}
         onEditTags={() => itemActions.editTags([ref])}
         onTrash={() => void trash()}
-        onShowShortcuts={openShortcutSheet}
+        exportNonce={exportNonce}
         conflict={
           conflict
             ? {

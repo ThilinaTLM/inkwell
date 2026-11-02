@@ -15,19 +15,27 @@
 // snapshot construction, fingerprint computation, thumb export.
 // See `useSaveLifecycle` for the shared contract with `DrawioEditor`.
 
-import { Excalidraw } from "@excalidraw/excalidraw";
+import {
+  Excalidraw,
+  exportToBlob,
+  exportToSvg,
+  restore,
+  serializeAsJSON,
+} from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
-import type { EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
+import { fingerprintScene, pickPersistableAppState } from "./excalidrawScene";
 import { renderExcalidrawThumbSvg } from "./excalidrawThumb";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
 import type { EditorSaveStatus } from "./lifecycle/types";
 import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
 import { useThumbPipeline } from "./lifecycle/useThumbPipeline";
+import { downloadBlob, downloadText, exportBaseName } from "./shared/exportFile";
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -89,12 +97,14 @@ export default function ExcalidrawEditor({
   // controlled consumer via the `theme` prop below.
   const { resolved: themeResolved } = useTheme();
 
-  const initialBlob = loaded.blob as ExcalidrawFileBlob;
-  const initialSnapshot = makeExcalidrawSnapshot(
-    (initialBlob.elements as ExcalidrawElement[]) || [],
-    ((initialBlob.appState as Partial<AppState>) || {}) as AppState,
-    (initialBlob.files as BinaryFiles) || {},
+  const initialSnapshot = useMemo(
+    () => normalizedSnapshot(loaded.blob as ExcalidrawFileBlob),
+    [loaded.blob],
   );
+  // The first `onChange` after (re)mount carries Excalidraw's own
+  // normalised scene. It becomes the saved baseline (see `onChange`)
+  // so an untouched file never shows as edited or bumps its version.
+  const baselinedRef = useRef(false);
 
   // Latest snapshot pushed by Excalidraw's onChange. The lifecycle
   // hook reads this through `getLatest()` whenever it needs to
@@ -152,12 +162,8 @@ export default function ExcalidrawEditor({
   // save-version bumps and only changes when a fresh `LoadedFile` is
   // set (initial mount, scene navigation, post-409 reload).
   useEffect(() => {
-    const blob = loaded.blob as ExcalidrawFileBlob;
-    const nextSnapshot = makeExcalidrawSnapshot(
-      (blob.elements as ExcalidrawElement[]) || [],
-      ((blob.appState as Partial<AppState>) || {}) as AppState,
-      (blob.files as BinaryFiles) || {},
-    );
+    const nextSnapshot = normalizedSnapshot(loaded.blob as ExcalidrawFileBlob);
+    baselinedRef.current = false;
     latestSnapshotRef.current = nextSnapshot;
     thumb.reset();
     lifecycle.reset(loaded.meta.version, nextSnapshot.fp);
@@ -187,10 +193,17 @@ export default function ExcalidrawEditor({
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       if (readOnly) return;
-      latestSnapshotRef.current = makeExcalidrawSnapshot(elements, appState, files);
+      const snap = makeExcalidrawSnapshot(elements, appState, files);
+      latestSnapshotRef.current = snap;
+      if (!baselinedRef.current) {
+        baselinedRef.current = true;
+        // Adopt Excalidraw's normalised scene as "what the server has".
+        lifecycle.reset(loaded.meta.version, snap.fp);
+        return;
+      }
       lifecycle.notifyChange();
     },
-    [readOnly, lifecycle],
+    [readOnly, lifecycle, loaded.meta.version],
   );
 
   // ─── In-app navigation guard ────────────────────────────────────────
@@ -205,20 +218,94 @@ export default function ExcalidrawEditor({
     elements: (currentBlob.elements as ExcalidrawElement[]) || [],
     appState: (currentBlob.appState as Partial<AppState>) || {},
     files: (currentBlob.files as BinaryFiles) || {},
+    // Fit the drawing into view on open instead of restoring a stale pan/zoom.
+    scrollToContent: true,
   };
 
   const { saveNow, discardPendingLocalWork } = lifecycle;
   const { requestLeave } = leave;
+  const fileName = loaded.meta.name;
+  const exporters = useMemo<EditorExporter[]>(() => {
+    const scene = () => {
+      const api = apiRef.current;
+      if (!api) throw new Error("The canvas is not ready yet");
+      return {
+        api,
+        elements: api.getSceneElements(),
+        appState: api.getAppState(),
+        files: api.getFiles(),
+      };
+    };
+    // Images are always rendered on a light canvas regardless of the
+    // app theme, so exports are shareable anywhere.
+    const imageState = (appState: AppState) => ({
+      ...appState,
+      exportBackground: true,
+      exportWithDarkMode: false,
+      exportScale: 2,
+    });
+    const base = exportBaseName(fileName);
+    return [
+      {
+        id: "excalidraw",
+        label: ".excalidraw",
+        hint: "Editable scene — reopen it in Excalidraw or re-upload to Inkwell.",
+        run: () => {
+          const { api, appState, files } = scene();
+          downloadText(
+            serializeAsJSON(api.getSceneElementsIncludingDeleted(), appState, files, "local"),
+            `${base}.excalidraw`,
+            "application/json",
+          );
+        },
+      },
+      {
+        id: "png",
+        label: "PNG",
+        hint: "Image at 2× resolution on a light background.",
+        run: async () => {
+          const { elements, appState, files } = scene();
+          if (elements.length === 0) throw new Error("Nothing to export — the canvas is empty");
+          const blob = await exportToBlob({
+            elements,
+            appState: imageState(appState),
+            files,
+            mimeType: "image/png",
+            exportPadding: 24,
+          });
+          downloadBlob(blob, `${base}.png`);
+        },
+      },
+      {
+        id: "svg",
+        label: "SVG",
+        hint: "Vector image on a light background.",
+        run: async () => {
+          const { elements, appState, files } = scene();
+          if (elements.length === 0) throw new Error("Nothing to export — the canvas is empty");
+          const svg = await exportToSvg({
+            elements,
+            appState: imageState(appState),
+            files,
+            exportPadding: 24,
+          });
+          downloadText(new XMLSerializer().serializeToString(svg), `${base}.svg`, "image/svg+xml");
+        },
+      },
+    ];
+  }, [fileName]);
   const bridge = useMemo<EditorHeaderBridge>(
     () => ({
       status: readOnly ? null : lifecycle.status,
       errorMessage: lifecycle.errorMessage,
-      saveNow: readOnly ? null : () => void saveNow(),
+      saveNow: readOnly ? null : saveNow,
       flush: saveNow,
       discard: discardPendingLocalWork,
       requestLeave,
+      exporters,
     }),
     [
+      exporters,
       readOnly,
       lifecycle.status,
       lifecycle.errorMessage,
@@ -275,6 +362,24 @@ export default function ExcalidrawEditor({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+/** Snapshot of a stored blob after Excalidraw's own `restore()` normalisation. */
+function normalizedSnapshot(blob: ExcalidrawFileBlob): ExcalidrawSnapshot {
+  const restored = restore(
+    {
+      elements: (blob.elements as ExcalidrawElement[]) || [],
+      appState: ((blob.appState as Partial<AppState>) || {}) as AppState,
+      files: (blob.files as BinaryFiles) || {},
+    } as Parameters<typeof restore>[0],
+    null,
+    null,
+  );
+  return makeExcalidrawSnapshot(
+    restored.elements,
+    restored.appState as AppState,
+    (blob.files as BinaryFiles) || {},
+  );
+}
+
 function makeExcalidrawSnapshot(
   elements: readonly ExcalidrawElement[],
   appState: AppState,
@@ -286,93 +391,4 @@ function makeExcalidrawSnapshot(
     files,
     fp: fingerprintScene(elements, appState, files),
   };
-}
-
-// Cheap O(n) fingerprint of the meaningful scene state — used to dedup
-// autosaves so cursor/selection/zoom/pan ticks don't trigger network I/O.
-//
-// Element-side signal: Excalidraw bumps `element.version` on any real
-// mutation (create, move, resize, text edit, style, z-order, delete) and
-// leaves it alone for transient UI state. So a rolling hash of per-element
-// versions captures "did the document change" without serialising element
-// bodies.
-//
-// AppState-side signal: a whitelist of persisted-relevant fields. Covers
-// (a) document settings (background, grid, theme, name, zen/snap modes)
-// and (b) the `currentItem*` style memory — colors / fonts / stroke /
-// arrowheads / roundness — because changing those is a real user action
-// that doesn't bump any element version. Anything not on this list
-// (cursor coords, selection, zoom, scrollX/Y, active tool, hover state,
-// editing flags, etc.) is intentionally ignored.
-//
-// File-side signal: sorted file-key list (catches added/removed images;
-// content edits to an existing image change the fileId, hence the key).
-function fingerprintScene(
-  elements: readonly ExcalidrawElement[],
-  appState: Partial<AppState>,
-  files: BinaryFiles,
-): string {
-  let elemHash = elements.length | 0;
-  for (let i = 0; i < elements.length; i++) {
-    const v = ((elements[i] as { version?: number }).version ?? 0) | 0;
-    elemHash = (elemHash * 31 + v) | 0;
-  }
-  const a = appState as Partial<AppState> & Record<string, unknown>;
-  const appPart = [
-    a.viewBackgroundColor ?? "",
-    a.gridModeEnabled ? 1 : 0,
-    a.gridSize ?? "",
-    // Theme is an app-level preference (see src/lib/theme.tsx) and is
-    // controlled via Excalidraw's `theme` prop, so it's intentionally
-    // not part of the dirty fingerprint and is stripped from the
-    // persisted blob in pickPersistableAppState.
-    a.name ?? "",
-    a.zenModeEnabled ? 1 : 0,
-    a.objectsSnapModeEnabled ? 1 : 0,
-    // Current-item style memory — user-chosen defaults for the next shape.
-    a.currentItemStrokeColor ?? "",
-    a.currentItemBackgroundColor ?? "",
-    a.currentItemFillStyle ?? "",
-    a.currentItemStrokeWidth ?? "",
-    a.currentItemStrokeStyle ?? "",
-    a.currentItemRoughness ?? "",
-    a.currentItemOpacity ?? "",
-    a.currentItemFontFamily ?? "",
-    a.currentItemFontSize ?? "",
-    a.currentItemTextAlign ?? "",
-    a.currentItemStartArrowhead ?? "",
-    a.currentItemEndArrowhead ?? "",
-    a.currentItemRoundness ?? "",
-    a.currentItemArrowType ?? "",
-  ].join("|");
-  const fileKeys = Object.keys(files);
-  const filePart = fileKeys.length === 0 ? "" : fileKeys.sort().join(",");
-  return `${elemHash}|${appPart}|${filePart}`;
-}
-
-// Strip transient appState that isn't meaningful to persist.
-function pickPersistableAppState(
-  appState: AppState,
-  fallbackName: string,
-): Record<string, unknown> {
-  const {
-    collaborators: _c,
-    cursorButton: _cb,
-    isLoading: _il,
-    errorMessage: _em,
-    draggingElement: _de,
-    editingElement: _ee,
-    selectionElement: _se,
-    multiElement: _me,
-    suggestedBindings: _sb,
-    pendingImageElementId: _pi,
-    contextMenu: _cm,
-    showHyperlinkPopup: _hp,
-    snapLines: _sl,
-    originSnapOffset: _osn,
-    // Theme is owned app-side now; don't persist it on the blob.
-    theme: _t,
-    ...rest
-  } = appState as unknown as Record<string, unknown>;
-  return { ...rest, name: (rest.name as string | undefined) || fallbackName };
 }

@@ -1,15 +1,18 @@
-// EditorHeader — the single 44px bar above every editor (screen 20 of
-// docs/wireframes/inkwell-redesign.html).
+// EditorHeader — the single slim bar above every editor.
 //
-//   [←] ⌂ › Folder › Sub › [kind] name  ✓ Saved · v12   ···toolbar  ☆ [Share] ⋯ ⌨ (avatar)
+//   [←] Project / Folder / name   ✓ Saved   ···kind slot   [Share] ⋯
 //
-// Owner mode (`EditorPage`): clickable breadcrumb, inline rename,
-// star, Share, ⋯ menu (Rename / Move / Duplicate / Download / Tags /
-// Trash), shortcuts and the account menu.
+// Light by design: it shares the page background with the canvas
+// (Excalidraw / draw.io / Markdown) and carries only a hairline.
+// Left: back, muted breadcrumb, inline-editable display-font title and
+// the save state. Right: the kind-specific `bridge.toolbar` slot,
+// Share and the ⋯ menu (Export as…, Duplicate, Move to…, Rename, Tags…,
+// Download original, Move to Trash). The shortcut sheet and account
+// menu live elsewhere (⌘⇧/ and the app shell).
 //
-// Visitor mode (`SharedEditorPage`, `visitor` prop): no owner actions;
-// shows "Shared · View only / Can edit" and a download button when the
-// link allows it.
+// Owner mode (`EditorPage`) vs. visitor mode (`SharedEditorPage`,
+// `visitor` prop: no owner actions; "Shared · View only / Can edit"
+// chip and Download / Export when the link allows it).
 //
 // Save state comes from the editor's own lifecycle through the
 // `EditorHeaderBridge` (see `./editorHeaderBridge.ts`); every
@@ -17,6 +20,9 @@
 // the editor's leave-confirm dialog still guards unsaved work.
 //
 // Keyboard (⌘K / the shortcut sheet are wired by `EditorOverlays`):
+//   • mod+S          save now (capture phase, preventDefault: beats
+//                    Excalidraw's file dialog / the browser's Save Page)
+//   • mod+shift+S    Export as…
 //   • mod+[          back (window listener, bubble phase — editors that
 //                    consume the chord themselves, e.g. Excalidraw's
 //                    "send backward" while editing, keep it)
@@ -27,17 +33,15 @@
 import {
   Alert02Icon,
   ArrowLeft01Icon,
-  ArrowRight01Icon,
   CheckmarkCircle02Icon,
   Copy01Icon,
   Delete02Icon,
   Download01Icon,
   Edit02Icon,
   EyeIcon,
+  FileExportIcon,
   FolderExportIcon,
   HashtagIcon,
-  Home01Icon,
-  KeyboardIcon,
   Loading03Icon,
   MoreHorizontalIcon,
   PencilEdit02Icon,
@@ -57,7 +61,6 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { FileKindGlyph } from "@/components/icons/file-kind-icons";
-import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -73,7 +76,10 @@ import { folderPath } from "@/features/folders/FolderTree";
 import type { FileKind } from "@/lib/api/client";
 import { expiresPhrase } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ExportDialog } from "./ExportDialog";
 import type { EditorHeaderBridge } from "./editorHeaderBridge";
+import { isConflictMessage } from "./lifecycle/useSaveLifecycle";
+import { notifySaved } from "./shared/saveFeedback";
 
 export interface EditorHeaderFile {
   id: string;
@@ -102,7 +108,7 @@ export interface EditorHeaderProps {
   backLabel?: string;
   /** Visitor (share-token) mode. Hides every owner action. */
   visitor?: EditorHeaderVisitor | null;
-  /** Navigate to a breadcrumb folder (`null` = Home). Owner only. */
+  /** Navigate to a breadcrumb folder (`null` = Inbox). Owner only. */
   onNavigateFolder?: (folderId: string | null) => void;
   /** Commit an inline rename. Resolve `false` to keep the field open. */
   onRename?: (next: string) => Promise<boolean>;
@@ -111,19 +117,21 @@ export interface EditorHeaderProps {
   onShare?: () => void;
   onMove?: () => void;
   onDuplicate?: () => void;
+  /** Download the stored original file. */
   onDownload?: () => void;
   onEditTags?: () => void;
   onTrash?: () => void;
-  /** Opens the shortcut sheet. The shortcuts button is hidden without it. */
-  onShowShortcuts?: () => void;
   /** Bump to start the inline rename from outside (palette / menus). */
   renameNonce?: number;
+  /** Bump to open "Export as…" from outside (palette). */
+  exportNonce?: number;
   /** Non-blocking conflict banner (another tab/device saved a newer version). */
   conflict?: { onReload: () => void; onDismiss: () => void } | null;
 }
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = IS_MAC ? "⌘" : "Ctrl+";
+const SHIFT = IS_MAC ? "⇧" : "Shift+";
 
 function isTypingTarget(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
@@ -136,6 +144,7 @@ export function EditorHeader(props: EditorHeaderProps) {
   const isVisitor = !!visitor;
   const canRename = !isVisitor && !!onRename;
   const [renaming, setRenaming] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const me = useMe();
 
   const goBack = useCallback(() => {
@@ -143,11 +152,13 @@ export function EditorHeader(props: EditorHeaderProps) {
     bridge.requestLeave(onBack);
   }, [bridge, onBack]);
 
-  // Live refs so the window listener binds once.
+  // Live refs so the window listeners bind once.
   const goBackRef = useRef(goBack);
   goBackRef.current = goBack;
   const canRenameRef = useRef(canRename);
   canRenameRef.current = canRename;
+  const bridgeRef = useRef(bridge);
+  bridgeRef.current = bridge;
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -167,6 +178,25 @@ export function EditorHeader(props: EditorHeaderProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Save / export chords run in the capture phase so they win over
+  // Excalidraw's own Ctrl+S (file dialog) and the browser's Save Page.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey || e.code !== "KeyS") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        if (bridgeRef.current.exporters?.length) setExportOpen(true);
+        return;
+      }
+      const save = bridgeRef.current.saveNow;
+      if (save) void save().then((ok) => ok && notifySaved());
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
   // Esc Esc while focus is inside the header.
   const lastEscRef = useRef(0);
   const onHeaderKeyDown = (e: KeyboardEvent<HTMLElement>) => {
@@ -181,17 +211,24 @@ export function EditorHeader(props: EditorHeaderProps) {
     }
   };
 
-  // Start the inline rename when the nonce changes after mount (a
-  // remounted header must not reopen a rename requested earlier).
-  const { renameNonce = 0 } = props;
+  // Start the inline rename / export when a nonce changes after mount
+  // (a remounted header must not reopen something requested earlier).
+  const { renameNonce = 0, exportNonce = 0 } = props;
   const seenNonceRef = useRef(renameNonce);
   useEffect(() => {
     if (renameNonce === seenNonceRef.current) return;
     seenNonceRef.current = renameNonce;
     if (canRenameRef.current) setRenaming(true);
   }, [renameNonce]);
+  const seenExportRef = useRef(exportNonce);
+  useEffect(() => {
+    if (exportNonce === seenExportRef.current) return;
+    seenExportRef.current = exportNonce;
+    if (bridgeRef.current.exporters?.length) setExportOpen(true);
+  }, [exportNonce]);
 
   const readOnly = isVisitor && visitor.permission !== "write";
+  const exporters = bridge.exporters ?? [];
 
   return (
     <div className="relative z-20 shrink-0">
@@ -199,9 +236,7 @@ export function EditorHeader(props: EditorHeaderProps) {
         role="toolbar"
         aria-label="File"
         onKeyDown={onHeaderKeyDown}
-        className={cn(
-          "flex h-11 items-center gap-1 border-b border-border/70 bg-background px-1.5 sm:gap-1.5 sm:px-2",
-        )}
+        className="flex h-12 items-center gap-1 border-b border-border/50 bg-background px-2 sm:gap-1.5 sm:px-3"
       >
         {onBack ? (
           <Button
@@ -215,7 +250,7 @@ export function EditorHeader(props: EditorHeaderProps) {
           </Button>
         ) : null}
 
-        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-0.5 text-sm">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
           {isVisitor ? null : (
             <OwnerCrumbs
               folderId={file.folderId}
@@ -246,7 +281,7 @@ export function EditorHeader(props: EditorHeaderProps) {
                 title="Rename (F2)"
                 data-testid="editor-file-name"
                 className={cn(
-                  "min-w-0 max-w-[16rem] truncate rounded-sm px-1 py-0.5 font-heading font-semibold text-foreground sm:max-w-[28rem]",
+                  "min-w-0 max-w-[16rem] truncate rounded-md px-1.5 py-0.5 font-display text-[15px] font-medium text-foreground sm:max-w-[28rem]",
                   "cursor-text hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                 )}
               >
@@ -256,7 +291,7 @@ export function EditorHeader(props: EditorHeaderProps) {
               <span
                 title={file.name}
                 data-testid="editor-file-name"
-                className="min-w-0 max-w-[16rem] truncate px-1 font-heading font-semibold text-foreground sm:max-w-[28rem]"
+                className="min-w-0 max-w-[16rem] truncate px-1.5 font-display text-[15px] font-medium text-foreground sm:max-w-[28rem]"
               >
                 {file.name}
               </span>
@@ -278,27 +313,20 @@ export function EditorHeader(props: EditorHeaderProps) {
         ) : null}
 
         {isVisitor ? (
-          <VisitorActions visitor={visitor} extras={bridge.menuExtras} />
+          <VisitorActions
+            visitor={visitor}
+            extras={bridge.menuExtras}
+            onExport={exporters.length ? () => setExportOpen(true) : undefined}
+          />
         ) : (
-          <OwnerActions {...props} onRenameRequest={() => setRenaming(true)} />
+          <OwnerActions
+            {...props}
+            onRenameRequest={() => setRenaming(true)}
+            onExportRequest={exporters.length ? () => setExportOpen(true) : undefined}
+          />
         )}
 
-        {props.onShowShortcuts ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden sm:inline-flex"
-            onClick={props.onShowShortcuts}
-            aria-label="Keyboard shortcuts"
-            title={`Keyboard shortcuts (${MOD}⇧/)`}
-          >
-            <HugeiconsIcon icon={KeyboardIcon} strokeWidth={1.8} />
-          </Button>
-        ) : null}
-
-        {me.data ? (
-          <UserMenu user={me.data} />
-        ) : isVisitor && !me.isPending ? (
+        {isVisitor && !me.data && !me.isPending ? (
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/login" />}>
             Sign in
           </Button>
@@ -306,6 +334,13 @@ export function EditorHeader(props: EditorHeaderProps) {
       </header>
 
       {props.conflict ? <ConflictBanner {...props.conflict} /> : null}
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        fileName={file.name}
+        exporters={exporters}
+      />
     </div>
   );
 }
@@ -321,45 +356,32 @@ function OwnerCrumbs({
 }) {
   const foldersQuery = useFolders();
   const path = folderId && foldersQuery.data ? folderPath(foldersQuery.data, folderId) : [];
-  // Collapse long paths: Home › first › … › last two.
-  const shown =
-    path.length > 3
-      ? [path[0], null, path[path.length - 2], path[path.length - 1]]
-      : (path as Array<(typeof path)[number] | null>);
+  // Collapse long paths: first › … › last two. Loose files show "Inbox".
+  const shown: Array<(typeof path)[number] | null> =
+    path.length > 3 ? [path[0], null, path[path.length - 2], path[path.length - 1]] : path;
 
   const sep = (
-    <HugeiconsIcon
-      icon={ArrowRight01Icon}
-      strokeWidth={2}
-      aria-hidden
-      className="size-3 shrink-0 text-muted-foreground/60"
-    />
+    <span aria-hidden className="shrink-0 text-muted-foreground/50">
+      /
+    </span>
   );
+  const crumb =
+    "hidden min-w-0 max-w-[10rem] truncate rounded-md px-1.5 py-0.5 text-muted-foreground md:inline hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => onNavigate(null)}
-        title="Home"
-        aria-label="Home"
-        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-      >
-        <HugeiconsIcon icon={Home01Icon} strokeWidth={1.8} className="size-4" />
-      </button>
-      {sep}
+      {folderId === null ? (
+        <>
+          <button type="button" onClick={() => onNavigate(null)} className={crumb}>
+            Inbox
+          </button>
+          <span className="hidden md:inline">{sep}</span>
+        </>
+      ) : null}
       {shown.map((f, i) =>
         f ? (
-          <span key={f.id} className="flex min-w-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => onNavigate(f.id)}
-              title={f.name}
-              className={cn(
-                "hidden min-w-0 max-w-[10rem] truncate rounded-sm px-1 py-0.5 text-muted-foreground md:inline",
-                "hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              )}
-            >
+          <span key={f.id} className="flex min-w-0 items-center gap-1">
+            <button type="button" onClick={() => onNavigate(f.id)} title={f.name} className={crumb}>
               {f.name}
             </button>
             <span className="hidden md:inline">{sep}</span>
@@ -368,7 +390,7 @@ function OwnerCrumbs({
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: the ellipsis slot is positional
             key={`ellipsis-${i}`}
-            className="hidden items-center gap-0.5 text-muted-foreground md:flex"
+            className="hidden items-center gap-1 text-muted-foreground md:flex"
           >
             …{sep}
           </span>
@@ -441,16 +463,12 @@ function InlineRename({
       }}
       onBlur={() => void commit()}
       size={Math.min(Math.max(value.length + 1, 8), 48)}
-      className="h-7 min-w-0 rounded-md border border-input bg-background px-1.5 font-heading text-sm font-semibold text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+      className="h-7 min-w-0 rounded-md border border-input bg-background px-1.5 font-display text-[15px] font-medium text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
     />
   );
 }
 
 // ─── Save indicator ──────────────────────────────────────────────────
-
-function isConflictMessage(msg: string | null): boolean {
-  return !!msg && /^(Refreshed:|Conflict)/.test(msg);
-}
 
 function useOnline(): boolean {
   const [online, setOnline] = useState(() =>
@@ -493,8 +511,8 @@ function SaveIndicator({ bridge, version }: { bridge: EditorHeaderBridge; versio
       break;
     case "dirty":
       icon = <span aria-hidden className="size-1.5 rounded-full bg-primary" />;
-      label = "Edited";
-      title = "Unsaved changes — click to save now";
+      label = "Unsaved changes";
+      title = `Unsaved changes — click or press ${MOD}S to save now`;
       tone = "text-foreground";
       interactive = !!saveNow;
       break;
@@ -520,8 +538,8 @@ function SaveIndicator({ bridge, version }: { bridge: EditorHeaderBridge; versio
       break;
     default:
       icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
-      label = `Saved · v${version}`;
-      title = `All changes saved (version ${version})`;
+      label = "Saved";
+      title = `All changes saved · version ${version} · ${MOD}S to save`;
   }
 
   const cls = cn(
@@ -534,7 +552,7 @@ function SaveIndicator({ bridge, version }: { bridge: EditorHeaderBridge; versio
     return (
       <button
         type="button"
-        onClick={saveNow}
+        onClick={() => void saveNow().then((ok) => ok && notifySaved())}
         title={title}
         aria-label={title}
         data-testid="editor-save-state"
@@ -594,15 +612,28 @@ function VisitorChip({ visitor }: { visitor: EditorHeaderVisitor }) {
 function VisitorActions({
   visitor,
   extras,
+  onExport,
 }: {
   visitor: EditorHeaderVisitor;
   extras?: EditorHeaderBridge["menuExtras"];
+  onExport?: () => void;
 }) {
   if (!visitor.allowDownload) return null;
   return (
     <>
+      {onExport ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExport}
+          title={`Export as… (${MOD}${SHIFT}S)`}
+        >
+          <HugeiconsIcon icon={FileExportIcon} strokeWidth={1.8} />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
+      ) : null}
       {visitor.onDownload ? (
-        <Button variant="outline" size="sm" onClick={visitor.onDownload} title="Download">
+        <Button variant="outline" size="sm" onClick={visitor.onDownload} title="Download original">
           <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
           <span className="hidden sm:inline">Download</span>
         </Button>
@@ -644,27 +675,11 @@ function OwnerActions({
   onTrash,
   onRename,
   onRenameRequest,
-}: EditorHeaderProps & { onRenameRequest: () => void }) {
+  onExportRequest,
+}: EditorHeaderProps & { onRenameRequest: () => void; onExportRequest?: () => void }) {
   const extras = bridge.menuExtras ?? [];
   return (
     <>
-      {onToggleStar ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleStar}
-          aria-pressed={!!starred}
-          aria-label={starred ? "Unstar" : "Star"}
-          title={starred ? "Unstar" : "Star"}
-          data-testid="editor-star"
-        >
-          <HugeiconsIcon
-            icon={StarIcon}
-            strokeWidth={1.8}
-            className={cn(starred && "fill-amber-400 text-amber-500")}
-          />
-        </Button>
-      ) : null}
       {onShare ? (
         <Button variant="outline" size="sm" onClick={onShare} title="Share">
           <HugeiconsIcon icon={Share08Icon} strokeWidth={1.8} />
@@ -686,17 +701,14 @@ function OwnerActions({
           }
         />
         <DropdownMenuContent align="end" className="w-auto min-w-56">
-          {onRename ? (
-            <DropdownMenuItem onClick={onRenameRequest}>
-              <HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />
-              Rename
-              <DropdownMenuShortcut>F2</DropdownMenuShortcut>
-            </DropdownMenuItem>
-          ) : null}
-          {onMove ? (
-            <DropdownMenuItem onClick={onMove}>
-              <HugeiconsIcon icon={FolderExportIcon} strokeWidth={1.8} />
-              Move to…
+          {onExportRequest ? (
+            <DropdownMenuItem onClick={onExportRequest} data-testid="editor-export">
+              <HugeiconsIcon icon={FileExportIcon} strokeWidth={1.8} />
+              Export as…
+              <DropdownMenuShortcut>
+                {MOD}
+                {SHIFT}S
+              </DropdownMenuShortcut>
             </DropdownMenuItem>
           ) : null}
           {onDuplicate ? (
@@ -705,10 +717,33 @@ function OwnerActions({
               Duplicate
             </DropdownMenuItem>
           ) : null}
-          {onDownload ? (
-            <DropdownMenuItem onClick={onDownload}>
-              <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
-              Download
+          {onMove ? (
+            <DropdownMenuItem onClick={onMove}>
+              <HugeiconsIcon icon={FolderExportIcon} strokeWidth={1.8} />
+              Move to…
+            </DropdownMenuItem>
+          ) : null}
+          {onRename ? (
+            <DropdownMenuItem onClick={onRenameRequest}>
+              <HugeiconsIcon icon={Edit02Icon} strokeWidth={1.8} />
+              Rename
+              <DropdownMenuShortcut>F2</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          ) : null}
+          {onEditTags ? (
+            <DropdownMenuItem onClick={onEditTags}>
+              <HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />
+              Tags…
+            </DropdownMenuItem>
+          ) : null}
+          {onToggleStar ? (
+            <DropdownMenuItem onClick={onToggleStar} data-testid="editor-star">
+              <HugeiconsIcon
+                icon={StarIcon}
+                strokeWidth={1.8}
+                className={cn(starred && "fill-amber-400 text-amber-500")}
+              />
+              {starred ? "Unstar" : "Star"}
             </DropdownMenuItem>
           ) : null}
           {extras.map((x) => (
@@ -717,10 +752,10 @@ function OwnerActions({
               {x.label}
             </DropdownMenuItem>
           ))}
-          {onEditTags ? (
-            <DropdownMenuItem onClick={onEditTags}>
-              <HugeiconsIcon icon={HashtagIcon} strokeWidth={1.8} />
-              Tags…
+          {onDownload ? (
+            <DropdownMenuItem onClick={onDownload}>
+              <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
+              Download original
             </DropdownMenuItem>
           ) : null}
           {onTrash ? (
