@@ -4,8 +4,8 @@
 // read auth state via `useMe()` from `@/data/auth`. The route
 // table only owns path-to-component mapping and the admin guard.
 //
-// Signed-in app pages live under the `AppShell` layout route (top bar,
-// sidebar, details column, global overlays, keyboard shortcuts).
+// Signed-in app pages live under the `AppShell` layout route (sidebar,
+// mobile bottom bar, global overlays, keyboard shortcuts).
 // Editors (`/f/:id`), public share pages and auth pages stay outside
 // the shell so they keep their own chrome and never receive the
 // single-key shortcuts.
@@ -17,13 +17,12 @@ import { useMe } from "@/data/auth";
 import { UsersPage } from "@/features/admin/UsersPage";
 import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { ExplorerPage } from "@/features/explorer/ExplorerPage";
-import { RecentPage } from "@/features/library/RecentPage";
-import { StarredPage } from "@/features/library/StarredPage";
-import { TagPage } from "@/features/library/TagPage";
-import { TrashPage } from "@/features/library/TrashPage";
+import { FilesPage } from "@/features/pages/FilesPage";
+import { FolderPage } from "@/features/pages/FolderPage";
+import { HomePage } from "@/features/pages/HomePage";
+import { InboxPage } from "@/features/pages/InboxPage";
+import { ProjectsPage } from "@/features/pages/ProjectsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
-import { SharesPage } from "@/features/sharing/SharesPage";
 
 const EditorPage = lazy(() =>
   import("@/features/editor/EditorPage").then((module) => ({ default: module.EditorPage })),
@@ -55,14 +54,20 @@ export function AppRoutes() {
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
       <Route element={<AppShell />}>
-        <Route path="/" element={<ExplorerPage />} />
-        <Route path="/folders/:folderId" element={<ExplorerPage />} />
-        <Route path="/recent" element={<RecentPage />} />
-        <Route path="/starred" element={<StarredPage />} />
-        <Route path="/trash" element={<TrashPage />} />
-        <Route path="/tags/:tag" element={<TagPage />} />
-        <Route path="/shares" element={<SharesPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/folders/:folderId" element={<FolderPage />} />
+        <Route path="/files/:tab?" element={<FilesPage />} />
         <Route path="/settings/:section?" element={<SettingsPage />} />
+        {/* Legacy library routes → Files hub tabs. */}
+        <Route path="/recent" element={<Navigate to="/files/recent" replace />} />
+        <Route path="/starred" element={<Navigate to="/files/starred" replace />} />
+        <Route path="/trash" element={<Navigate to="/files/trash" replace />} />
+        <Route path="/shares" element={<Navigate to="/files/shared" replace />} />
+        <Route path="/tags/:tag" element={<Navigate to="/files" replace />} />
+        {/* TODO(settings owner): /users moves into Settings → Admin; until
+            that section exists the old page stays reachable. */}
         <Route
           path="/users/:tab?"
           element={
