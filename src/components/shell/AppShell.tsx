@@ -38,6 +38,7 @@ import { AppSidebar } from "./AppSidebar";
 import { CommandPalette } from "./CommandPalette";
 import { MobileBottomBar } from "./MobileBottomBar";
 import { ShortcutSheet } from "./ShortcutSheet";
+import { SidebarResizeHandle } from "./SidebarResizeHandle";
 import { setIsMobile, setSidebarOpen, toggleSidebar, useShellState } from "./shellStore";
 
 const InShellContext = createContext(false);
@@ -95,6 +96,7 @@ export function AppShell() {
 
   const sidebarOpen = useShellState((s) => s.sidebarOpen);
   const mobileSidebarOpen = useShellState((s) => s.mobileSidebarOpen);
+  const sidebarWidth = useShellState((s) => s.sidebarWidth);
 
   if (!me.data) return null; // App.tsx redirects anonymous users to /login.
   const user = me.data;
@@ -104,8 +106,12 @@ export function AppShell() {
       <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
         <div className="flex min-h-0 flex-1">
           {!isMobile && sidebarOpen ? (
-            <aside className="w-[248px] shrink-0 border-r border-sidebar-border bg-sidebar">
+            <aside
+              className="relative shrink-0 border-r border-sidebar-border bg-sidebar"
+              style={{ width: sidebarWidth }}
+            >
               <AppSidebar user={user} />
+              <SidebarResizeHandle />
             </aside>
           ) : null}
           <main id="main" className="flex min-w-0 flex-1 flex-col">
