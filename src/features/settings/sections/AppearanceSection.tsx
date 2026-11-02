@@ -3,9 +3,9 @@
 // (`inkwell:notes:font`) via useNotesPreferences: Sans = Inter, Serif =
 // Source Serif. The draw.io style stays on its default ("auto") with no UI.
 
+import { Segmented } from "@/components/ui/segmented";
 import { NOTES_FONTS, useNotesPreferences } from "@/features/editor/notes/preferences";
 import { type ThemeMode, useTheme } from "@/lib/theme";
-import { Segmented } from "../controls";
 import { Row, SettingsCard } from "../SettingsCard";
 
 type NoteFontKind = "sans" | "serif";

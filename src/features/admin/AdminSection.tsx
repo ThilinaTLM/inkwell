@@ -16,6 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ChipGroup } from "@/components/ui/chip-group";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,6 @@ import {
   useUpdateAdminUser,
 } from "@/data/admin";
 import { confirmDialog } from "@/features/dialogs/dialogStore";
-import { ChipGroup } from "@/features/settings/controls";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import type { AdminUser, Invite } from "@/lib/api/client";
 import { copyToClipboard } from "@/lib/clipboard";
