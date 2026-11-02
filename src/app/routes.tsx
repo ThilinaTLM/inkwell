@@ -13,8 +13,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AppShell } from "@/components/shell/AppShell";
-import { useMe } from "@/data/auth";
-import { UsersPage } from "@/features/admin/UsersPage";
 import { InviteAcceptPage } from "@/features/auth/InviteAcceptPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { FilesPage } from "@/features/pages/FilesPage";
@@ -59,23 +57,17 @@ export function AppRoutes() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/folders/:folderId" element={<FolderPage />} />
         <Route path="/files/:tab?" element={<FilesPage />} />
-        <Route path="/settings/:section?" element={<SettingsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         {/* Legacy library routes → Files hub tabs. */}
         <Route path="/recent" element={<Navigate to="/files/recent" replace />} />
         <Route path="/starred" element={<Navigate to="/files/starred" replace />} />
         <Route path="/trash" element={<Navigate to="/files/trash" replace />} />
         <Route path="/shares" element={<Navigate to="/files/shared" replace />} />
         <Route path="/tags/:tag" element={<Navigate to="/files" replace />} />
-        {/* TODO(settings owner): /users moves into Settings → Admin; until
-            that section exists the old page stays reachable. */}
-        <Route
-          path="/users/:tab?"
-          element={
-            <RequireAdmin>
-              <UsersPage />
-            </RequireAdmin>
-          }
-        />
+        {/* Users & invites live in Settings → Admin; retired settings panes
+            fall back to the single Settings page. */}
+        <Route path="/users/:tab?" element={<Navigate to="/settings#admin" replace />} />
+        <Route path="/settings/:section" element={<SettingsSectionRoute />} />
       </Route>
 
       <Route path="/f/:id" element={lazyRoute(<EditorPage />)} />
@@ -100,11 +92,14 @@ export function AppRoutes() {
   );
 }
 
-function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const me = useMe();
-  if (me.isPending) return null;
-  if (!me.data?.isAdmin) return <Navigate to="/" replace />;
-  return <>{children}</>;
+const RETIRED_SETTINGS_SECTIONS = new Set(["explorer", "shortcuts", "editors", "tags"]);
+
+// `/settings/:section` scrolls to a section of the one-page Settings;
+// retired panes redirect to plain `/settings`.
+function SettingsSectionRoute() {
+  const { section = "" } = useParams<{ section: string }>();
+  if (RETIRED_SETTINGS_SECTIONS.has(section)) return <Navigate to="/settings" replace />;
+  return <SettingsPage />;
 }
 
 // Legacy redirect: `/s/:id` was the editor URL before the scene → file

@@ -1,19 +1,25 @@
-// Settings → Appearance: theme (device-local) plus a pointer to editor
-// styles, which live under Editors.
+// Settings → Appearance: colour theme and note typeface (both device-local).
+// The note font reuses the markdown editor's stored preference
+// (`inkwell:notes:font`) via useNotesPreferences: Sans = Inter, Serif =
+// Source Serif. The draw.io style stays on its default ("auto") with no UI.
 
-import { Link } from "react-router-dom";
-import { useDrawioStylePref } from "@/lib/preferences";
+import { NOTES_FONTS, useNotesPreferences } from "@/features/editor/notes/preferences";
 import { type ThemeMode, useTheme } from "@/lib/theme";
-import { Segmented, SettingRow, SettingsGroup } from "../controls";
+import { Segmented } from "../controls";
+import { Row, SettingsCard } from "../SettingsCard";
+
+type NoteFontKind = "sans" | "serif";
 
 export function AppearanceSection() {
   const { mode, setMode, resolved } = useTheme();
-  const [drawio] = useDrawioStylePref();
+  const notes = useNotesPreferences();
+  const current = NOTES_FONTS.find((f) => f.value === notes.font);
+  const kind: NoteFontKind = current?.family === "Serif" ? "serif" : "sans";
   return (
-    <SettingsGroup title="Theme" description="Stored on this device.">
-      <SettingRow
-        label="Color theme"
-        help={mode === "system" ? `Following your OS (${resolved})` : undefined}
+    <SettingsCard id="appearance" title="Appearance" description="Stored on this device.">
+      <Row
+        label="Theme"
+        help={mode === "system" ? `Following your system (${resolved})` : undefined}
       >
         <Segmented<ThemeMode>
           ariaLabel="Theme"
@@ -25,18 +31,21 @@ export function AppearanceSection() {
             { value: "system", label: "System" },
           ]}
         />
-      </SettingRow>
-      <SettingRow label="Editor style" help="draw.io chrome and Markdown typography">
-        <span className="text-[13px] text-muted-foreground">
-          draw.io: <b className="font-medium text-foreground">{drawio}</b>
+      </Row>
+      <Row label="Note font" help="Used when reading and writing Markdown notes.">
+        <Segmented<NoteFontKind>
+          ariaLabel="Note font"
+          value={kind}
+          onChange={(next) => notes.setFont(next === "serif" ? "source-serif" : "inter")}
+          options={[
+            { value: "sans", label: "Sans" },
+            { value: "serif", label: "Serif" },
+          ]}
+        />
+        <span className="text-sm text-muted-foreground" style={{ fontFamily: current?.stack }}>
+          The quick brown fox
         </span>
-        <Link
-          to="/settings/editors"
-          className="text-xs text-primary underline-offset-4 hover:underline"
-        >
-          Configure in Editors →
-        </Link>
-      </SettingRow>
-    </SettingsGroup>
+      </Row>
+    </SettingsCard>
   );
 }

@@ -1,6 +1,6 @@
 // AuthShell — centered single-card layout for unauthenticated routes
 // (Login, InviteAccept). A clean elevated card with the brand lockup
-// and a display-serif title, centered on the flat page background.
+// above it and a display-serif title, centered on the paper background.
 
 import type { ReactNode } from "react";
 import { InkwellLogo } from "@/components/InkwellLogo";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 interface AuthShellProps {
   title?: ReactNode;
   description?: ReactNode;
-  /** Small print under the card body (inside the card). */
+  /** Small print under the card. */
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -19,22 +19,18 @@ interface AuthShellProps {
 export function AuthShell({ title, description, footer, children, className }: AuthShellProps) {
   return (
     <Surface variant="page" className="grid place-items-center overflow-hidden px-4 py-10">
-      <main className="relative z-10 w-full max-w-[24rem]">
+      <main className="relative z-10 flex w-full max-w-[26rem] flex-col items-center gap-6">
+        <InkwellLogo size="md" className="text-foreground" />
         <div
           className={cn(
-            "relative rounded-xl border border-border bg-card p-7 text-card-foreground",
-            "shadow-[0_8px_30px_-12px_rgba(28,24,20,0.18)] dark:shadow-[0_18px_40px_-14px_rgba(0,0,0,0.55)]",
+            "w-full rounded-2xl border border-border bg-card p-7 text-card-foreground shadow-card sm:p-8",
             className,
           )}
         >
-          <div className="mb-4 flex items-center text-foreground">
-            <InkwellLogo />
-          </div>
-
           {(title || description) && (
-            <div className="mb-5 flex flex-col gap-0.5">
+            <div className="mb-6 flex flex-col gap-1">
               {title && (
-                <h1 className="font-display text-[28px] leading-tight font-medium text-foreground">
+                <h1 className="font-display text-[30px] leading-tight font-medium tracking-tight text-foreground">
                   {title}
                 </h1>
               )}
@@ -43,11 +39,10 @@ export function AuthShell({ title, description, footer, children, className }: A
           )}
 
           {children}
-
-          {footer && (
-            <div className="mt-4 text-center text-xs text-muted-foreground/80">{footer}</div>
-          )}
         </div>
+        {footer && (
+          <p className="max-w-[22rem] text-center text-xs text-muted-foreground">{footer}</p>
+        )}
       </main>
     </Surface>
   );

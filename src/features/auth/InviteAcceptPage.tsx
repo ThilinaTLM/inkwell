@@ -12,6 +12,7 @@ import { AuthShell } from "@/features/auth/AuthShell";
 import { type ApiError, invites, type MeResponse, type User } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
+import { expiresPhrase } from "@/lib/format";
 
 export function InviteAcceptPage() {
   const { token } = useParams<{ token: string }>();
@@ -114,7 +115,7 @@ export function InviteAcceptPage() {
       description="Create your Inkwell account."
       footer={
         expiresAt
-          ? `Invite expires ${new Date(expiresAt).toLocaleString()}.`
+          ? `This invite ${expiresPhrase(expiresAt) ?? "expires soon"}.`
           : "Welcome to Inkwell."
       }
     >
