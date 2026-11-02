@@ -504,6 +504,14 @@ export default function DrawioEditor({
           const next = ensureSlots(iframeRef.current, drawioStyle);
           if (next) setSlots(next);
         }
+        // Keystrokes inside the iframe never reach the parent window:
+        // forward the editor chords (save, export, palette, shortcut
+        // sheet) so they behave like in every other editor.
+        const doc = iframeRef.current?.contentDocument;
+        if (doc && !forwardedDocs.has(doc)) {
+          forwardedDocs.add(doc);
+          doc.addEventListener("keydown", forwardEditorChord, true);
+        }
         post({
           action: "load",
           xml: latestXmlRef.current,
@@ -769,6 +777,30 @@ export default function DrawioEditor({
         onSaveAndLeave={() => void leave.saveAndLeave()}
       />
     </div>
+  );
+}
+
+// Documents (one per iframe load) that already carry the chord forwarder.
+const forwardedDocs = new WeakSet<Document>();
+
+/** Re-dispatches Inkwell's editor chords from the iframe onto the host window. */
+function forwardEditorChord(e: KeyboardEvent): void {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+  const forward =
+    e.code === "KeyS" || (e.code === "KeyK" && !e.shiftKey) || (e.code === "Slash" && e.shiftKey);
+  if (!forward) return;
+  e.preventDefault();
+  e.stopPropagation();
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      code: e.code,
+      key: e.key,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      shiftKey: e.shiftKey,
+      bubbles: true,
+      cancelable: true,
+    }),
   );
 }
 

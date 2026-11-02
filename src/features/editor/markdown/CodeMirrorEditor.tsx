@@ -5,6 +5,7 @@ import {
   completionKeymap,
 } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { html } from "@codemirror/lang-html";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
@@ -27,6 +28,10 @@ interface CodeMirrorEditorProps {
   readOnly: boolean;
   dark: boolean;
   fontFamily: string;
+  /** Syntax mode. Defaults to Markdown. */
+  language?: "markdown" | "html";
+  /** Accessible name of the text area. */
+  ariaLabel?: string;
 }
 
 function markdownHighlightStyle(dark: boolean) {
@@ -90,6 +95,11 @@ function markdownHighlightStyle(dark: boolean) {
     { tag: [tags.number, tags.bool, tags.null], color: palette.number },
     { tag: [tags.string, tags.regexp], color: palette.code },
     { tag: tags.comment, color: palette.syntax, fontStyle: "italic" },
+    // HTML / CSS / JS (single-file HTML artifacts)
+    { tag: [tags.tagName, tags.angleBracket], color: palette.keyword },
+    { tag: tags.attributeName, color: palette.number },
+    { tag: tags.attributeValue, color: palette.code },
+    { tag: [tags.propertyName, tags.function(tags.variableName)], color: palette.url },
   ]);
 }
 
@@ -133,6 +143,8 @@ export function CodeMirrorEditor({
   readOnly,
   dark,
   fontFamily,
+  language = "markdown",
+  ariaLabel,
 }: CodeMirrorEditorProps) {
   const hostRef = useRef<HTMLElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -140,7 +152,7 @@ export function CodeMirrorEditor({
   const suppressChangeRef = useRef(false);
   const editable = useRef(new Compartment()).current;
   const theme = useRef(new Compartment()).current;
-  const mountConfig = useRef({ value, readOnly, dark, fontFamily }).current;
+  const mountConfig = useRef({ value, readOnly, dark, fontFamily, language, ariaLabel }).current;
   onChangeRef.current = onChange;
 
   useEffect(() => {
@@ -160,8 +172,12 @@ export function CodeMirrorEditor({
         highlightActiveLine(),
         highlightSelectionMatches(),
         EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ "aria-label": "Markdown source editor" }),
-        markdown(),
+        EditorView.contentAttributes.of({
+          "aria-label":
+            mountConfig.ariaLabel ??
+            (mountConfig.language === "html" ? "HTML source editor" : "Markdown source editor"),
+        }),
+        mountConfig.language === "html" ? html() : markdown(),
         keymap.of([
           ...closeBracketsKeymap,
           ...defaultKeymap,
@@ -223,5 +239,13 @@ export function CodeMirrorEditor({
     suppressChangeRef.current = false;
   }, [value]);
 
-  return <section ref={hostRef} className="h-full min-h-0" aria-label="Markdown source editor" />;
+  return (
+    <section
+      ref={hostRef}
+      className="h-full min-h-0"
+      aria-label={
+        ariaLabel ?? (language === "html" ? "HTML source editor" : "Markdown source editor")
+      }
+    />
+  );
 }
