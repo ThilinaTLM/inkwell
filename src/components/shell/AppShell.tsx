@@ -1,14 +1,11 @@
 // Authenticated layout route: AppSidebar + <Outlet/> (+ mobile bottom bar) +
-// legacy right details column + global overlays. No top bar, no status bar.
+// global overlays. No top bar, no status bar.
 //
 // PUBLIC CONTRACT
 //   <AppShell />                 – use as a layout route element (RequireAuth built in)
 //   useShell(): {
 //     sidebarOpen: boolean;      // desktop: expanded; mobile: drawer open
 //     toggleSidebar(): void;     // also ⌘\ / Ctrl+\ (view.sidebar)
-//     detailsOpen: boolean;
-//     setDetailsOpen(open: boolean): void;
-//     toggleDetails(): void;     // also `I` (view.details)
 //     isMobile: boolean;         // < 768px
 //   }
 //   useInShell(): boolean        – true inside the shell (AppPage uses it to drop its own chrome)
@@ -41,14 +38,7 @@ import { AppSidebar } from "./AppSidebar";
 import { CommandPalette } from "./CommandPalette";
 import { MobileBottomBar } from "./MobileBottomBar";
 import { ShortcutSheet } from "./ShortcutSheet";
-import {
-  setDetailsOpen,
-  setIsMobile,
-  setSidebarOpen,
-  toggleDetails,
-  toggleSidebar,
-  useShellState,
-} from "./shellStore";
+import { setIsMobile, setSidebarOpen, toggleSidebar, useShellState } from "./shellStore";
 
 const InShellContext = createContext(false);
 
@@ -58,12 +48,8 @@ export function useInShell(): boolean {
 
 export function useShell() {
   const sidebarOpen = useShellState((s) => (s.isMobile ? s.mobileSidebarOpen : s.sidebarOpen));
-  const detailsOpen = useShellState((s) => s.detailsOpen);
   const isMobile = useShellState((s) => s.isMobile);
-  return useMemo(
-    () => ({ sidebarOpen, toggleSidebar, detailsOpen, setDetailsOpen, toggleDetails, isMobile }),
-    [sidebarOpen, detailsOpen, isMobile],
-  );
+  return useMemo(() => ({ sidebarOpen, toggleSidebar, isMobile }), [sidebarOpen, isMobile]);
 }
 
 function currentFolderFromPath(pathname: string): string | null | undefined {

@@ -3,7 +3,6 @@
 // PUBLIC CONTRACT
 //   shellStore – createStore<ShellState>
 //   toggleSidebar() / setSidebarOpen(open)
-//   setDetailsOpen(open) / toggleDetails()
 //   openPalette(initialQuery?) / closePalette()
 //   openShortcutSheet() / closeShortcutSheet()
 //   useShellState(selector)
@@ -16,7 +15,6 @@ export interface ShellState {
   /** Desktop: sidebar expanded. Mobile: drawer open. */
   sidebarOpen: boolean;
   mobileSidebarOpen: boolean;
-  detailsOpen: boolean;
   paletteOpen: boolean;
   paletteQuery: string;
   sheetOpen: boolean;
@@ -24,7 +22,6 @@ export interface ShellState {
 }
 
 const SIDEBAR_KEY = "inkwell.shell.sidebarOpen";
-const DETAILS_KEY = "inkwell.shell.detailsOpen";
 
 function readBool(key: string, fallback: boolean): boolean {
   try {
@@ -46,7 +43,6 @@ function writeBool(key: string, v: boolean) {
 export const shellStore = createStore<ShellState>({
   sidebarOpen: typeof localStorage === "undefined" ? true : readBool(SIDEBAR_KEY, true),
   mobileSidebarOpen: false,
-  detailsOpen: typeof localStorage === "undefined" ? false : readBool(DETAILS_KEY, false),
   paletteOpen: false,
   paletteQuery: "",
   sheetOpen: false,
@@ -70,15 +66,6 @@ export function setSidebarOpen(open: boolean): void {
 export function toggleSidebar(): void {
   const s = shellStore.get();
   setSidebarOpen(s.isMobile ? !s.mobileSidebarOpen : !s.sidebarOpen);
-}
-
-export function setDetailsOpen(open: boolean): void {
-  writeBool(DETAILS_KEY, open);
-  shellStore.set((s) => (s.detailsOpen === open ? s : { ...s, detailsOpen: open }));
-}
-
-export function toggleDetails(): void {
-  setDetailsOpen(!shellStore.get().detailsOpen);
 }
 
 export function openPalette(initialQuery = ""): void {
