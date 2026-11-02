@@ -81,6 +81,16 @@ export async function streamFileResponse(
   row: FileRow,
   opts: { download?: boolean; includeFolderId?: boolean } = {},
 ): Promise<Response> {
+  if (row.kind === "file") {
+    // Uploaded files are binary: `/raw` and `/download` serve the bytes.
+    // The plain blob read answers with a small JSON descriptor (plus the
+    // usual `x-file-*` headers) so share viewers can discover the kind.
+    if (opts.download) return await streamRawFile(env, row, { download: true });
+    return jsonResponse(
+      { kind: "file", mime: safeMime(row.mime), sizeBytes: row.size_bytes },
+      { headers: fileHeaders(row, opts.includeFolderId) },
+    );
+  }
   const obj = await env.R2.get(r2FileKey(row.id));
   if (!obj) return errorResponse(404, "file blob missing in R2");
   const headers: Record<string, string> = {
@@ -154,6 +164,109 @@ export async function streamFileResponse(
   return new Response(obj.body, { headers });
 }
 
+function fileHeaders(row: FileRow, includeFolderId?: boolean): Record<string, string> {
+  const headers: Record<string, string> = {
+    etag: `"${row.version}"`,
+    "x-file-id": row.id,
+    "x-file-name": encodeURIComponent(row.name),
+    "x-file-kind": row.kind,
+    "x-file-version": String(row.version),
+    "x-file-updated-at": String(row.updated_at),
+    "x-file-has-thumb": row.has_thumb ? "1" : "0",
+    "x-file-mime": safeMime(row.mime),
+    "x-file-size": String(row.size_bytes),
+    "cache-control": "no-store",
+  };
+  if (includeFolderId) {
+    headers["x-file-folder-id"] = row.folder_id ?? "";
+    headers["x-file-starred-at"] = row.starred_at === null ? "" : String(row.starred_at);
+  }
+  return headers;
+}
+
+// ─── Uploaded files (kind = "file") ──────────────────────────────────
+// The bytes live at the standard blob key with the upload's Content-Type
+// in R2 httpMetadata.
+
+const MIME_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+
+/** Normalize a client-supplied Content-Type to a bare, well-formed
+ *  `type/subtype` (parameters dropped); anything else becomes
+ *  `application/octet-stream`. */
+export function safeMime(input: string | null | undefined): string {
+  const base = (input ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  return MIME_RE.test(base) ? base : "application/octet-stream";
+}
+
+/** Types a browser may execute or render with its own origin's powers when
+ *  navigated to directly. They are served with `Content-Security-Policy:
+ *  sandbox` so scripts, forms and same-origin access are all denied. */
+export function isActiveMime(mime: string): boolean {
+  return (
+    mime === "text/html" ||
+    mime === "application/xhtml+xml" ||
+    mime === "image/svg+xml" ||
+    mime === "text/xml" ||
+    mime === "application/xml" ||
+    mime.endsWith("+xml")
+  );
+}
+
+function contentDisposition(kind: "inline" | "attachment", name: string): string {
+  const ascii = safeFilename(name)
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/%/g, "_");
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name.slice(0, 200))}`;
+}
+
+/** Serve a `kind = "file"` blob. `download` → attachment; otherwise inline
+ *  with the stored Content-Type. Supports a single `Range` (video/audio
+ *  seeking, PDF streaming). Hardening: `nosniff` always, and `sandbox` CSP
+ *  for active content (HTML/SVG/XML). */
+export async function streamRawFile(
+  env: { R2: R2Bucket },
+  row: FileRow,
+  opts: { download?: boolean; request?: Request } = {},
+): Promise<Response> {
+  const wantsRange = opts.request?.headers.has("range") ?? false;
+  const obj = await env.R2.get(
+    r2FileKey(row.id),
+    wantsRange && opts.request ? { range: opts.request.headers } : undefined,
+  );
+  if (!obj) return errorResponse(404, "file blob missing in R2");
+  const mime = safeMime(row.mime ?? obj.httpMetadata?.contentType);
+  const headers: Record<string, string> = {
+    "content-type": mime,
+    "content-disposition": contentDisposition(opts.download ? "attachment" : "inline", row.name),
+    "x-content-type-options": "nosniff",
+    "accept-ranges": "bytes",
+    etag: obj.httpEtag,
+    "cache-control": "private, no-cache",
+    "x-file-id": row.id,
+    "x-file-kind": row.kind,
+    "x-file-mime": mime,
+  };
+  if (isActiveMime(mime)) headers["content-security-policy"] = "sandbox";
+
+  const total = obj.size;
+  const range = obj.range;
+  if (wantsRange && range) {
+    let start = 0;
+    let end = total - 1;
+    if ("suffix" in range) {
+      start = Math.max(0, total - range.suffix);
+    } else {
+      start = range.offset ?? 0;
+      end = range.length !== undefined ? start + range.length - 1 : total - 1;
+    }
+    headers["content-range"] = `bytes ${start}-${end}/${total}`;
+    headers["content-length"] = String(end - start + 1);
+    return new Response(obj.body, { status: 206, headers });
+  }
+  headers["content-length"] = String(total);
+  return new Response(obj.body, { headers });
+}
+
 // `scenes/` here is a historical R2 key prefix kept to avoid a blob copy
 // during the scenes → files rename. The function name reflects the
 // product vocabulary; the storage layout is unchanged.
@@ -185,6 +298,9 @@ function downloadExtensionForKind(kind: FileKind): "excalidraw" | "drawio" | "zi
     case "static-site":
       // Re-packaged ZIP — see `streamFileResponse` for the build.
       return "zip";
+    case "file":
+      // Served by `streamRawFile`, which uses the stored filename as-is.
+      throw new Error("uploaded files are served by streamRawFile");
     default:
       return assertNever(kind);
   }

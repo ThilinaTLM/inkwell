@@ -102,6 +102,13 @@ export const folders = sqliteTable(
     deleted_at: integer("deleted_at"),
     trashed_via: text("trashed_via"),
     starred_at: integer("starred_at"),
+    // Project metadata (migration 0004). Curated keys are validated in
+    // `routes/folders.ts`; see `lib/folder-meta.ts`.
+    icon: text("icon"),
+    color: text("color"),
+    description: text("description"),
+    status: text("status", { enum: ["active", "paused", "done"] }),
+    pinned_at: integer("pinned_at"),
   },
   (t) => [
     // Hot path: list children of a folder, list roots, sort by name.
@@ -131,11 +138,13 @@ export const files = sqliteTable(
       onDelete: "set null",
     }),
     name: text("name").notNull().default("Untitled"),
-    kind: text("kind", { enum: ["excalidraw", "drawio", "notes", "static-site"] })
+    kind: text("kind", { enum: ["excalidraw", "drawio", "notes", "static-site", "file"] })
       .notNull()
       .default("excalidraw"),
     version: integer("version").notNull().default(1),
     size_bytes: integer("size_bytes").notNull().default(0),
+    // Content-Type of a generic uploaded file (`kind = 'file'`); NULL otherwise.
+    mime: text("mime"),
     has_thumb: integer("has_thumb", { mode: "boolean" }).notNull().default(false),
     // Cache-bust token for the thumbnail. Bumped to `now()` on every
     // successful `putThumb`. Decoupled from `version` (which represents

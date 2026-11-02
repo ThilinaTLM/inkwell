@@ -169,6 +169,7 @@ export function buildMeta(
     tags,
     version: row.version,
     sizeBytes: row.size_bytes,
+    mime: row.mime ?? null,
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
     activeShareCount: extras.activeShareCount ?? 0,
