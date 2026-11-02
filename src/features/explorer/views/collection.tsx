@@ -69,6 +69,7 @@ import type { ItemRef } from "@/lib/api/client";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
 import { formatKeys } from "@/lib/commands/keymap";
 import { getEffectiveKeys, registerCommands, runCommand } from "@/lib/commands/registry";
+import { startItemDrag, useIsDragSource, useItemDropTargets } from "@/lib/dnd/itemDnd";
 import {
   type ExplorerView,
   getExplorerPref,
@@ -79,10 +80,9 @@ import {
   useFolderView,
 } from "@/lib/explorerPrefs";
 import { getSelection, parseRefKey } from "@/lib/selection";
-import { cn } from "@/lib/utils";
-import { startItemDrag, useIsDragSource, useItemDropTargets } from "@/lib/dnd/itemDnd";
-import type { ExplorerItem } from "../model";
 import { type NavKey, type NavLayout, navKeyFromEvent, nextIndex } from "@/lib/selection-logic";
+import { cn } from "@/lib/utils";
+import type { ExplorerItem } from "../model";
 import {
   dispatchSelection,
   getSelState,

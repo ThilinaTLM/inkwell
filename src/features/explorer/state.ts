@@ -12,8 +12,8 @@
 //         (AppShell only keeps a selection written during the new route's commit).
 
 import { getSelection, parseRefKey, refKey, selectionStore, setSelection } from "@/lib/selection";
+import { EMPTY_SEL, type SelAction, type SelState, selectionReducer } from "@/lib/selection-logic";
 import { createStore, useStore } from "@/lib/store";
-import { EMPTY_SEL, type SelAction, type SelState, selectionReducer } from "./selection-logic";
 
 const anchors = new Map<string, string | null>();
 
