@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Project } from "@/data/home";
-import { relativeTime as relTime } from "@/features/collection/relativeTime";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ProjectMenuItems, useTogglePin } from "./ProjectMenuItems";
 

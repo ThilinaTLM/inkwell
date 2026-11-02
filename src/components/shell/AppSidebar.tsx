@@ -8,7 +8,7 @@
 //   + New project
 //   footer: uploads indicator · Settings · account menu
 //
-// Drop-target attributes follow features/explorer/dnd/itemDnd.ts:
+// Drop-target attributes follow lib/dnd/itemDnd.ts:
 //   Inbox  data-drop-folder="root"      project  data-drop-folder="<id>"
 
 import {

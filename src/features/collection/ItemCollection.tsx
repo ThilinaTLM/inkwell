@@ -19,14 +19,14 @@
 //   />
 //
 // Behaviour
-//   • single selection model: features/explorer/selection-logic (click, ⇧ range, arrows) mirrored
+//   • single selection model: lib/selection-logic (click, ⇧ range, arrows) mirrored
 //     into the global selection store so registry commands (Enter, F2, Delete, S, ⇧S …) and the
 //     context menu act on it.
 //   • click selects · double-click opens · touch tap opens · ⌘/Ctrl-click and middle-click open in
 //     a new tab · ⌘/Ctrl+A selects all · arrows/Home/End move focus.
 //   • right-click menu: Open · Open in new tab · Share… · Star · Rename · Move to… · Duplicate ·
 //     Download · Tags… · Move to Trash.
-//   • drag items onto folders / sidebar projects / the Inbox row (features/explorer/dnd).
+//   • drag items onto folders / sidebar projects / the Inbox row (lib/dnd).
 
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -45,14 +45,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFolders } from "@/data/folders";
 import { folderPathLabel } from "@/features/actions/itemCache";
 import { itemActions } from "@/features/actions/useItemActions";
-import { startItemDrag, useItemDropTargets } from "@/features/explorer/dnd/itemDnd";
+import { startItemDrag, useItemDropTargets } from "@/lib/dnd/itemDnd";
 import {
   EMPTY_SEL,
   type NavLayout,
   navKeyFromEvent,
   nextIndex,
   selectionReducer,
-} from "@/features/explorer/selection-logic";
+} from "@/lib/selection-logic";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
 import { onCommandSignal } from "@/lib/commands/signals";
 import { type CollectionLayout, useCollectionLayout } from "@/lib/explorerPrefs";

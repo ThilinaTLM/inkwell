@@ -16,7 +16,7 @@ import { type FolderMeta, files as filesApi } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { cn } from "@/lib/utils";
 import { type ExplorerItem, fileToItem, folderToItem } from "../model";
-import type { NavKey } from "../selection-logic";
+import type { NavKey } from "@/lib/selection-logic";
 import { getSelState, requestPendingSelection, useSelectedKeys } from "../state";
 import { Collection, type ExplorerViewProps, itemStateClass, useItemBindings } from "./collection";
 import { ItemName } from "./ItemName";

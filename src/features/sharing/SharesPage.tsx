@@ -18,6 +18,7 @@ import { FilesSearch } from "@/features/library/FilesSearch";
 import { TargetIcon } from "@/features/library/TargetIcon";
 import { expiresIn } from "@/features/library/time";
 import type { Share } from "@/lib/api/client";
+import { fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { copyShareLink } from "./ShareDialog";
 import { ShareEditDialog } from "./ShareEditDialog";
@@ -184,7 +185,7 @@ export function SharedTab() {
                           status === "expiring" && "text-warning",
                           status === "expired" && "text-destructive",
                         )}
-                        title={s.expiresAt ? new Date(s.expiresAt).toLocaleString() : undefined}
+                        title={s.expiresAt ? fmtDateTime(s.expiresAt) : undefined}
                       >
                         {expiresIn(s.expiresAt, now)}
                       </span>

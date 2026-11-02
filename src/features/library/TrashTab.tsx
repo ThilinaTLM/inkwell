@@ -11,10 +11,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useItemActions } from "@/features/actions/useItemActions";
 import { trash } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
+import { fmtDateTime, relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FilesSearch } from "./FilesSearch";
 import { TargetIcon } from "./TargetIcon";
-import { deletesIn, relativeTime } from "./time";
+import { deletesIn } from "./time";
 
 const DAY = 86_400_000;
 
@@ -111,12 +112,10 @@ export function TrashTab() {
                   </div>
                 </div>
                 <div className="flex flex-col text-right text-xs max-md:hidden">
-                  <span className="text-muted-foreground">
-                    Deleted {relativeTime(t.deletedAt, now)}
-                  </span>
+                  <span className="text-muted-foreground">Deleted {relTime(t.deletedAt, now)}</span>
                   <span
                     className={cn("text-faint", soon && "text-destructive")}
-                    title={new Date(t.purgeAt).toLocaleString()}
+                    title={fmtDateTime(t.purgeAt)}
                   >
                     {deletesIn(t.purgeAt, now)}
                   </span>

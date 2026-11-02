@@ -37,6 +37,7 @@ import type { FileKind, Share, SharePermission, ShareTargetType } from "@/lib/ap
 import { copyToClipboard } from "@/lib/clipboard";
 import { isMacPlatform } from "@/lib/commands/keymap";
 import { errorMessage } from "@/lib/errors";
+import { fmtDateTime } from "@/lib/format";
 import { shareUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { AllowDownloadField } from "./fields/AllowDownloadField";
@@ -281,7 +282,7 @@ function ActiveLinkRow({
       </span>
       <span
         className={cn("w-32 text-right text-xs text-muted-foreground", expiring && "text-warning")}
-        title={share.expiresAt ? new Date(share.expiresAt).toLocaleString() : "Never expires"}
+        title={share.expiresAt ? fmtDateTime(share.expiresAt) : "Never expires"}
       >
         {expiresIn(share.expiresAt, now)}
       </span>

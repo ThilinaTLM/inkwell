@@ -26,7 +26,6 @@ import { folderPathLabel } from "@/features/actions/itemCache";
 import { ITEM_MENU_IDS } from "@/features/actions/itemCommands";
 import { itemActions } from "@/features/actions/useItemActions";
 import { TargetIcon } from "@/features/library/TargetIcon";
-import { relativeTime } from "@/features/library/time";
 import { type FileMeta, type FolderMeta, files, type ItemRef } from "@/lib/api/client";
 import { keys } from "@/lib/api/query-keys";
 import { fuzzyFilter, highlightSegments } from "@/lib/commands/fuzzy";
@@ -43,6 +42,7 @@ import {
   useCommandContext,
   useCommandList,
 } from "@/lib/commands/registry";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Kbd } from "./Kbd";
 import { closePalette, useShellState } from "./shellStore";
@@ -247,7 +247,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
     sub: [
       folderPathLabel(allFolders, f.folderId),
       ...f.tags.map((t) => `#${t}`),
-      withTime ? relativeTime(f.updatedAt) : "",
+      withTime ? relTime(f.updatedAt) : "",
     ]
       .filter(Boolean)
       .join(" · "),

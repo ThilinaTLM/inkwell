@@ -80,9 +80,9 @@ import {
 } from "@/lib/explorerPrefs";
 import { getSelection, parseRefKey } from "@/lib/selection";
 import { cn } from "@/lib/utils";
-import { startItemDrag, useIsDragSource, useItemDropTargets } from "../dnd/itemDnd";
+import { startItemDrag, useIsDragSource, useItemDropTargets } from "@/lib/dnd/itemDnd";
 import type { ExplorerItem } from "../model";
-import { type NavKey, type NavLayout, navKeyFromEvent, nextIndex } from "../selection-logic";
+import { type NavKey, type NavLayout, navKeyFromEvent, nextIndex } from "@/lib/selection-logic";
 import {
   dispatchSelection,
   getSelState,

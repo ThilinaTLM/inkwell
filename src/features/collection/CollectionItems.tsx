@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { itemActions } from "@/features/actions/useItemActions";
-import { useIsDragSource } from "@/features/explorer/dnd/itemDnd";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
+import { useIsDragSource } from "@/lib/dnd/itemDnd";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CollectionPreview, KindIcon } from "./CollectionPreview";
 import { COLLECTION_MENU_IDS } from "./menus";
 import { type CollectionItem, formatBytes, kindLabel } from "./model";
-import { relativeTime as relTime } from "./relativeTime";
 
 export interface ItemHandlers {
   onItemClick(item: CollectionItem, e: MouseEvent): void;

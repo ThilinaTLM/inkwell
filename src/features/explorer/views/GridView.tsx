@@ -9,7 +9,7 @@ import { relTime } from "@/lib/format";
 import { useSelectionCount } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 import { type ExplorerItem, kindLabel } from "../model";
-import type { NavLayout } from "../selection-logic";
+import type { NavLayout } from "@/lib/selection-logic";
 import { Collection, type ExplorerViewProps, itemStateClass, useItemBindings } from "./collection";
 import { ItemName, SelectCheck } from "./ItemName";
 import { ItemBadges, ItemIcon, ItemThumb } from "./ItemVisuals";

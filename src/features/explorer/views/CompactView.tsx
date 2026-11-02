@@ -5,7 +5,7 @@
 import { memo, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ExplorerItem } from "../model";
-import type { NavLayout } from "../selection-logic";
+import type { NavLayout } from "@/lib/selection-logic";
 import { Collection, type ExplorerViewProps, itemStateClass, useItemBindings } from "./collection";
 import { ItemName } from "./ItemName";
 import { ItemIcon, StarMark } from "./ItemVisuals";
