@@ -1,15 +1,12 @@
 // Files hub (`/files/:tab?`): All · Recent · Starred · Shared · Trash.
-// Stage 1: "All" is a flat, type-filterable ItemCollection; the other tabs
-// host the legacy library pages until Stage 2 replaces them.
+// Every tab is built on ItemCollection (All/Recent/Starred) or a matching
+// grouped/list view (Shared, Trash).
 
 import { Link, Navigate, useParams } from "react-router-dom";
 import { PageContainer, PageHeader } from "@/components/PageHeader";
-import { useFiles } from "@/data/files";
-import { ItemCollection, toCollectionItems } from "@/features/collection";
-import { RecentPage } from "@/features/library/RecentPage";
-import { StarredPage } from "@/features/library/StarredPage";
-import { TrashPage } from "@/features/library/TrashPage";
-import { SharesPage } from "@/features/sharing/SharesPage";
+import { AllFilesTab, RecentFilesTab, StarredTab } from "@/features/library/ItemTabs";
+import { TrashTab } from "@/features/library/TrashTab";
+import { SharedTab } from "@/features/sharing/SharesPage";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -48,39 +45,27 @@ export function FilesTabs({ active }: { active: TabId }) {
   );
 }
 
+const SUBTITLES: Record<TabId, string> = {
+  all: "Everything you own, across projects.",
+  recent: "What you edited lately.",
+  starred: "Files and folders you starred.",
+  shared: "Links you have shared with others.",
+  trash: "Deleted items you can still restore.",
+};
+
 export function FilesPage() {
   const { tab = "all" } = useParams<{ tab?: string }>();
   if (!isTab(tab)) return <Navigate to="/files" replace />;
-  if (tab === "all") return <AllFiles />;
-
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="px-4 pt-4 sm:px-8">
-        <FilesTabs active={tab} />
-      </div>
-      {tab === "recent" ? <RecentPage /> : null}
-      {tab === "starred" ? <StarredPage /> : null}
-      {tab === "shared" ? <SharesPage /> : null}
-      {tab === "trash" ? <TrashPage /> : null}
-    </div>
-  );
-}
-
-function AllFiles() {
-  const files = useFiles({});
   return (
     <PageContainer>
-      <PageHeader title="Files" subtitle="Everything you own, across projects." />
-      <FilesTabs active="all" />
+      <PageHeader title="Files" subtitle={SUBTITLES[tab]} />
+      <FilesTabs active={tab} />
       <div className="pt-5">
-        <ItemCollection
-          items={toCollectionItems([], files.data ?? [])}
-          loading={files.isPending}
-          filterChips
-          showLocation
-          scope="files"
-          ariaLabel="All files"
-        />
+        {tab === "all" ? <AllFilesTab /> : null}
+        {tab === "recent" ? <RecentFilesTab /> : null}
+        {tab === "starred" ? <StarredTab /> : null}
+        {tab === "shared" ? <SharedTab /> : null}
+        {tab === "trash" ? <TrashTab /> : null}
       </div>
     </PageContainer>
   );

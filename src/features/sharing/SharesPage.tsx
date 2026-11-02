@@ -1,558 +1,229 @@
-// Shared links (wireframe screen 15): one dense, filterable table of every
-// link the user owns. Toggle-chip filters (type / access / status incl.
-// "Expiring soon" < 24 h and "Expired"), search, Group by none / target /
-// access, hover row actions (copy · open · edit · revoke), multi-select
-// bulk revoke / extend, a right-click menu with "Reveal target", and the
-// autosaving details panel. `?token=` preselects a link and opens the panel.
+// Shared tab of the Files hub: share links grouped by item.
+// Row actions: Copy link · Edit · Revoke. One filter field, no popovers.
 //
-// Page commands (registered while mounted, shown in menus and ⌘K):
-//   share.edit (↵) · share.copy (⌘C) · share.open · share.reveal ·
-//   share.extend7 · share.revoke (Delete, ⌘⌫)
+// `SharedTab` is the body (rendered inside FilesPage); `SharesPage` is kept as a
+// thin alias for older imports.
 
-import {
-  Clock01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  Edit02Icon,
-  FolderOpenIcon,
-  Link04Icon,
-  LinkSquare02Icon,
-  PlusSignIcon,
-  Tick02Icon,
-} from "@hugeicons/core-free-icons";
+import { Copy01Icon, Delete02Icon, Edit02Icon, Link04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { PageFrame, PageToolbar, StatusBar, ToolbarSearch } from "@/components/shell/page";
-import { setDetailsOpen } from "@/components/shell/shellStore";
+import { useMemo, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
-import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAllShares } from "@/data/shares";
-import { ensureItems } from "@/features/actions/itemCache";
 import { useItemActions } from "@/features/actions/useItemActions";
-import { fmtShortDate } from "@/features/library/helpers";
-import { ItemIcon } from "@/features/library/ItemTable";
-import {
-  CheckTd,
-  CheckTh,
-  EmptyRow,
-  GroupRow,
-  ListRow,
-  ListTable,
-  PermBadge,
-  RowActions,
-  RowIconButton,
-  Td,
-  Th,
-} from "@/features/library/ListTable";
-import { SelectedCount, useToggleSort } from "@/features/library/parts";
-import { useListSelection, useLocalSelState } from "@/features/library/useListSelection";
+import { FilesSearch } from "@/features/library/FilesSearch";
+import { TargetIcon } from "@/features/library/TargetIcon";
+import { expiresIn } from "@/features/library/time";
 import type { Share } from "@/lib/api/client";
-import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
-import { type Command, useRegisterCommands } from "@/lib/commands/registry";
-import { shareUrl } from "@/lib/url";
 import { cn } from "@/lib/utils";
-import { NewLinkPicker } from "./NewLinkPicker";
-import { ShareDetailsPanel } from "./ShareDetailsPanel";
 import { copyShareLink } from "./ShareDialog";
-import { extendShares, revokeShares } from "./shareActions";
-import {
-  DEFAULT_SHARE_FILTERS,
-  expiryLabel,
-  filterShares,
-  type ShareFilters,
-  shareStatus,
-} from "./shareStatus";
+import { ShareEditDialog } from "./ShareEditDialog";
+import { revokeShares } from "./shareActions";
+import { shareStatus } from "./shareStatus";
 import { type ShareTarget, useShareTargets } from "./useShareTargets";
 
-type GroupBy = "none" | "target" | "access";
-type SortKey = "item" | "label" | "access" | "expires" | "created";
-
-const DAY = 86_400_000;
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-
-const ROW_MENU_IDS = [
-  "share.copy",
-  "share.open",
-  "share.edit",
-  "share.reveal",
-  "-",
-  "share.extend7",
-  "-",
-  "share.revoke",
-];
-
-function Sep() {
-  return <span aria-hidden className="mx-1 h-[18px] w-px shrink-0 bg-border" />;
+interface Group {
+  key: string;
+  target: ShareTarget;
+  shares: Share[];
 }
 
-export function SharesPage() {
+function IconAction({
+  label,
+  onClick,
+  danger,
+  icon,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  icon: typeof Copy01Icon;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            onClick={onClick}
+            className={cn(danger && "text-destructive hover:text-destructive")}
+          />
+        }
+      >
+        <HugeiconsIcon icon={icon} strokeWidth={1.8} />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function AccessPill({ permission }: { permission: Share["permission"] }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium",
+        permission === "write"
+          ? "bg-accent-soft text-accent-text"
+          : "bg-surface-2 text-muted-foreground",
+      )}
+    >
+      {permission === "write" ? "Edit" : "View"}
+    </span>
+  );
+}
+
+export function SharedTab() {
   const qc = useQueryClient();
   const actions = useItemActions();
   const sharesQ = useAllShares();
   const { resolve } = useShareTargets();
-  const [filters, setFilters] = useState<ShareFilters>(DEFAULT_SHARE_FILTERS);
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
-  const [sort, onSort] = useToggleSort<SortKey>({ key: "created", dir: "desc" });
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [params, setParams] = useSearchParams();
+  const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<Share | null>(null);
   const now = Date.now();
 
-  const all = sharesQ.data ?? [];
-  const setF = (patch: Partial<ShareFilters>) => setFilters((f) => ({ ...f, ...patch }));
-
-  const rows = useMemo(() => {
-    const list = filterShares(sharesQ.data ?? [], filters, Date.now());
-    const sign = sort.dir === "asc" ? 1 : -1;
-    const targetName = (s: Share) => resolve(s).name;
-    return list.sort((a, b) => {
-      switch (sort.key) {
-        case "item":
-          return sign * collator.compare(targetName(a), targetName(b));
-        case "label":
-          return sign * collator.compare(a.label ?? "", b.label ?? "");
-        case "access":
-          return sign * a.permission.localeCompare(b.permission);
-        case "expires":
-          return (
-            sign *
-            ((a.expiresAt ?? Number.MAX_SAFE_INTEGER) - (b.expiresAt ?? Number.MAX_SAFE_INTEGER))
-          );
-        default:
-          return sign * (a.createdAt - b.createdAt);
-      }
-    });
-  }, [sharesQ.data, filters, sort, resolve]);
-
-  const groups = useMemo(() => {
-    if (groupBy === "none") return [{ key: "all", label: undefined as string | undefined, rows }];
-    const map = new Map<string, { key: string; label: string; rows: Share[] }>();
-    for (const s of rows) {
-      const key = groupBy === "target" ? `${s.targetType}:${s.targetId}` : s.permission;
-      const label =
-        groupBy === "target"
-          ? resolve(s).name
-          : s.permission === "write"
-            ? "Can edit"
-            : "View only";
-      const g = map.get(key) ?? { key, label, rows: [] };
-      g.rows.push(s);
+  const groups = useMemo<Group[]>(() => {
+    const needle = q.trim().toLowerCase();
+    const map = new Map<string, Group>();
+    for (const s of sharesQ.data ?? []) {
+      const target = resolve(s);
+      if (needle && !`${target.name} ${s.label ?? ""}`.toLowerCase().includes(needle)) continue;
+      const key = `${s.targetType}:${s.targetId}`;
+      const g = map.get(key) ?? { key, target, shares: [] };
+      g.shares.push(s);
       map.set(key, g);
     }
-    return [...map.values()];
-  }, [rows, groupBy, resolve]);
+    const list = [...map.values()];
+    for (const g of list) g.shares.sort((a, b) => b.createdAt - a.createdAt);
+    return list.sort(
+      (a, b) =>
+        Math.max(...b.shares.map((s) => s.createdAt)) -
+        Math.max(...a.shares.map((s) => s.createdAt)),
+    );
+  }, [sharesQ.data, q, resolve]);
 
-  const order = useMemo(() => groups.flatMap((g) => g.rows.map((s) => s.token)), [groups]);
-  // ⌘A anywhere on the page (not only with the table focused).
-  const selection = useListSelection(order, useLocalSelState(), { listenSelectAll: true });
-  const byToken = useMemo(() => new Map(all.map((s) => [s.token, s])), [all]);
-  const selected = useMemo(
-    () => selection.selectedKeys.map((t) => byToken.get(t)).filter((s): s is Share => !!s),
-    [selection.selectedKeys, byToken],
-  );
-
-  // `?token=` → select that link (showing expired too if needed) and open the panel.
-  const wanted = params.get("token");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: setF is a stable state updater wrapper
-  useEffect(() => {
-    if (!wanted || !sharesQ.data) return;
-    const s = sharesQ.data.find((x) => x.token === wanted);
-    if (s && shareStatus(s, Date.now()) === "expired") setF({ status: "all" });
-    if (s && order.includes(wanted)) {
-      selection.setOnly(wanted);
-      setDetailsOpen(true);
-      setParams({}, { replace: true });
-    } else if (!s) setParams({}, { replace: true });
-  }, [wanted, sharesQ.data, order, selection, setParams]);
-
-  const reveal = async (s: Share) => {
-    const ref = { type: s.targetType, id: s.targetId };
-    await ensureItems(qc, [ref]);
-    actions.reveal(ref);
-  };
-  const edit = (token: string) => {
-    selection.setOnly(token);
-    setDetailsOpen(true);
-  };
-
-  // Page commands read the latest selection through a ref.
-  const selRef = useRef(selected);
-  selRef.current = selected;
-  const onShares = (route: string) => route === "/shares";
-  const has = (route: string) => onShares(route) && selRef.current.length > 0;
-  const one = (route: string) => onShares(route) && selRef.current.length === 1;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: page commands read live state through refs
-  const commands = useMemo<Command[]>(
-    () => [
-      {
-        id: "share.copy",
-        label: "Copy link",
-        icon: Copy01Icon,
-        keys: ["mod+c"],
-        group: "file",
-        palette: false,
-        when: (c) => has(c.route),
-        disabledReason: () => (selRef.current.length > 1 ? "Copy one link at a time" : null),
-        run: () => void copyShareLink(selRef.current[0].token),
-      },
-      {
-        id: "share.open",
-        label: "Open link in new tab",
-        icon: LinkSquare02Icon,
-        keys: ["mod+enter"],
-        group: "file",
-        palette: false,
-        when: (c) => has(c.route),
-        run: () => {
-          for (const s of selRef.current.slice(0, 10))
-            window.open(shareUrl(s.token), "_blank", "noopener");
-        },
-      },
-      {
-        id: "share.edit",
-        label: "Edit link",
-        icon: Edit02Icon,
-        keys: ["enter"],
-        group: "file",
-        palette: false,
-        when: (c) => one(c.route),
-        run: () => edit(selRef.current[0].token),
-      },
-      {
-        id: "share.reveal",
-        label: "Reveal target in folder",
-        icon: FolderOpenIcon,
-        group: "file",
-        palette: false,
-        when: (c) => one(c.route),
-        run: () => void reveal(selRef.current[0]),
-      },
-      {
-        id: "share.extend7",
-        label: (c) =>
-          selRef.current.length > 1 && onShares(c.route)
-            ? `Extend ${selRef.current.length} links by 7 days`
-            : "Extend expiry by 7 days",
-        icon: Clock01Icon,
-        group: "organise",
-        palette: false,
-        when: (c) => has(c.route),
-        run: () => void extendShares(qc, selRef.current, 7 * DAY),
-      },
-      {
-        id: "share.revoke",
-        label: () =>
-          selRef.current.length > 1 ? `Revoke ${selRef.current.length} links…` : "Revoke link…",
-        icon: Delete02Icon,
-        keys: ["delete", "mod+backspace"],
-        group: "organise",
-        palette: false,
-        destructive: true,
-        when: (c) => has(c.route),
-        run: () => void revokeShares(qc, selRef.current),
-      },
-      {
-        id: "share.new",
-        label: "New share link…",
-        icon: PlusSignIcon,
-        group: "file",
-        when: (c) => onShares(c.route),
-        run: () => setPickerOpen(true),
-      },
-    ],
-    [qc],
-  );
-  useRegisterCommands(commands, [commands]);
-
-  const expiringCount = all.filter((s) => shareStatus(s, now) === "expiring").length;
-  const targetCount = new Set(all.map((s) => `${s.targetType}:${s.targetId}`)).size;
-  const colSpan = 8;
+  const total = sharesQ.data?.length ?? 0;
+  const editingTarget = editing ? resolve(editing) : null;
 
   return (
-    <PageFrame>
-      <PageToolbar
-        icon={Link04Icon}
-        title="Shared links"
-        right={
-          <>
-            <ToolbarSearch
-              value={filters.q}
-              onChange={(q) => setF({ q })}
-              placeholder="Search label, file or folder"
-              className="w-[240px]"
-            />
-            <Button size="sm" onClick={() => setPickerOpen(true)}>
-              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-              New link
-            </Button>
-          </>
-        }
-      >
-        <span className="truncate text-xs text-muted-foreground">
-          {all.length} links · {targetCount} targets
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7" />}>
-            Filters
-            {filters.type !== "all" || filters.access !== "all" || filters.status !== "all" ? (
-              <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                {
-                  [filters.type, filters.access, filters.status].filter((value) => value !== "all")
-                    .length
-                }
-              </span>
-            ) : null}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuLabel>Type</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={filters.type}
-              onValueChange={(value) => setF({ type: value as ShareFilters["type"] })}
-            >
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="file">Files</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="folder">Folders</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuLabel>Access</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={filters.access}
-              onValueChange={(value) => setF({ access: value as ShareFilters["access"] })}
-            >
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="read">View</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="write">Edit</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={filters.status}
-              onValueChange={(value) => setF({ status: value as ShareFilters["status"] })}
-            >
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="expiring">Expiring soon</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="expired">Expired</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuLabel>Group by</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={groupBy}
-              onValueChange={(value) => setGroupBy(value as GroupBy)}
-            >
-              <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="target">Target</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="access">Access</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </PageToolbar>
-
-      {selection.count > 1 ? (
-        <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-accent/40 px-3 text-xs">
-          <b className="font-semibold text-accent-foreground">{selection.count} selected</b>
-          <Sep />
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-              <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} />
-              Extend expiry…
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => void extendShares(qc, selected, DAY)}>
-                +1 day
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void extendShares(qc, selected, 7 * DAY)}>
-                +7 days
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void extendShares(qc, selected, 30 * DAY)}>
-                +30 days
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void extendShares(qc, selected, "never")}>
-                Never expire
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="destructive" size="sm" onClick={() => void revokeShares(qc, selected)}>
-            <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
-            Revoke {selection.count} links
-          </Button>
-          <span className="flex-1" />
-          <Button variant="ghost" size="sm" onClick={selection.clear}>
-            Clear
-          </Button>
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <p className="text-[13px] text-muted-foreground">
+          {sharesQ.data
+            ? `${total} ${total === 1 ? "link" : "links"}. Share an item from its menu or press Shift+S.`
+            : " "}
+        </p>
+        <div className="ml-auto">
+          <FilesSearch value={q} onChange={setQ} placeholder="Filter shared" />
         </div>
-      ) : null}
+      </div>
 
-      <ContextMenu>
-        <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
-          <ListTable label="Shared links" selection={selection}>
-            <thead>
-              <tr>
-                <CheckTh selection={selection} />
-                <Th sortKey="item" sort={sort} onSort={onSort}>
-                  Shared item
-                </Th>
-                <Th sortKey="label" sort={sort} onSort={onSort}>
-                  Label
-                </Th>
-                <Th sortKey="access" sort={sort} onSort={onSort}>
-                  Access
-                </Th>
-                <Th sortKey="expires" sort={sort} onSort={onSort}>
-                  Expires
-                </Th>
-                <Th>Download</Th>
-                <Th sortKey="created" sort={sort} onSort={onSort}>
-                  Created
-                </Th>
-                <Th className="w-[128px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {order.length === 0 ? (
-                <EmptyRow colSpan={colSpan}>
-                  {sharesQ.isPending
-                    ? "Loading…"
-                    : all.length === 0
-                      ? "No share links yet — press New link."
-                      : "No links match these filters."}
-                </EmptyRow>
-              ) : null}
-              {groups.map((g) => (
-                <Fragment key={g.key}>
-                  {g.label ? (
-                    <GroupRow colSpan={colSpan} label={g.label} count={g.rows.length} />
-                  ) : null}
-                  {g.rows.map((s) => (
-                    <ShareRow
+      {sharesQ.isPending ? (
+        <div aria-hidden className="overflow-hidden rounded-xl border border-border bg-card">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex h-14 items-center gap-3 border-b border-border px-3">
+              <Skeleton className="size-6" />
+              <Skeleton className="h-3.5 w-48" />
+            </div>
+          ))}
+        </div>
+      ) : groups.length === 0 ? (
+        <EmptyState
+          title={q ? "No matches" : "No shared links"}
+          body={
+            q
+              ? "No shared item matches that filter."
+              : "Share a file or project and its links will be listed here."
+          }
+          icon={<HugeiconsIcon icon={Link04Icon} strokeWidth={1.4} className="size-9" />}
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groups.map((g) => (
+            <section
+              key={g.key}
+              aria-label={g.target.name}
+              className="overflow-hidden rounded-xl border border-border bg-card shadow-card"
+            >
+              <header className="flex items-center gap-3 border-b border-border bg-surface-2 px-3 py-2">
+                <TargetIcon type={g.target.ref.type} kind={g.target.kind} />
+                <button
+                  type="button"
+                  disabled={!g.target.exists}
+                  onClick={() => actions.open(g.target.ref)}
+                  className="min-w-0 truncate text-left text-[13px] font-medium text-foreground outline-none hover:underline focus-visible:underline disabled:no-underline"
+                >
+                  {g.target.name}
+                </button>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {g.target.exists ? g.target.location : "Item no longer exists"}
+                </span>
+              </header>
+              <ul>
+                {g.shares.map((s) => {
+                  const status = shareStatus(s, now);
+                  return (
+                    <li
                       key={s.token}
-                      share={s}
-                      target={resolve(s)}
-                      now={now}
-                      selection={selection}
-                      onEdit={() => edit(s.token)}
-                      onRevoke={() => void revokeShares(qc, [s])}
-                    />
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </ListTable>
-        </ContextMenuTrigger>
-        <ContextMenuContent className="min-w-56">
-          {selection.count ? (
-            <CommandMenuItems as="context" ids={ROW_MENU_IDS} />
-          ) : (
-            <CommandMenuItems as="context" ids={["share.new"]} />
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
+                      className={cn(
+                        "flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5 text-[13px] last:border-b-0 hover:bg-accent/50",
+                        status === "expired" && "opacity-60",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 basis-40 truncate">
+                        {s.label || <span className="text-muted-foreground">Untitled link</span>}
+                      </span>
+                      <AccessPill permission={s.permission} />
+                      <span
+                        className={cn(
+                          "w-36 text-xs text-muted-foreground max-sm:w-auto",
+                          status === "expiring" && "text-warning",
+                          status === "expired" && "text-destructive",
+                        )}
+                        title={s.expiresAt ? new Date(s.expiresAt).toLocaleString() : undefined}
+                      >
+                        {expiresIn(s.expiresAt, now)}
+                      </span>
+                      <div className="flex items-center">
+                        <IconAction
+                          label="Copy link"
+                          icon={Copy01Icon}
+                          onClick={() => void copyShareLink(s.token)}
+                        />
+                        <IconAction label="Edit" icon={Edit02Icon} onClick={() => setEditing(s)} />
+                        <IconAction
+                          label="Revoke"
+                          icon={Delete02Icon}
+                          danger
+                          onClick={() => void revokeShares(qc, [s])}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
 
-      <StatusBar
-        left={
-          <>
-            <span>
-              <b className="font-semibold text-foreground">{rows.length}</b> of {all.length} links
-            </span>
-            {expiringCount ? (
-              <b className="font-semibold text-chart-3">{expiringCount} expiring within 24 h</b>
-            ) : null}
-            <SelectedCount n={selection.count} />
-          </>
-        }
-      />
-
-      <ShareDetailsPanel
-        selected={selected}
-        resolve={resolve}
-        onRevealTarget={(s) => void reveal(s)}
-      />
-      <NewLinkPicker open={pickerOpen} onOpenChange={setPickerOpen} />
-    </PageFrame>
+      {editing && editingTarget ? (
+        <ShareEditDialog
+          share={editing}
+          targetName={editingTarget.name}
+          targetKind={editingTarget.kind}
+          open
+          onOpenChange={(o) => {
+            if (!o) setEditing(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
-function ShareRow({
-  share: s,
-  target,
-  now,
-  selection,
-  onEdit,
-  onRevoke,
-}: {
-  share: Share;
-  target: ShareTarget;
-  now: number;
-  selection: ReturnType<typeof useListSelection>;
-  onEdit: () => void;
-  onRevoke: () => void;
-}) {
-  const status = shareStatus(s, now);
-  return (
-    <ListRow
-      rowKey={s.token}
-      selection={selection}
-      dimmed={status === "expired"}
-      onActivate={onEdit}
-    >
-      <CheckTd rowKey={s.token} selection={selection} />
-      <Td primary className="max-w-[340px]">
-        <span className="flex min-w-0 items-center gap-2">
-          <ItemIcon kind={target.ref.type === "file" ? (target.kind ?? "excalidraw") : undefined} />
-          <span className="truncate">{target.name}</span>
-          <span className="truncate text-[11.5px] font-normal text-muted-foreground">
-            {target.location}
-          </span>
-        </span>
-      </Td>
-      <Td className="max-w-[220px]" title={s.label ?? undefined}>
-        {s.label || "—"}
-      </Td>
-      <Td>
-        <PermBadge permission={s.permission} />
-      </Td>
-      <Td
-        className={cn(status === "expiring" && "text-chart-3")}
-        title={s.expiresAt ? new Date(s.expiresAt).toLocaleString() : undefined}
-      >
-        {expiryLabel(s.expiresAt, now)}
-      </Td>
-      <Td>
-        {s.allowDownload || s.permission === "write" ? (
-          <HugeiconsIcon
-            icon={Tick02Icon}
-            strokeWidth={2}
-            aria-label="Allowed"
-            className="size-3.5"
-          />
-        ) : (
-          "—"
-        )}
-      </Td>
-      <Td>{fmtShortDate(s.createdAt, now)}</Td>
-      <Td className="py-0">
-        <RowActions>
-          <RowIconButton
-            label="Copy link"
-            icon={Copy01Icon}
-            onClick={() => void copyShareLink(s.token)}
-          />
-          <RowIconButton
-            label="Open link"
-            icon={LinkSquare02Icon}
-            onClick={() => window.open(shareUrl(s.token), "_blank", "noopener")}
-          />
-          <RowIconButton label="Edit link" icon={Edit02Icon} onClick={onEdit} />
-          <RowIconButton label="Revoke link" icon={Delete02Icon} destructive onClick={onRevoke} />
-        </RowActions>
-      </Td>
-    </ListRow>
-  );
-}
+export const SharesPage = SharedTab;
