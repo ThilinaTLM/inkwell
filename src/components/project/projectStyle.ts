@@ -103,10 +103,10 @@ export const PROJECT_COLORS = {
     swatch: "bg-rose-500",
   },
   slate: {
-    label: "Slate",
-    tile: "bg-slate-200/70 dark:bg-slate-400/15",
-    text: "text-slate-700 dark:text-slate-300",
-    swatch: "bg-slate-500",
+    label: "Stone",
+    tile: "bg-stone-200/70 dark:bg-stone-400/15",
+    text: "text-stone-700 dark:text-stone-300",
+    swatch: "bg-stone-500",
   },
 } as const satisfies Record<string, ProjectColorStyle>;
 

@@ -33,7 +33,7 @@ Branch: `feat/ui-redesign`. Read [`README.md`](./README.md) for the audit and de
 ## Visual tokens (from mockup B)
 | Token | Light | Dark |
 |---|---|---|
-| Background | warm paper `#F7F2E8` | ink navy `#0E1525` |
+| Background | warm paper `#F7F2E8` | warm charcoal `#171513` |
 | Sidebar surface | slightly darker paper | slightly lighter ink |
 | Cards | near-white paper with hairline warm borders and soft shadow | ink-raised surfaces |
 | Accent (primary buttons, active states, focus) | burnt orange `#B84A14` | `#EE8442` |

@@ -9,7 +9,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
-   Inkwell theme — "warm paper" (light) / "ink navy" (dark).
+   Inkwell theme — "warm paper" (light) / "warm charcoal" (dark).
 
    We expose the standard shadcn semantic tokens (background, foreground,
    card, popover, primary, secondary, muted, accent, destructive, border,
@@ -160,61 +160,61 @@
   --tag-5: #a98acb;
 }
 
-/* ─── Dark: ink navy ────────────────────────────────────────────── */
+/* ─── Dark: warm charcoal ────────────────────────────────────────────── */
 .dark {
-  --background: #0e1525;
-  --foreground: #ede7d9;
+  --background: #171513;
+  --foreground: #ede6d8;
 
-  --card: #151d31;
+  --card: #1f1c19;
   --card-foreground: #ede7d9;
-  --popover: #1a2338;
+  --popover: #25211d;
   --popover-foreground: #ede7d9;
 
   --primary: #ee8442;
   --primary-foreground: #1a1008;
   --primary-hover: #f4a06a;
 
-  --secondary: #1c2640;
+  --secondary: #2a2621;
   --secondary-foreground: #ede7d9;
 
-  --muted: #1c2640;
-  --muted-foreground: #a2a9b8;
-  --faint: #7c859a;
-  --surface-2: #121a2c;
+  --muted: #2a2621;
+  --muted-foreground: #aba294;
+  --faint: #807769;
+  --surface-2: #1b1916;
 
-  --accent: #222d4a;
+  --accent: #2e2924;
   --accent-foreground: #ede7d9;
-  --accent-soft: #3a2a24;
+  --accent-soft: #3b2a1f;
   --accent-text: #f4a06a;
 
   --destructive: #e8604f;
   --destructive-foreground: #1a1008;
 
   --success: #7cc49a;
-  --success-soft: #1d3329;
+  --success-soft: #1f2e22;
   --warning: #e4b75a;
   --warning-soft: #3a3120;
 
-  --border: #252f4a;
-  --input: #34416a;
+  --border: #312c26;
+  --input: #433c34;
   --ring: #ee8442;
 
   --chart-1: #ee8442;
-  --chart-2: #7da3cf;
+  --chart-2: #8fb0a0;
   --chart-3: #e4b75a;
-  --chart-4: #a2a9b8;
+  --chart-4: #aba294;
   --chart-5: #7cc49a;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.2);
   --shadow-pop: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
 
-  --sidebar: #111a2e;
+  --sidebar: #12110f;
   --sidebar-foreground: #ede7d9;
   --sidebar-primary: #ee8442;
   --sidebar-primary-foreground: #1a1008;
   --sidebar-accent: rgba(255, 240, 210, 0.07);
   --sidebar-accent-foreground: #ede7d9;
-  --sidebar-border: #252f4a;
+  --sidebar-border: #2a2621;
   --sidebar-ring: #ee8442;
 
   --folder: #e4b75a;
