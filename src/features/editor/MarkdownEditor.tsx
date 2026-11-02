@@ -1,5 +1,21 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { FileBlob, LoadedFile, MarkdownNotesFileBlob, NotesFileBlob } from "@/lib/api/client";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import {
+  type FileBlob,
+  files,
+  type LoadedFile,
+  type MarkdownNotesFileBlob,
+  type NotesFileBlob,
+} from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
@@ -14,11 +30,18 @@ import {
   isCanonicalMarkdownBlob,
   notesBlobToMarkdown,
 } from "./markdown/compat";
-import { MarkdownPreview } from "./markdown/MarkdownPreview";
 import { markdownToThumbSvg } from "./markdown/thumb";
 import { loadNotesFont } from "./notes/fontLoader";
-import { fontStack, useNotesPreferences, widthMaxClass } from "./notes/preferences";
+import {
+  fontStack,
+  NOTES_FONTS,
+  type NotesEditorFont,
+  useNotesPreferences,
+  widthMaxClass,
+} from "./notes/preferences";
 import { downloadText, exportBaseName } from "./shared/exportFile";
+
+const CrepeEditor = lazy(() => import("./markdown/CrepeEditor"));
 
 type SaveFn = (version: number, blob: FileBlob) => Promise<{ version: number }>;
 type ThumbFn = ((svg: string) => Promise<void>) | null;
@@ -52,7 +75,8 @@ export default function MarkdownEditor({
   const [source, setSource] = useState<string | null>(canonical);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { resolved } = useTheme();
-  const { width, font, layout } = useNotesPreferences();
+  const { width, font, mode } = useNotesPreferences();
+  const [epoch, setEpoch] = useState(0);
   const selectedFont = fontStack(font);
   const initialFingerprint = fingerprintMarkdown(canonical ?? "");
   const latestRef = useRef({ source: canonical ?? "", fp: initialFingerprint });
@@ -98,6 +122,7 @@ export default function MarkdownEditor({
         const fp = fingerprintMarkdown(markdown);
         latestRef.current = { source: markdown, fp };
         setSource(markdown);
+        setEpoch((n) => n + 1);
         thumbRef.current.reset();
         lifecycleRef.current.reset(loadedVersionRef.current, fp);
       })
@@ -196,9 +221,72 @@ export default function MarkdownEditor({
     ],
   );
 
-  const previewSource = useDeferredValue(source ?? "");
-  const showSource = layout !== "preview";
-  const showPreview = layout !== "source";
+  // ── Scroll continuity between Write and Source ──────────────────
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const ratioRef = useRef(0);
+  const restoringRef = useRef(false);
+  const lastModeRef = useRef(mode);
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || restoringRef.current) return;
+    const max = el.scrollHeight - el.clientHeight;
+    ratioRef.current = max > 0 ? el.scrollTop / max : 0;
+  }, []);
+  const restoreScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    restoringRef.current = true;
+    const apply = () => {
+      const max = el.scrollHeight - el.clientHeight;
+      el.scrollTop = max * ratioRef.current;
+    };
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      window.setTimeout(() => {
+        restoringRef.current = false;
+      }, 120);
+    });
+  }, []);
+  const pendingRestoreRef = useRef(false);
+  useLayoutEffect(() => {
+    if (lastModeRef.current === mode) return;
+    lastModeRef.current = mode;
+    pendingRestoreRef.current = true;
+  }, [mode]);
+  const consumeRestore = useCallback(() => {
+    if (!pendingRestoreRef.current) return;
+    pendingRestoreRef.current = false;
+    restoreScroll();
+  }, [restoreScroll]);
+
+  const folderId = loaded.meta.folderId ?? null;
+  const uploadImage = useCallback(
+    async (file: File) => {
+      try {
+        const ext = file.type.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "png";
+        const name =
+          file.name && file.name !== "image.png" ? file.name : `image-${Date.now()}.${ext}`;
+        const meta = await files.uploadRaw(file, { name, folderId });
+        return files.rawUrl(meta.id);
+      } catch (reason) {
+        toast.error(reason instanceof Error ? reason.message : "Image upload failed");
+        throw reason;
+      }
+    },
+    [folderId],
+  );
+
+  const headingFamily = useMemo(() => {
+    const option = NOTES_FONTS.find((f) => f.value === (font as NotesEditorFont));
+    return option && option.family !== "Sans" ? option.stack : "var(--font-display)";
+  }, [font]);
+  const bodySize = NOTES_FONTS.find((f) => f.value === font)?.family === "Mono" ? "15px" : "17px";
+  const surfaceStyle = {
+    "--ink-md-body": selectedFont,
+    "--ink-md-heading": headingFamily,
+    "--ink-md-size": bodySize,
+  } as React.CSSProperties;
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -209,40 +297,47 @@ export default function MarkdownEditor({
         </div>
       ) : (
         <div
-          className={cn(
-            "markdown-editor-layout min-h-0 flex-1",
-            layout === "split" && "markdown-layout-split",
-          )}
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="markdown-scroll min-h-0 flex-1 overflow-y-auto"
+          style={surfaceStyle}
+          data-mode={mode}
         >
-          {showSource && (
-            <section className="markdown-source-pane min-h-0" aria-label="Markdown source">
-              <div className={cn("mx-auto h-full w-full", widthMaxClass(width))}>
-                <CodeMirrorEditor
-                  value={source}
-                  onChange={handleChange}
-                  readOnly={readOnly}
-                  dark={resolved === "dark"}
-                  fontFamily={selectedFont}
-                />
-              </div>
-            </section>
-          )}
-          {showPreview && (
-            <section
-              className="markdown-preview-pane min-h-0 overflow-y-auto"
-              aria-label="Markdown preview"
-            >
-              <div
-                className={cn("mx-auto w-full px-5 py-8 sm:px-8 lg:py-10", widthMaxClass(width))}
+          <div
+            className={cn(
+              "mx-auto w-full px-5 pt-8 sm:px-10 sm:pt-12 lg:pt-14",
+              widthMaxClass(width),
+            )}
+          >
+            {mode === "source" ? (
+              <CodeMirrorEditor
+                variant="writing"
+                value={source}
+                onChange={handleChange}
+                readOnly={readOnly}
+                dark={resolved === "dark"}
+                fontFamily={fontStack("jetbrains-mono")}
+                onView={(view) => {
+                  if (view) consumeRestore();
+                }}
+              />
+            ) : (
+              <Suspense
+                fallback={
+                  <div className="py-10 text-sm text-muted-foreground">Loading editor…</div>
+                }
               >
-                <MarkdownPreview
-                  source={previewSource}
-                  dark={resolved === "dark"}
-                  fontFamily={selectedFont}
+                <CrepeEditor
+                  key={epoch}
+                  initialValue={latestRef.current.source}
+                  readOnly={readOnly}
+                  onChange={handleChange}
+                  onImageUpload={uploadImage}
+                  onReady={consumeRestore}
                 />
-              </div>
-            </section>
-          )}
+              </Suspense>
+            )}
+          </div>
         </div>
       )}
       <LeaveConfirmDialog

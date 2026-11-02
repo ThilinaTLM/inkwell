@@ -43,17 +43,16 @@ export function ProjectCard({ project }: { project: Project & ProjectFields }) {
               <h3 className="truncate font-display text-[18px] leading-tight font-medium tracking-tight text-foreground">
                 {project.name}
               </h3>
-              <div className="mt-1.5 flex items-center gap-2">
-                <StatusPill status={projectStatusOf(project)} />
-                {pinned ? (
+              {pinned ? (
+                <div className="mt-1.5 flex items-center">
                   <HugeiconsIcon
                     icon={PinIcon}
                     strokeWidth={1.8}
                     aria-label="Pinned"
                     className="size-3.5 text-primary"
                   />
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
           {project.description ? (
@@ -61,8 +60,11 @@ export function ProjectCard({ project }: { project: Project & ProjectFields }) {
               {project.description}
             </p>
           ) : null}
-          <div className="mt-auto text-xs text-muted-foreground">
-            {n} {n === 1 ? "item" : "items"} · edited {relTime(project.updatedAt)}
+          <div className="mt-auto flex min-h-5 items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              {n} {n === 1 ? "item" : "items"} · edited {relTime(project.updatedAt)}
+            </span>
+            <StatusPill status={projectStatusOf(project)} />
           </div>
         </Link>
         <div

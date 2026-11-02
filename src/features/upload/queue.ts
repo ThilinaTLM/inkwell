@@ -497,7 +497,7 @@ async function enqueue(entries: DroppedEntry[], folderId: string | null): Promis
     folderId,
     targetName:
       folderId === null
-        ? Promise.resolve("Inbox")
+        ? Promise.resolve("Loose files")
         : getFolders().then((all) => all.find((f) => f.id === folderId)?.name ?? "folder"),
     toasted: false,
   };

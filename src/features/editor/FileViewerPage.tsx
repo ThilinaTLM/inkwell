@@ -35,7 +35,7 @@ import { FileViewer } from "./FileViewer";
 import { EditorDropZone } from "./shared/EditorDropZone";
 
 function folderUrl(folderId: string | null): string {
-  return folderId ? `/folders/${folderId}` : "/inbox";
+  return folderId ? `/folders/${folderId}` : "/files";
 }
 
 export function FileViewerPage({ id }: { id: string }) {

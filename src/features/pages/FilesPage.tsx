@@ -1,17 +1,15 @@
-// Files hub (`/files/:tab?`): All · Recent · Starred · Shared · Trash.
-// Every tab is built on ItemCollection (All/Recent/Starred) or a matching
-// grouped/list view (Shared, Trash).
+// Files hub (`/files/:tab?`): All · Starred · Shared · Trash. (Recent files live on /recents.)
+// Header and tabs are fixed; each tab has exactly one scroll region.
 
 import { Link, Navigate, useParams } from "react-router-dom";
-import { PageContainer, PageHeader } from "@/components/PageHeader";
-import { AllFilesTab, RecentFilesTab, StarredTab } from "@/features/library/ItemTabs";
+import { PageContainer, PageHeader, PageScroll } from "@/components/PageHeader";
+import { AllFilesTab, StarredTab } from "@/features/library/ItemTabs";
 import { TrashTab } from "@/features/library/TrashTab";
 import { SharedTab } from "@/features/sharing/SharesPage";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { id: "all", label: "All" },
-  { id: "recent", label: "Recent" },
   { id: "starred", label: "Starred" },
   { id: "shared", label: "Shared" },
   { id: "trash", label: "Trash" },
@@ -24,7 +22,7 @@ function isTab(v: string): v is TabId {
 
 export function FilesTabs({ active }: { active: TabId }) {
   return (
-    <div role="tablist" aria-label="Files" className="flex gap-1 border-b border-border">
+    <div role="tablist" aria-label="Files" className="flex shrink-0 gap-1 border-b border-border">
       {TABS.map((t) => (
         <Link
           key={t.id}
@@ -47,7 +45,6 @@ export function FilesTabs({ active }: { active: TabId }) {
 
 const SUBTITLES: Record<TabId, string> = {
   all: "Everything you own, across projects.",
-  recent: "What you edited lately.",
   starred: "Files and folders you starred.",
   shared: "Links you have shared with others.",
   trash: "Deleted items you can still restore.",
@@ -55,18 +52,24 @@ const SUBTITLES: Record<TabId, string> = {
 
 export function FilesPage() {
   const { tab = "all" } = useParams<{ tab?: string }>();
+  if (tab === "recent") return <Navigate to="/recents" replace />;
   if (!isTab(tab)) return <Navigate to="/files" replace />;
   return (
-    <PageContainer>
+    <PageContainer fixed>
       <PageHeader title="Files" subtitle={SUBTITLES[tab]} />
       <FilesTabs active={tab} />
-      <div className="pt-5">
-        {tab === "all" ? <AllFilesTab /> : null}
-        {tab === "recent" ? <RecentFilesTab /> : null}
-        {tab === "starred" ? <StarredTab /> : null}
-        {tab === "shared" ? <SharedTab /> : null}
-        {tab === "trash" ? <TrashTab /> : null}
-      </div>
+      {tab === "all" ? <AllFilesTab /> : null}
+      {tab === "starred" ? <StarredTab /> : null}
+      {tab === "shared" ? (
+        <PageScroll>
+          <SharedTab />
+        </PageScroll>
+      ) : null}
+      {tab === "trash" ? (
+        <PageScroll>
+          <TrashTab />
+        </PageScroll>
+      ) : null}
     </PageContainer>
   );
 }

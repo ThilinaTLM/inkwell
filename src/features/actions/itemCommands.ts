@@ -11,14 +11,14 @@
 //     orderings for CommandMenuItems
 //
 // Command ids (default keys):
-//   navigate: nav.home (g h) · nav.inbox (g i) · nav.projects (g p) · nav.files (g f) ·
-//             nav.recent (g r) · nav.starred · nav.shares (g s) · nav.trash (g t) ·
+//   navigate: nav.home (g h) · nav.recents (g r) · nav.projects (g p) · nav.files (g f) ·
+//             nav.starred · nav.shares (g s) · nav.trash (g t) ·
 //             nav.settings (g ,) · nav.parent (backspace, mod+arrowup) · nav.back (mod+[) ·
 //             app.palette (mod+k) · view.focusFilter (/)
 //   select:   select.all (mod+a; emits signal) · select.none (escape)
 //   file:     item.open (enter) · item.openNewTab (mod+enter) · item.quickLook (space) ·
 //             item.share (shift+s) · item.copyLink (mod+shift+c) · item.download (mod+shift+d) ·
-//             item.rename (f2) · item.reveal · project.new · file.newFile (n) ·
+//             item.rename (f2) · item.reveal · project.new · file.newFile (n = new note) ·
 //             file.newFolder (shift+n) · file.upload (u) · file.uploadFolder ·
 //             file.new.{excalidraw,drawio,notes,static-site}
 //   organise: item.star (s) · item.tags (t) · item.move (m) · item.duplicate (mod+d) ·
@@ -48,7 +48,6 @@ import {
   FolderTransferIcon,
   HashtagIcon,
   Home01Icon,
-  InboxIcon,
   KeyboardIcon,
   Link04Icon,
   LinkSquare02Icon,
@@ -115,12 +114,11 @@ const KIND_ITEMS: Array<{ kind: FileKind; label: string }> = [
  *  described by EditorOverlays' editor-only overrides. */
 const EDITOR_USABLE = new Set([
   "nav.home",
-  "nav.recent",
   "nav.starred",
   "nav.shares",
   "nav.trash",
   "nav.settings",
-  "nav.inbox",
+  "nav.recents",
   "nav.projects",
   "nav.files",
   "project.new",
@@ -220,12 +218,12 @@ export function registerAppCommands(_opts?: { isAdmin: () => boolean }): () => v
       run: () => go("/"),
     },
     {
-      id: "nav.inbox",
-      label: "Go to Inbox",
-      icon: InboxIcon,
-      keys: ["g i"],
+      id: "nav.recents",
+      label: "Go to Recents",
+      icon: Clock01Icon,
+      keys: ["g r"],
       group: "navigate",
-      run: () => go("/inbox"),
+      run: () => go("/recents"),
     },
     {
       id: "nav.projects",
@@ -242,14 +240,6 @@ export function registerAppCommands(_opts?: { isAdmin: () => boolean }): () => v
       keys: ["g f"],
       group: "navigate",
       run: () => go("/files"),
-    },
-    {
-      id: "nav.recent",
-      label: "Go to Recent",
-      icon: Clock01Icon,
-      keys: ["g r"],
-      group: "navigate",
-      run: () => go("/files/recent"),
     },
     {
       id: "nav.starred",
@@ -435,12 +425,12 @@ export function registerAppCommands(_opts?: { isAdmin: () => boolean }): () => v
     },
     {
       id: "file.newFile",
-      label: "New file…",
+      label: "New note",
       icon: FileAddIcon,
       keys: ["n"],
       group: "file",
       when: (ctx) => !inTrash(ctx),
-      run: (ctx) => void a.newFile(ctx.currentFolderId ?? null),
+      run: (ctx) => void a.newFile(ctx.currentFolderId ?? null, "notes"),
     },
     ...KIND_ITEMS.map(
       ({ kind, label }): Command => ({

@@ -72,7 +72,7 @@ function EditorSuspense({ children }: { children: React.ReactNode }) {
 }
 
 function folderUrl(folderId: string | null): string {
-  return folderId ? `/folders/${folderId}` : "/inbox";
+  return folderId ? `/folders/${folderId}` : "/files";
 }
 
 export function EditorPage() {

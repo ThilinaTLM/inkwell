@@ -1,6 +1,7 @@
-// Home (`/`): greeting, capture box, Continue, Pinned projects, Inbox preview.
+// Home (`/`): greeting, quick create, Continue (top recents as cards), Pinned
+// projects, Earlier (the rest of the recents as a list). Page-level scroll.
 
-import { InboxIcon, Pin02Icon } from "@hugeicons/core-free-icons";
+import { Pin02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -10,19 +11,11 @@ import { StatusPill } from "@/components/project/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/data/auth";
-import {
-  type Project,
-  useInboxFiles,
-  usePinnedProjects,
-  useProjects,
-  useRecentFiles,
-} from "@/data/home";
-import { CaptureBox } from "@/features/capture";
-import { InboxRow } from "@/features/capture/InboxRow";
+import { type Project, usePinnedProjects, useProjects, useRecentFiles } from "@/data/home";
 import { ItemCollection, toCollectionItems } from "@/features/collection";
 import { openDialog } from "@/features/dialogs/dialogStore";
 import { relTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { QuickCreate } from "./QuickCreate";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -76,20 +69,24 @@ function ProjectCard({ project }: { project: Project }) {
             {n} {n === 1 ? "item" : "items"}
           </div>
         </div>
+      </div>
+      <div className="flex min-h-5 items-center justify-between gap-2">
+        <span className="text-xs text-faint">Edited {relTime(project.updatedAt)}</span>
         <StatusPill status={project.status} />
       </div>
-      <div className="text-xs text-faint">Edited {relTime(project.updatedAt)}</div>
     </Link>
   );
 }
 
+const CONTINUE_COUNT = 4;
+const EARLIER_COUNT = 6;
+
 export function HomePage() {
   const me = useMe();
   const navigate = useNavigate();
-  const recent = useRecentFiles(4);
+  const recent = useRecentFiles(CONTINUE_COUNT + EARLIER_COUNT);
   const projects = useProjects();
   const pinned = usePinnedProjects();
-  const inbox = useInboxFiles();
 
   const first = me.data?.firstName?.trim();
   const today = new Date().toLocaleDateString(undefined, {
@@ -97,9 +94,17 @@ export function HomePage() {
     day: "numeric",
     month: "long",
   });
-  const inboxCount = inbox.data?.length ?? 0;
+  const projectCount = projects.data?.length ?? 0;
 
-  const recentItems = useMemo(() => toCollectionItems([], recent.data ?? []), [recent.data]);
+  // Top recents as cards; the rest as a list so nothing shows twice.
+  const continueItems = useMemo(
+    () => toCollectionItems([], (recent.data ?? []).slice(0, CONTINUE_COUNT)),
+    [recent.data],
+  );
+  const earlierItems = useMemo(
+    () => toCollectionItems([], (recent.data ?? []).slice(CONTINUE_COUNT)),
+    [recent.data],
+  );
 
   // Pinned projects, or (when nothing is pinned) the 3 most recently active.
   const hasPins = (pinned.data?.length ?? 0) > 0;
@@ -109,7 +114,7 @@ export function HomePage() {
   }, [hasPins, pinned.data, projects.data]);
 
   const noProjects = projects.data?.length === 0;
-  const noFiles = recent.data?.length === 0 && inboxCount === 0;
+  const noFiles = recent.data?.length === 0;
 
   return (
     <PageContainer className="max-w-[1060px] md:pt-12">
@@ -124,29 +129,27 @@ export function HomePage() {
         </h1>
         <p className="mt-1 text-sm text-faint">
           {today}
-          {inbox.data ? (
+          {projects.data ? (
             <>
               {" · "}
-              {inboxCount > 0 ? (
-                <Link to="/inbox" className="hover:text-primary hover:underline">
-                  {inboxCount} {inboxCount === 1 ? "thing" : "things"} waiting in your inbox
-                </Link>
-              ) : (
-                "Inbox is clear"
-              )}
+              <Link to="/projects" className="hover:text-primary hover:underline">
+                {projectCount} {projectCount === 1 ? "project" : "projects"}
+              </Link>
             </>
           ) : null}
         </p>
       </header>
 
-      <CaptureBox folderId={null} />
+      <section aria-label="Create new">
+        <QuickCreate />
+      </section>
 
       {noProjects && noFiles ? (
         <section className="mt-12 rounded-2xl border border-dashed border-input bg-surface-2 px-6 py-10 text-center">
           <h2 className="font-display text-2xl font-normal italic">Start with a project</h2>
           <p className="mx-auto mt-2 max-w-md text-sm/relaxed text-muted-foreground">
-            Projects keep notes, whiteboards and files for one piece of work together. Anything you
-            capture above waits in your Inbox until you file it.
+            Projects keep notes, whiteboards, diagrams and files for one piece of work together.
+            Anything you create above is saved as a loose file until you move it into a project.
           </p>
           <Button
             className="mt-5"
@@ -167,11 +170,11 @@ export function HomePage() {
               <SectionHeader
                 id="home-continue"
                 title="Continue where you left off"
-                to="/files/recent"
-                linkLabel="View all recent"
+                to="/recents"
+                linkLabel="All recents"
               />
               <ItemCollection
-                items={recentItems}
+                items={continueItems}
                 loading={recent.isPending}
                 layout="cards"
                 showLocation
@@ -225,33 +228,26 @@ export function HomePage() {
             )}
           </section>
 
-          <section aria-labelledby="home-inbox" className="mt-10">
-            <SectionHeader
-              id="home-inbox"
-              title="Inbox"
-              to={inboxCount > 0 ? "/inbox" : undefined}
-              linkLabel={inboxCount > 5 ? `View all ${inboxCount}` : "View all"}
-            />
-            <div
-              className={cn(
-                "overflow-hidden rounded-[14px] border border-border bg-card shadow-card",
-              )}
-            >
-              {inbox.isPending ? (
-                <div className="space-y-2 p-3">
-                  <Skeleton className="h-9" />
-                  <Skeleton className="h-9" />
-                </div>
-              ) : inboxCount === 0 ? (
-                <div className="flex items-center gap-3 px-4 py-5 text-sm text-muted-foreground">
-                  <HugeiconsIcon icon={InboxIcon} strokeWidth={1.6} className="size-5 text-faint" />
-                  Nothing waiting. Captures and loose files land here until you file them.
-                </div>
-              ) : (
-                (inbox.data ?? []).slice(0, 5).map((f) => <InboxRow key={f.id} file={f} />)
-              )}
-            </div>
-          </section>
+          {earlierItems.length > 0 ? (
+            <section aria-labelledby="home-earlier" className="mt-10">
+              <SectionHeader
+                id="home-earlier"
+                title="Earlier"
+                to="/recents"
+                linkLabel="View all recents"
+              />
+              <ItemCollection
+                items={earlierItems}
+                layout="list"
+                layoutToggle={false}
+                showLocation
+                sort={false}
+                compact
+                scope="home-earlier"
+                ariaLabel="Earlier files"
+              />
+            </section>
+          ) : null}
         </>
       )}
     </PageContainer>

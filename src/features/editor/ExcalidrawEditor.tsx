@@ -24,12 +24,13 @@ import {
 } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import { BookOpen01Icon, PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExcalidrawFileBlob, FileBlob, LoadedFile } from "@/lib/api/client";
 import { useTheme } from "@/lib/theme";
+import "./excalidrawChrome.css";
 import { usePresentation } from "./ExcalidrawPresent";
 import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { fingerprintScene, pickPersistableAppState } from "./excalidrawScene";
@@ -100,6 +101,7 @@ export default function ExcalidrawEditor({
   }, []);
 
   const presentation = usePresentation(apiRef);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const presentingRef = useRef(false);
   presentingRef.current = presentation.presenting;
 
@@ -203,6 +205,7 @@ export default function ExcalidrawEditor({
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
       // Present mode is view-only: nothing it does may reach the save loop.
+      setLibraryOpen(appState.openSidebar?.name === "default");
       if (readOnly || presentingRef.current) return;
       const snap = makeExcalidrawSnapshot(elements, appState, files);
       latestSnapshotRef.current = snap;
@@ -232,6 +235,10 @@ export default function ExcalidrawEditor({
     // Fit the drawing into view on open instead of restoring a stale pan/zoom.
     scrollToContent: true,
   };
+
+  const toggleLibrary = useCallback(() => {
+    apiRef.current?.toggleSidebar({ name: "default" });
+  }, []);
 
   const { saveNow, discardPendingLocalWork } = lifecycle;
   const { requestLeave } = leave;
@@ -316,20 +323,36 @@ export default function ExcalidrawEditor({
       exporters,
       present: presentation.start,
       toolbar: (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={presentation.start}
-          title={`Present (${IS_MAC ? "⌘⇧P" : "Ctrl+Shift+P"})`}
-          data-testid="editor-present"
-        >
-          <HugeiconsIcon icon={PlayIcon} strokeWidth={1.8} />
-          <span className="hidden sm:inline">Present</span>
-        </Button>
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="max-sm:hidden aria-pressed:bg-muted"
+            aria-pressed={libraryOpen}
+            onClick={toggleLibrary}
+            title="Shape library"
+            data-testid="editor-library"
+          >
+            <HugeiconsIcon icon={BookOpen01Icon} strokeWidth={1.8} />
+            <span className="hidden lg:inline">Library</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={presentation.start}
+            title={`Present (${IS_MAC ? "⌘⇧P" : "Ctrl+Shift+P"})`}
+            data-testid="editor-present"
+          >
+            <HugeiconsIcon icon={PlayIcon} strokeWidth={1.8} />
+            <span className="hidden sm:inline">Present</span>
+          </Button>
+        </>
       ),
     }),
     [
       presentation.start,
+      libraryOpen,
+      toggleLibrary,
       exporters,
       readOnly,
       lifecycle.status,
@@ -344,7 +367,7 @@ export default function ExcalidrawEditor({
     <div className="flex h-full w-full flex-col">
       {presentation.presenting ? null : renderHeader?.(bridge)}
       <div className="relative min-h-0 w-full flex-1">
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" data-presenting={presentation.presenting}>
           <Excalidraw
             excalidrawAPI={receiveApi}
             initialData={initial}

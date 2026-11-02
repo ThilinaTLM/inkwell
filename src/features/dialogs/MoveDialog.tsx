@@ -109,7 +109,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
         kind: "folder",
         key: `${hint ? "m" : "t"}:${id ?? "root"}:${depth}`,
         id,
-        name: f?.name ?? "Inbox",
+        name: f?.name ?? "Loose files",
         depth,
         hint,
         hasChildren: kids.length > 0,
@@ -250,7 +250,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
   const title = items.length === 1 ? `Move "${infos[0]?.name}"` : `Move ${items.length} items`;
   const from =
     currentParent !== undefined
-      ? `from ${currentParent ? (all.find((f) => f.id === currentParent)?.name ?? "folder") : "Inbox"}`
+      ? `from ${currentParent ? (all.find((f) => f.id === currentParent)?.name ?? "folder") : "Loose files"}`
       : "";
 
   return (

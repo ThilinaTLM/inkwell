@@ -18,8 +18,8 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { FilesPage } from "@/features/pages/FilesPage";
 import { FolderPage } from "@/features/pages/FolderPage";
 import { HomePage } from "@/features/pages/HomePage";
-import { InboxPage } from "@/features/pages/InboxPage";
 import { ProjectsPage } from "@/features/pages/ProjectsPage";
+import { RecentsPage } from "@/features/pages/RecentsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 
 const EditorPage = lazy(() =>
@@ -53,13 +53,15 @@ export function AppRoutes() {
 
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/recents" element={<RecentsPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/folders/:folderId" element={<FolderPage />} />
         <Route path="/files/:tab?" element={<FilesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* Legacy library routes → Files hub tabs. */}
-        <Route path="/recent" element={<Navigate to="/files/recent" replace />} />
+        <Route path="/inbox" element={<Navigate to="/recents" replace />} />
+        <Route path="/recent" element={<Navigate to="/recents" replace />} />
+        <Route path="/files/recent" element={<Navigate to="/recents" replace />} />
         <Route path="/starred" element={<Navigate to="/files/starred" replace />} />
         <Route path="/trash" element={<Navigate to="/files/trash" replace />} />
         <Route path="/shares" element={<Navigate to="/files/shared" replace />} />

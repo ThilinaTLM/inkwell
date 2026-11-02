@@ -21,7 +21,7 @@ import {
 } from "@/features/upload";
 
 export interface EditorDropZoneProps {
-  /** Folder the dropped files are uploaded into (`null` = Inbox / root). */
+  /** Folder the dropped files are uploaded into (`null` = root / loose files). */
   folderId: string | null;
   /** Open that folder (guarded by the editor's leave-confirm). */
   onOpenFolder: () => void;
@@ -32,7 +32,7 @@ export function EditorDropZone({ folderId, onOpenFolder }: EditorDropZoneProps) 
   const folders = useFolders();
   const folderName = folderId
     ? (folders.data?.find((f) => f.id === folderId)?.name ?? "this folder")
-    : "Inbox";
+    : "Loose files";
   const nameRef = useRef(folderName);
   nameRef.current = folderName;
   const openRef = useRef(onOpenFolder);

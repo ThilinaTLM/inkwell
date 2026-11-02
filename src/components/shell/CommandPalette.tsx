@@ -166,7 +166,7 @@ export function CommandPalette() {
 }
 
 const RECENT_QUERY = { limit: 8 } as const;
-const COMMON = ["project.new", "file.newFile", "file.upload", "nav.inbox", "app.shortcuts"];
+const COMMON = ["project.new", "file.newFile", "file.upload", "nav.recents", "app.shortcuts"];
 
 function PaletteBody({ initialQuery }: { initialQuery: string }) {
   const navigate = useNavigate();

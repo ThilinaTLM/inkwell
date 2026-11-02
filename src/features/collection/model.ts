@@ -26,7 +26,7 @@ export interface CollectionItem {
   id: string;
   name: string;
   kind: CollectionKind;
-  /** Containing folder (`null` = root / inbox). */
+  /** Containing folder (`null` = root / loose files). */
   parentId: string | null;
   tags: string[];
   starred: boolean;

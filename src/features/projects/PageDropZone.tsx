@@ -1,5 +1,5 @@
 // Wraps a page so OS files dropped anywhere on it upload into `folderId`
-// (`null` = Inbox). Shows a calm dashed frame while a file drag is over it.
+// (`null` = loose files). Shows a calm dashed frame while a file drag is over it.
 
 import { CloudUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";

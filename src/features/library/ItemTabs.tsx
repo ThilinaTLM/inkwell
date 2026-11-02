@@ -1,4 +1,5 @@
-// Files hub tabs backed by <ItemCollection>: All · Recent · Starred.
+// Collection views backed by <ItemCollection>: Files › All · Starred and the
+// Recents page list. All use the `scroll` model (toolbar fixed, items scroll).
 
 import { File01Icon, Search01Icon, StarIcon, Time04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -55,6 +56,7 @@ export function AllFilesTab() {
   return (
     <>
       <ItemCollection
+        scroll
         items={items}
         loading={files.isPending}
         layout="list"
@@ -77,7 +79,7 @@ export function AllFilesTab() {
         }
       />
       {files.data ? (
-        <p className="mt-4 text-xs text-muted-foreground">
+        <p className="shrink-0 border-t border-border py-2.5 text-xs text-muted-foreground">
           {count} {count === 1 ? "file" : "files"} · {formatBytes(total)} used
         </p>
       ) : null}
@@ -97,13 +99,14 @@ export function RecentFilesTab() {
   }, [files.data, q]);
   return (
     <ItemCollection
+      scroll
       items={items}
       loading={files.isPending}
       sort={false}
       filterChips
       showLocation
       scope="files-recent"
-      ariaLabel="Recently edited files"
+      ariaLabel="Recent files"
       toolbarEnd={<FilesSearch value={q} onChange={setQ} placeholder="Filter recent" />}
       empty={
         q ? (
@@ -130,6 +133,7 @@ export function StarredTab() {
   }, [files.data, folders.data, q]);
   return (
     <ItemCollection
+      scroll
       items={items}
       loading={files.isPending || folders.isPending}
       filterChips

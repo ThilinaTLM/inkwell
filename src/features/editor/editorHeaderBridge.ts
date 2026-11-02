@@ -12,6 +12,17 @@
 // navigation (back, breadcrumb, duplicate, trash) through the
 // editor's leave-confirm guard.
 
+// ADDITIVE FIELDS (header redesign)
+//   • `subbar?: ReactNode` — optional full-width secondary row rendered
+//     under the header bar (own hairline, horizontally scrollable). Use
+//     it for tabs / view switchers (HTML-site Preview|Code, Markdown
+//     Source|Split|Preview) that would crowd the main bar. Omit = no row.
+//   • `toolbar` is still the right-hand cluster; the header measures its
+//     width and collapses the breadcrumb to make room, so keep it
+//     compact. The header draws the divider after it.
+//   • Save UI: `status === "dirty"` renders a primary "Save ⌘S" button
+//     (needs `saveNow`), "saved" a calm check, error → retry button.
+//
 import type { ReactNode } from "react";
 import type { EditorSaveStatus } from "./lifecycle/types";
 
@@ -58,13 +69,18 @@ export interface EditorHeaderBridge {
   /** Editor-specific controls rendered in the header's right cluster
    *  (Markdown view toggles, static-site "Open"). */
   toolbar?: ReactNode;
+  /** Optional secondary row under the header (tabs / view switchers). */
+  subbar?: ReactNode;
 }
 
 export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
 
 /** Bridge for editors without a save lifecycle (static sites). */
 export function staticBridge(
-  extra: Pick<EditorHeaderBridge, "menuExtras" | "toolbar" | "exporters" | "present"> = {},
+  extra: Pick<
+    EditorHeaderBridge,
+    "menuExtras" | "toolbar" | "subbar" | "exporters" | "present"
+  > = {},
 ): EditorHeaderBridge {
   return {
     status: null,

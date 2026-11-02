@@ -1,4 +1,4 @@
-// Markdown toolbar slot: one Source / Split / Preview segmented control
+// Markdown toolbar slot: one Write / Source segmented control
 // and a single "Aa" popover for reading width, typeface and theme
 // (replaces the previous three dropdowns that shared one icon).
 
@@ -9,17 +9,16 @@ import { Button } from "@/components/ui/button";
 import { type ThemeMode, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
-  type MarkdownEditorLayout,
+  type MarkdownEditorMode,
   NOTES_WIDTHS,
   type NotesEditorFont,
   type NotesEditorWidth,
   useNotesPreferences,
 } from "./notes/preferences";
 
-const LAYOUTS: ReadonlyArray<{ value: MarkdownEditorLayout; label: string }> = [
-  { value: "source", label: "Source" },
-  { value: "split", label: "Split" },
-  { value: "preview", label: "Preview" },
+const MODES: ReadonlyArray<{ value: MarkdownEditorMode; label: string; hint: string }> = [
+  { value: "write", label: "Write", hint: "Rich text editing" },
+  { value: "source", label: "Source", hint: "Raw Markdown" },
 ];
 
 // Curated roster (design direction: Inter UI + Source Serif for
@@ -37,22 +36,22 @@ const THEMES: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunI
 ];
 
 export function MarkdownEditorChrome() {
-  const { layout, setLayout } = useNotesPreferences();
+  const { mode, setMode } = useNotesPreferences();
   return (
     <div className="flex items-center gap-1" role="toolbar" aria-label="Markdown view">
       <div className="flex items-center rounded-lg bg-muted p-0.5">
-        {LAYOUTS.map((item) => (
+        {MODES.map((item) => (
           <button
             key={item.value}
             type="button"
-            aria-pressed={layout === item.value}
-            onClick={() => setLayout(item.value)}
+            aria-pressed={mode === item.value}
+            title={item.hint}
+            data-testid={`markdown-mode-${item.value}`}
+            onClick={() => setMode(item.value)}
             className={cn(
-              "h-7 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors",
+              "h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors",
               "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              layout === item.value && "bg-background text-foreground shadow-xs",
-              // Narrow screens: Split is meaningless, keep Source / Preview.
-              item.value === "split" && "max-sm:hidden",
+              mode === item.value && "bg-background text-foreground shadow-xs",
             )}
           >
             {item.label}

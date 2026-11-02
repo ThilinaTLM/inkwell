@@ -35,6 +35,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ApiError, type StaticSiteFileBlob, shares, staticSites } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { EditorErrorState, EditorLoadingState } from "./EditorChrome";
+import { encodePath } from "./static-site/sitePaths";
 
 // ─── Owner ────────────────────────────────────────────────────────
 
@@ -135,14 +136,4 @@ export function SharedStaticSitePreviewRedirect({
 
   if (error) return <EditorErrorState message={error} />;
   return <EditorLoadingState label="Opening preview…" />;
-}
-
-// ─── Shared helper ────────────────────────────────────────────────
-
-/** Percent-encode each path segment without touching the slashes. The
- *  signed URL prefix already contains the file id + sig (or the
- *  folder-share variant); the relpath must be safe to splice in.
- *  Mirrors the helper in StaticSiteEditor. */
-function encodePath(p: string): string {
-  return p.split("/").map(encodeURIComponent).join("/");
 }

@@ -1,7 +1,10 @@
 import { cn } from "@/lib/utils";
 import { PROJECT_STATUS_META, type ProjectStatus } from "./projectStyle";
 
-/** Active (green) · Paused (amber) · Done (grey). `null` renders as Active. */
+/**
+ * Paused (amber) · Done (grey). Active is the default state, so it renders
+ * nothing — only non-default statuses are worth calling out.
+ */
 export function StatusPill({
   status,
   className,
@@ -9,7 +12,8 @@ export function StatusPill({
   status: ProjectStatus | null | undefined;
   className?: string;
 }) {
-  const meta = PROJECT_STATUS_META[status ?? "active"];
+  if (status !== "paused" && status !== "done") return null;
+  const meta = PROJECT_STATUS_META[status];
   return (
     <span
       className={cn(

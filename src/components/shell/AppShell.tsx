@@ -11,11 +11,13 @@
 //   useInShell(): boolean        – true inside the shell (AppPage uses it to drop its own chrome)
 //
 // Pages render inside <main> (a flex column) with <PageContainer> +
-// <PageHeader> from "@/components/PageHeader". The shell also:
+// <PageHeader> from "@/components/PageHeader". Scroll model: dashboard pages
+// scroll at page level; collection pages use <PageContainer fixed> and let only
+// the item list scroll (see PageHeader.tsx). The shell also:
 //   - mounts useGlobalHotkeys (so single-key shortcuts never run in editors)
 //   - registers the app command set (features/actions/itemCommands)
 //   - publishes { route, currentFolderId } to the command context
-//     (currentFolderId: null on "/", "/inbox" and "/projects", the id on
+//     (currentFolderId: null on "/", "/recents" and "/projects", the id on
 //     /folders/:id, undefined elsewhere)
 //   - clears the selection when the route changes
 //   - mounts CommandPalette, ShortcutSheet, DialogHost and UploadTray
@@ -54,7 +56,7 @@ export function useShell() {
 }
 
 function currentFolderFromPath(pathname: string): string | null | undefined {
-  if (pathname === "/" || pathname === "/inbox" || pathname === "/projects") return null;
+  if (pathname === "/" || pathname === "/recents" || pathname === "/projects") return null;
   const m = matchPath("/folders/:folderId", pathname);
   return m?.params.folderId ?? undefined;
 }

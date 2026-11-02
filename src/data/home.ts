@@ -10,7 +10,6 @@
 //   usePinProject()        pin / unpin mutation (PATCH `pinnedAt`).
 //   useRecentFiles(limit)  newest-edited files across all folders, each with
 //                          its folder path and owning project.
-//   useInboxFiles()        loose root files (`folderId === null`), newest first.
 //
 // Pure helpers (`buildProjects`, `folderPath`, `withLocation`) are exported
 // for tests and for pages that already hold the folder list.
@@ -41,7 +40,7 @@ export interface FolderCrumb {
 export interface LocatedFile extends FileMeta {
   /** Ancestors from the project down to the direct parent; `[]` for root files. */
   folderPath: FolderCrumb[];
-  /** The top-level folder the file lives under; `null` for root (inbox) files. */
+  /** The top-level folder the file lives under; `null` for loose root files. */
   project: FolderCrumb | null;
 }
 
@@ -173,14 +172,4 @@ export function useRecentFiles(limit = 12) {
     error: files.error ?? foldersQ.error,
     refetch: () => Promise.all([files.refetch(), foldersQ.refetch()]),
   };
-}
-
-/** Loose root files — the Inbox — newest first. */
-export function useInboxFiles() {
-  const q = useFiles({ folderId: "root" });
-  const data = useMemo(
-    () => q.data && [...q.data].sort((a, b) => b.updatedAt - a.updatedAt),
-    [q.data],
-  );
-  return { ...q, data };
 }

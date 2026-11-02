@@ -1,16 +1,17 @@
-// Mobile (<768px) bottom bar: Home · Inbox · ＋ · Search · Files.
-// ＋ opens the capture dialog (targets the current folder, else the Inbox).
+// Mobile (<768px) bottom bar: Home · Recents · ＋ · Search · Files.
+// ＋ opens the New menu (Note · Whiteboard · Diagram · HTML site · Folder · Upload)
+// and creates in the current folder, else loose files.
 
 import {
   Add01Icon,
+  Clock01Icon,
   FolderLibraryIcon,
   Home01Icon,
-  InboxIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link, useLocation } from "react-router-dom";
-import { openCapture } from "@/features/capture/openCapture";
+import { NewMenu } from "@/features/pages/NewMenu";
 import { cn } from "@/lib/utils";
 import { openPalette } from "./shellStore";
 
@@ -51,16 +52,26 @@ export function MobileBottomBar() {
       )}
     >
       <BarLink to="/" icon={Home01Icon} label="Home" active={pathname === "/"} />
-      <BarLink to="/inbox" icon={InboxIcon} label="Inbox" active={pathname.startsWith("/inbox")} />
+      <BarLink
+        to="/recents"
+        icon={Clock01Icon}
+        label="Recents"
+        active={pathname.startsWith("/recents")}
+      />
       <div className="flex flex-1 items-center justify-center">
-        <button
-          type="button"
-          aria-label="Capture"
-          onClick={() => openCapture()}
-          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-pop outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2.2} className="size-5" />
-        </button>
+        <NewMenu
+          side="top"
+          align="center"
+          trigger={
+            <button
+              type="button"
+              aria-label="New"
+              className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-pop outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2.2} className="size-5" />
+            </button>
+          }
+        />
       </div>
       <button type="button" onClick={() => openPalette()} className={itemClass}>
         <HugeiconsIcon icon={Search01Icon} strokeWidth={1.8} className="size-[22px]" />

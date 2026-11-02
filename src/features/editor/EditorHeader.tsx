@@ -42,6 +42,8 @@ import {
   EyeIcon,
   File01Icon,
   FileExportIcon,
+  FloppyDiskIcon,
+  Folder01Icon,
   FolderExportIcon,
   HashtagIcon,
   Loading03Icon,
@@ -53,16 +55,10 @@ import {
   WifiDisconnected01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  type KeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileKindGlyph } from "@/components/icons/file-kind-icons";
+import { Kbd } from "@/components/shell/Kbd";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -110,7 +106,7 @@ export interface EditorHeaderProps {
   backLabel?: string;
   /** Visitor (share-token) mode. Hides every owner action. */
   visitor?: EditorHeaderVisitor | null;
-  /** Navigate to a breadcrumb folder (`null` = Inbox). Owner only. */
+  /** Navigate to a breadcrumb folder (`null` = root → Files). Owner only. */
   onNavigateFolder?: (folderId: string | null) => void;
   /** Commit an inline rename. Resolve `false` to keep the field open. */
   onRename?: (next: string) => Promise<boolean>;
@@ -238,13 +234,28 @@ export function EditorHeader(props: EditorHeaderProps) {
   const readOnly = isVisitor && visitor.permission !== "write";
   const exporters = bridge.exporters ?? [];
 
+  // Responsive breadcrumb: measure the header and the kind's toolbar slot,
+  // then pick a collapse level from the width that is really left over.
+  const headerRef = useRef<HTMLElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const headerW = useElementWidth(headerRef);
+  const toolbarW = useElementWidth(toolbarRef);
+  const avail = headerW - (headerW >= 640 ? toolbarW : 0);
+  const level: CrumbLevel = avail >= 900 ? 0 : avail >= 740 ? 1 : avail >= 560 ? 2 : 3;
+
+  const navigateFolder = (fid: string | null) => {
+    const nav = props.onNavigateFolder;
+    if (nav) bridge.requestLeave(() => nav(fid));
+  };
+
   return (
     <div className="relative z-20 shrink-0">
       <header
+        ref={headerRef}
         role="toolbar"
         aria-label="File"
         onKeyDown={onHeaderKeyDown}
-        className="flex h-12 items-center gap-1 border-b border-border/50 bg-background px-2 sm:gap-1.5 sm:px-3"
+        className="flex min-h-13 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border/60 bg-background px-2 py-1.5 sm:flex-nowrap sm:gap-2 sm:px-3 sm:py-0"
       >
         {onBack ? (
           <Button
@@ -253,32 +264,25 @@ export function EditorHeader(props: EditorHeaderProps) {
             onClick={goBack}
             aria-label={backLabel}
             title={`${backLabel} (${MOD}[)`}
+            className="shrink-0"
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
         ) : null}
 
-        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-[13px]">
           {isVisitor ? null : (
-            <OwnerCrumbs
-              folderId={file.folderId}
-              onNavigate={(fid) => {
-                if (props.onNavigateFolder) {
-                  const nav = props.onNavigateFolder;
-                  bridge.requestLeave(() => nav(fid));
-                }
-              }}
-            />
+            <OwnerCrumbs folderId={file.folderId} level={level} onNavigate={navigateFolder} />
           )}
-          <span className="flex min-w-0 items-center gap-1.5" aria-current="page">
+          <span className="flex min-w-0 shrink-[0.2] items-center gap-2" aria-current="page">
             {file.kind === "file" ? (
               <HugeiconsIcon
                 icon={File01Icon}
                 strokeWidth={1.8}
-                className="size-4 shrink-0 text-muted-foreground"
+                className="size-[18px] shrink-0 text-muted-foreground"
               />
             ) : (
-              <FileKindGlyph kind={file.kind} className="size-4 shrink-0" />
+              <FileKindGlyph kind={file.kind} className="size-[18px] shrink-0" />
             )}
             {renaming && canRename ? (
               <InlineRename
@@ -295,19 +299,27 @@ export function EditorHeader(props: EditorHeaderProps) {
                 type="button"
                 onClick={() => setRenaming(true)}
                 title="Rename (F2)"
+                aria-label={`File name: ${file.name}. Rename (F2)`}
                 data-testid="editor-file-name"
                 className={cn(
-                  "min-w-0 max-w-[16rem] truncate rounded-md px-1.5 py-0.5 font-display text-[15px] font-medium text-foreground sm:max-w-[28rem]",
-                  "cursor-text hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "group/name -mx-1 flex min-w-0 max-w-[30rem] cursor-text items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+                  "transition-colors hover:border-border hover:bg-accent/60 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
                 )}
               >
-                {file.name}
+                <span className="min-w-0 truncate font-display text-[17px] leading-6 font-medium text-foreground">
+                  {file.name}
+                </span>
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  strokeWidth={1.8}
+                  className="size-3.5 shrink-0 text-faint opacity-0 transition-opacity group-hover/name:opacity-100 group-focus-visible/name:opacity-100"
+                />
               </button>
             ) : (
               <span
                 title={file.name}
                 data-testid="editor-file-name"
-                className="min-w-0 max-w-[16rem] truncate px-1.5 font-display text-[15px] font-medium text-foreground sm:max-w-[28rem]"
+                className="min-w-0 max-w-[30rem] truncate px-1 font-display text-[17px] leading-6 font-medium text-foreground"
               >
                 {file.name}
               </span>
@@ -315,16 +327,19 @@ export function EditorHeader(props: EditorHeaderProps) {
           </span>
         </nav>
 
-        {readOnly ? null : <SaveIndicator bridge={bridge} version={file.version} />}
+        {readOnly ? null : <SaveControl bridge={bridge} version={file.version} />}
 
         {isVisitor ? <VisitorChip visitor={visitor} /> : null}
 
         <div className="min-w-0 flex-1" />
 
         {bridge.toolbar ? (
-          <div className="flex items-center gap-0.5">
+          <div
+            ref={toolbarRef}
+            className="order-last flex basis-full items-center gap-0.5 overflow-x-auto sm:order-none sm:basis-auto sm:shrink-0 sm:overflow-visible"
+          >
             {bridge.toolbar}
-            <span aria-hidden className="mx-1 hidden h-5 w-px bg-border sm:block" />
+            <span aria-hidden className="mx-1.5 hidden h-5 w-px bg-border sm:block" />
           </div>
         ) : null}
 
@@ -349,6 +364,15 @@ export function EditorHeader(props: EditorHeaderProps) {
         ) : null}
       </header>
 
+      {bridge.subbar ? (
+        <div
+          data-testid="editor-subbar"
+          className="flex min-h-9 items-center gap-1 overflow-x-auto border-b border-border/60 bg-background px-2 sm:px-3"
+        >
+          {bridge.subbar}
+        </div>
+      ) : null}
+
       {props.conflict ? <ConflictBanner {...props.conflict} /> : null}
 
       <ExportDialog
@@ -361,57 +385,127 @@ export function EditorHeader(props: EditorHeaderProps) {
   );
 }
 
+function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      setW(0);
+      return;
+    }
+    const ro = new ResizeObserver(() => setW(el.getBoundingClientRect().width));
+    ro.observe(el);
+    setW(el.getBoundingClientRect().width);
+    return () => ro.disconnect();
+  });
+  return w;
+}
+
 // ─── Breadcrumb ──────────────────────────────────────────────────────
 
+type CrumbLevel = 0 | 1 | 2 | 3;
+interface Seg {
+  id: string | null;
+  name: string;
+}
+
+/** Folder path → visible crumbs plus the segments folded into a "…" menu.
+ *  0 full · 1 first … last · 2 first … · 3 only the "…" menu. */
 function OwnerCrumbs({
   folderId,
+  level,
   onNavigate,
 }: {
   folderId: string | null;
+  level: CrumbLevel;
   onNavigate: (folderId: string | null) => void;
 }) {
   const foldersQuery = useFolders();
   const path = folderId && foldersQuery.data ? folderPath(foldersQuery.data, folderId) : [];
-  // Collapse long paths: first › … › last two. Loose files show "Inbox".
-  const shown: Array<(typeof path)[number] | null> =
-    path.length > 3 ? [path[0], null, path[path.length - 2], path[path.length - 1]] : path;
+  const segs: Seg[] =
+    folderId === null
+      ? [{ id: null, name: "Files" }]
+      : path.map((f) => ({ id: f.id, name: f.name }));
+  const n = segs.length;
+  if (n === 0) return null;
+
+  type Item = { seg: Seg } | { menu: Seg[] };
+  let items: Item[];
+  if (level === 0 || n <= 2) {
+    items =
+      level === 3 && n > 1
+        ? [{ menu: segs.slice(0, -1) }, { seg: segs[n - 1] }]
+        : segs.map((seg) => ({ seg }));
+    if (level === 3 && n === 1) items = [{ menu: segs }];
+  } else if (level === 1) {
+    items = [
+      { seg: segs[0] },
+      ...(n > 3 ? [{ menu: segs.slice(1, -1) }] : [{ seg: segs[1] }]),
+      { seg: segs[n - 1] },
+    ];
+    if (n === 3) items = segs.map((seg) => ({ seg }));
+  } else if (level === 2) {
+    items = [{ seg: segs[0] }, { menu: segs.slice(1) }];
+  } else {
+    items = [{ menu: segs }];
+  }
 
   const sep = (
-    <span aria-hidden className="shrink-0 text-muted-foreground/50">
+    <span aria-hidden className="shrink-0 select-none text-faint">
       /
     </span>
   );
   const crumb =
-    "hidden min-w-0 max-w-[10rem] truncate rounded-md px-1.5 py-0.5 text-muted-foreground md:inline hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+    "min-w-0 max-w-[18rem] truncate rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
 
   return (
     <>
-      {folderId === null ? (
-        <>
-          <button type="button" onClick={() => onNavigate(null)} className={crumb}>
-            Inbox
-          </button>
-          <span className="hidden md:inline">{sep}</span>
-        </>
-      ) : null}
-      {shown.map((f, i) =>
-        f ? (
-          <span key={f.id} className="flex min-w-0 items-center gap-1">
-            <button type="button" onClick={() => onNavigate(f.id)} title={f.name} className={crumb}>
-              {f.name}
-            </button>
-            <span className="hidden md:inline">{sep}</span>
+      {items.map((it, i) => {
+        const key = "seg" in it ? (it.seg.id ?? "root") : `menu-${i}`;
+        return (
+          <span key={key} className="hidden min-w-0 shrink items-center gap-1 sm:flex">
+            {"seg" in it ? (
+              <button
+                type="button"
+                onClick={() => onNavigate(it.seg.id)}
+                title={it.seg.name}
+                data-testid="editor-crumb"
+                className={crumb}
+              >
+                {it.seg.name}
+              </button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Show folders"
+                      title="Show folders"
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 aria-expanded:bg-accent"
+                    >
+                      <HugeiconsIcon
+                        icon={MoreHorizontalIcon}
+                        strokeWidth={1.8}
+                        className="size-3.5"
+                      />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent align="start" className="w-auto min-w-44">
+                  {it.menu.map((s) => (
+                    <DropdownMenuItem key={s.id ?? "root"} onClick={() => onNavigate(s.id)}>
+                      <HugeiconsIcon icon={Folder01Icon} strokeWidth={1.8} />
+                      {s.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {sep}
           </span>
-        ) : (
-          <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: the ellipsis slot is positional
-            key={`ellipsis-${i}`}
-            className="hidden items-center gap-1 text-muted-foreground md:flex"
-          >
-            …{sep}
-          </span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
@@ -478,8 +572,8 @@ function InlineRename({
         }
       }}
       onBlur={() => void commit()}
-      size={Math.min(Math.max(value.length + 1, 8), 48)}
-      className="h-7 min-w-0 rounded-md border border-input bg-background px-1.5 font-display text-[15px] font-medium text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+      size={Math.min(Math.max(value.length + 1, 8), 40)}
+      className="-mx-1 h-8 min-w-0 rounded-md border border-input bg-background px-1.5 font-display text-[17px] font-medium text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
     />
   );
 }
@@ -503,97 +597,114 @@ function useOnline(): boolean {
   return online;
 }
 
-function SaveIndicator({ bridge, version }: { bridge: EditorHeaderBridge; version: number }) {
+function SaveControl({ bridge, version }: { bridge: EditorHeaderBridge; version: number }) {
   const online = useOnline();
   const { status, errorMessage, saveNow } = bridge;
   if (status === null) return null;
 
-  let icon: ReactNode;
-  let label: string;
-  let title: string;
-  let tone = "text-muted-foreground";
-  let interactive = false;
+  const doSave = () => {
+    if (saveNow) void saveNow().then((ok) => ok && notifySaved());
+  };
 
-  switch (status) {
-    case "loading":
-      icon = <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />;
-      label = "Loading…";
-      title = label;
-      break;
-    case "saving":
-      icon = <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />;
-      label = "Saving…";
-      title = label;
-      break;
-    case "dirty":
-      icon = <span aria-hidden className="size-1.5 rounded-full bg-primary" />;
-      label = "Unsaved changes";
-      title = `Unsaved changes — click or press ${MOD}S to save now`;
-      tone = "text-foreground";
-      interactive = !!saveNow;
-      break;
-    case "error":
-      if (isConflictMessage(errorMessage)) {
-        icon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
-        label = "Conflict";
-        title = errorMessage ?? "Conflict";
-        tone = "text-destructive";
-      } else if (!online || /fetch|network|offline/i.test(errorMessage ?? "")) {
-        icon = <HugeiconsIcon icon={WifiDisconnected01Icon} strokeWidth={2} />;
-        label = "Offline — retry";
-        title = errorMessage ?? "You appear to be offline — click to retry";
-        tone = "text-destructive";
-        interactive = !!saveNow;
-      } else {
-        icon = <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />;
-        label = "Save failed — retry";
-        title = errorMessage ?? "Save failed — click to retry";
-        tone = "text-destructive";
-        interactive = !!saveNow;
-      }
-      break;
-    default:
-      icon = <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />;
-      label = "Saved";
-      title = `All changes saved · version ${version} · ${MOD}S to save`;
-  }
+  // Chip base for the calm / passive states.
+  const chip =
+    "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs whitespace-nowrap [&_svg]:size-3.5";
+  const live = { "data-testid": "editor-save-state", "data-status": status } as const;
 
-  const cls = cn(
-    "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs whitespace-nowrap [&_svg]:size-3.5",
-    tone,
-  );
-  const text = <span className="hidden sm:inline">{label}</span>;
-
-  if (interactive && saveNow) {
+  if (status === "dirty" && saveNow) {
     return (
-      <button
-        type="button"
-        onClick={() => void saveNow().then((ok) => ok && notifySaved())}
-        title={title}
-        aria-label={title}
-        data-testid="editor-save-state"
-        data-status={status}
-        className={cn(
-          cls,
-          "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-        )}
+      <Button
+        size="sm"
+        onClick={doSave}
+        title={`Save now — ${MOD}S (autosaves a moment after you stop typing)`}
+        aria-label={`Save now (${MOD}S)`}
+        className="h-8 shrink-0 gap-1.5 px-2.5 text-[13px] shadow-sm sm:px-3"
+        {...live}
       >
-        {icon}
-        {text}
-      </button>
+        <HugeiconsIcon icon={FloppyDiskIcon} strokeWidth={2} className="size-3.5" />
+        Save
+        <Kbd className="ml-0.5 hidden h-[18px] border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground shadow-none lg:inline-flex">
+          {MOD}S
+        </Kbd>
+      </Button>
     );
   }
+
+  if (status === "error") {
+    if (isConflictMessage(errorMessage)) {
+      return (
+        <output
+          {...live}
+          title={errorMessage ?? "Conflict"}
+          aria-label={errorMessage ?? "Conflict"}
+          aria-live="polite"
+          className={cn(chip, "bg-destructive/10 text-destructive")}
+        >
+          <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+          <span className="hidden sm:inline">Conflict</span>
+        </output>
+      );
+    }
+    const offline = !online || /fetch|network|offline/i.test(errorMessage ?? "");
+    const title =
+      errorMessage ??
+      (offline ? "You appear to be offline — click to retry" : "Save failed — click to retry");
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={doSave}
+        disabled={!saveNow}
+        title={title}
+        aria-label={title}
+        className="h-8 shrink-0 gap-1.5 border-destructive/50 px-2.5 text-[13px] text-destructive hover:border-destructive hover:bg-destructive/10"
+        {...live}
+      >
+        <HugeiconsIcon
+          icon={offline ? WifiDisconnected01Icon : Alert02Icon}
+          strokeWidth={2}
+          className="size-3.5"
+        />
+        <span className="hidden sm:inline">
+          {offline ? "Offline — retry" : "Save failed — retry"}
+        </span>
+        <span className="sm:hidden">Retry</span>
+      </Button>
+    );
+  }
+
+  if (status === "loading" || status === "saving") {
+    const label = status === "loading" ? "Loading…" : "Saving…";
+    return (
+      <output
+        {...live}
+        title={label}
+        aria-label={label}
+        aria-live="polite"
+        className={cn(chip, "text-muted-foreground")}
+      >
+        <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
+        <span className="hidden sm:inline">{label}</span>
+      </output>
+    );
+  }
+
+  // saved (or dirty on a read-only session)
+  const title = `All changes saved · version ${version} · autosave is on · ${MOD}S saves now`;
   return (
     <output
+      {...live}
       title={title}
       aria-label={title}
       aria-live="polite"
-      data-testid="editor-save-state"
-      data-status={status}
-      className={cls}
+      className={cn(chip, "text-muted-foreground")}
     >
-      {icon}
-      {text}
+      <HugeiconsIcon
+        icon={CheckmarkCircle02Icon}
+        strokeWidth={2}
+        className="text-emerald-600 dark:text-emerald-400"
+      />
+      <span className="hidden sm:inline">Saved</span>
     </output>
   );
 }

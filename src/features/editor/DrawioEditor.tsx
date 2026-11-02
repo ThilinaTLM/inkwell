@@ -26,11 +26,12 @@
 // with the new value (no runtime toggle exists in the embed protocol).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import type { DrawioFileBlob, LoadedFile } from "@/lib/api/client";
 import { useDrawioStyle } from "@/lib/preferences";
 import { type ResolvedTheme, useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { DrawioSidebarToggles } from "./DrawioSidebarToggles";
 import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
@@ -82,6 +83,9 @@ interface DrawioMessage {
 // `saveLatest`, which fires `requestThumbExport()` synchronously on
 // every successful save.
 const THUMB_DEBOUNCE_MS = 8_000;
+
+// How long draw.io may take to send `init` before we show the error state.
+const BOOT_TIMEOUT_MS = 25_000;
 
 // Cheap O(n) hash used to dedup thumb exports against the XML they were
 // generated from. Same idea as the Excalidraw editor's fingerprint:
@@ -135,16 +139,6 @@ function decodeDrawioSvgPayload(data: string | undefined): string | null {
 function buildDrawioSrc(dark: boolean, style: "classic" | "sketch"): string {
   const ui = style === "sketch" ? "&ui=sketch" : "";
   return `/drawio/index.html?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1&noSaveBtn=1&saveAndExit=0&dark=${dark ? 1 : 0}${ui}`;
-}
-
-// Slot we inject into drawio's `.geMenubarContainer` (Kennedy only),
-// rendered into via a React portal. Same-origin iframe (we serve
-// `public/drawio` ourselves) is what makes this safe. `trailing` hosts
-// Tier 2's sidebar/format toggles — visible only on
-// `(max-width: 1024px)` so it's a no-op on desktop. Sketch has no use
-// for it (drawio's floating shape picker / format button cover it).
-interface DrawioMenubarSlots {
-  trailing: HTMLDivElement | null;
 }
 
 // Stylesheet injected into the iframe document (menubar tweaks,
@@ -206,53 +200,12 @@ const MENUBAR_CSS = `
   .geTabContainer .geButton { min-height: 36px; padding: 4px 10px; }
 }
 
-/* Tier 2 sidebar toggles — pinned to the right edge of drawio's
-   menubar row. Empty (display:none) on desktop; visible only at
-   narrow viewports where drawio's smallScreenWidth=1024 collapses
-   both side panels. The buttons drive drawio's own toggle actions
-   via the contentWindow.editorUi handles, with aria-pressed
-   mirroring drawio's actual panel state via MutationObserver. */
-.inkwell-trailing-container {
-  /* fixed (to the iframe viewport), not absolute: drawio sizes the
-     menubar container wider than the viewport on phones. */
-  position: fixed;
-  top: 0;
-  right: max(8px, env(safe-area-inset-right));
-  height: 30px;
-  display: none;
-  align-items: center;
-  gap: 4px;
-  z-index: 1;
-}
-@media (max-width: 1024px) {
-  .inkwell-trailing-container { display: flex; }
-}
-.inkwell-toggle-btn {
-  all: unset;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  cursor: pointer;
-  color: light-dark(rgba(15, 23, 42, 0.7), rgba(241, 245, 249, 0.7));
-}
-.inkwell-toggle-btn:hover {
-  background-color: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
-}
-.inkwell-toggle-btn[data-pressed="true"] {
-  background-color: light-dark(rgba(0, 0, 0, 0.10), rgba(255, 255, 255, 0.14));
-  color: light-dark(#0f172a, #f1f5f9);
-}
-.inkwell-toggle-btn svg {
-  width: 18px;
-  height: 18px;
-}
-@media (pointer: coarse) {
-  .inkwell-toggle-btn { width: 36px; height: 36px; }
-  .inkwell-toggle-btn svg { width: 20px; height: 20px; }
-}
+/* draw.io's "fork me" GitHub logo in the page-tab bar is not part of
+   Inkwell's chrome. */
+.geTabContainer a[href*="github.com"] { display: none !important; }
+
+/* Quiet, warm scrollbars. */
+* { scrollbar-color: color-mix(in srgb, currentColor 22%, transparent) transparent; }
 
 /* Sketch theme (body.geSketch, ui=sketch): the file name lives in
    Inkwell's EditorHeader, so drawio's own filename status is hidden. */
@@ -270,35 +223,61 @@ body.geSketch .geToolbarContainer[style*="position: absolute"][style*="right: 12
 }
 `;
 
-// Style-aware slot resolver. Kennedy injects the trailing toggles
-// into `.geMenubarContainer`; sketch only needs the stylesheet.
-function ensureSlots(
-  iframe: HTMLIFrameElement,
-  style: "classic" | "sketch",
-): DrawioMenubarSlots | null {
-  const doc = iframe.contentDocument;
-  if (!doc) return null;
-  if (style === "sketch") {
-    ensureStylesheet(doc);
-    return { trailing: null };
-  }
-  const menubar = doc.querySelector<HTMLDivElement>(".geMenubarContainer");
-  if (!menubar) return null;
-  ensureStylesheet(doc);
-  let trailing = menubar.querySelector<HTMLDivElement>(".inkwell-trailing-container");
-  if (!trailing) {
-    trailing = doc.createElement("div");
-    trailing.className = "inkwell-trailing-container";
-    menubar.appendChild(trailing);
-  }
-  return { trailing };
+// Inkwell palette → draw.io's own CSS custom properties. Both the
+// light and dark variable families are bound to the *currently
+// resolved* Inkwell tokens (read from the host document), so the
+// embedded UI reads as the same warm charcoal / paper surface as the
+// rest of the app. The iframe remounts on theme flips, so reading the
+// tokens once per boot is enough.
+function themeCss(): string {
+  const cs = getComputedStyle(document.documentElement);
+  const t = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  const bg = t("--background", "#171513");
+  const card = t("--card", "#1f1c19");
+  const border = t("--border", "#3a342d");
+  const fg = t("--foreground", "#f1ece3");
+  const muted = t("--muted", "#2a2621");
+  const secondary = t("--secondary", muted);
+  const mutedFg = t("--muted-foreground", "#a89f92");
+  const accent = t("--accent-soft", muted);
+  const accentText = t("--accent-text", t("--primary", "#f08a4b"));
+  const primary = t("--primary", "#f08a4b");
+  return `
+:root {
+  --ge-panel-color: ${card};
+  --toolbar-color: ${card};
+  --workspace-color: ${bg};
+  --inactive-color: ${secondary};
+  --active-color: ${muted};
+  --primary-color: ${accent};
+  --primary-hover-color: ${accent};
+  --accent-color: ${accent};
+  --accent-hover-color: ${accent};
+  --accent-text-color: ${accentText};
+  --border-color: ${border};
+  --highlight-color: ${secondary};
+  --text-color: ${fg};
+  --dark-color: ${bg};
+  --ge-dark-panel-color: ${card};
+  --dark-toolbar-color: ${card};
+  --dark-border-color: ${border};
+  --dark-text-color: ${fg};
+  --dark-accent-color: ${accent};
+  --dark-accent-text-color: ${primary};
+  --dark-active-accent-color: ${accent};
+  --dark-inverse-active-color: ${mutedFg};
+  --dark-highlight-color: ${secondary};
+  --dark-header-color: ${card};
+}
+html body.geEditor { background: ${bg}; }
+`;
 }
 
 function ensureStylesheet(doc: Document) {
   if (doc.getElementById(MENUBAR_STYLE_ID)) return;
   const style = doc.createElement("style");
   style.id = MENUBAR_STYLE_ID;
-  style.textContent = MENUBAR_CSS;
+  style.textContent = themeCss() + MENUBAR_CSS;
   doc.head.appendChild(style);
 }
 
@@ -328,7 +307,8 @@ export default function DrawioEditor({
   const previousFileIdRef = useRef(loaded.meta.id);
 
   const [ready, setReady] = useState(false);
-  const [slots, setSlots] = useState<DrawioMenubarSlots | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const { resolved } = useTheme();
   const lastResolvedRef = useRef<ResolvedTheme>(resolved);
   const drawioStyle = useDrawioStyle();
@@ -476,7 +456,7 @@ export default function DrawioEditor({
       // PUT; resetting readiness on those version bumps would leave
       // the iframe loaded while our status falls back to "Loading…".
       setReady(false);
-      setSlots(null);
+      setFailed(false);
     }
     lifecycle.reset(loaded.meta.version, hashXml(initialXml));
     // `lifecycle.reset` is stable across renders (useCallback'd
@@ -498,12 +478,11 @@ export default function DrawioEditor({
 
       if (msg.event === "init") {
         setReady(true);
-        // Set up native menubar slots once drawio has rendered its UI.
-        // `init` fires after the menubar exists in the DOM.
-        if (iframeRef.current) {
-          const next = ensureSlots(iframeRef.current, drawioStyle);
-          if (next) setSlots(next);
-        }
+        // Apply the Inkwell palette + overrides once drawio has built
+        // its UI (`init` fires after the DOM exists). Also done on the
+        // iframe `load` event to minimise the flash of stock colours.
+        const initDoc = iframeRef.current?.contentDocument;
+        if (initDoc) ensureStylesheet(initDoc);
         // Keystrokes inside the iframe never reach the parent window:
         // forward the editor chords (save, export, palette, shortcut
         // sheet) so they behave like in every other editor.
@@ -585,7 +564,6 @@ export default function DrawioEditor({
     return () => window.removeEventListener("message", onMessage);
   }, [
     debouncedThumb,
-    drawioStyle,
     lifecycle,
     loaded.meta.hasThumb,
     loaded.meta.name,
@@ -623,6 +601,16 @@ export default function DrawioEditor({
     });
   }, [drawioStyle, ready]);
 
+  // Boot watchdog: if draw.io never sends `init` (blocked asset, offline,
+  // crashed iframe) surface an error with Retry instead of a forever
+  // skeleton. Re-armed on every (re)mount of the iframe.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt`, `resolved` and `drawioStyle` re-arm the timer on iframe remounts.
+  useEffect(() => {
+    if (ready) return;
+    const id = window.setTimeout(() => setFailed(true), BOOT_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [ready, attempt, resolved, drawioStyle]);
+
   // Theme / style flip — drawio's embed protocol has no runtime
   // dark-mode or theme toggle, so we force-save the current XML,
   // drop our slot refs, and let the keyed iframe (below) remount
@@ -643,7 +631,7 @@ export default function DrawioEditor({
     pendingThumbXmlRef.current = null;
     void lifecycle.saveNow();
     setReady(false);
-    setSlots(null);
+    setFailed(false);
   }, [resolved, drawioStyle, debouncedThumb, lifecycle]);
 
   // Flush the on-init thumb backfill on `beforeunload` /
@@ -733,9 +721,14 @@ export default function DrawioEditor({
       discard: discardPendingLocalWork,
       requestLeave,
       exporters,
+      toolbar:
+        drawioStyle === "classic" ? (
+          <DrawioSidebarToggles iframe={ready ? iframeRef.current : null} />
+        ) : undefined,
     }),
     [
       exporters,
+      drawioStyle,
       readOnly,
       ready,
       lifecycle.status,
@@ -754,20 +747,27 @@ export default function DrawioEditor({
           // Remount when the resolved theme OR style changes so drawio
           // re-reads `?dark=` / `?ui=`. Cheap because it's only on
           // explicit user toggles.
-          key={`${resolved}|${drawioStyle}`}
+          key={`${resolved}|${drawioStyle}|${attempt}`}
           ref={iframeRef}
           src={drawioSrc}
           title="draw.io editor"
-          className="h-full w-full border-0"
+          className="h-full w-full border-0 bg-background"
           allow="clipboard-read; clipboard-write"
+          onLoad={(e) => {
+            const doc = e.currentTarget.contentDocument;
+            if (doc?.head) ensureStylesheet(doc);
+          }}
         />
+        {ready ? null : (
+          <DrawioBootOverlay
+            failed={failed}
+            onRetry={() => {
+              setFailed(false);
+              setAttempt((n) => n + 1);
+            }}
+          />
+        )}
       </div>
-
-      {/* Trailing slot — Kennedy only. Hosts the Tier 2 sidebar
-          toggles (visible only below 1024px via CSS). */}
-      {slots?.trailing
-        ? createPortal(<DrawioSidebarToggles iframe={iframeRef.current} />, slots.trailing)
-        : null}
 
       <LeaveConfirmDialog
         open={leave.open}
@@ -807,4 +807,66 @@ function forwardEditorChord(e: KeyboardEvent): void {
 function getDrawioXml(loaded: LoadedFile): string {
   const blob = loaded.blob as Partial<DrawioFileBlob>;
   return typeof blob.xml === "string" ? blob.xml : "";
+}
+
+/** Placeholder shaped like draw.io's chrome while the iframe boots, or an error with Retry. */
+function DrawioBootOverlay({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+  return (
+    <div
+      className="absolute inset-0 z-10 flex flex-col bg-background"
+      data-testid="drawio-boot"
+      role={failed ? "alert" : "status"}
+      aria-live="polite"
+    >
+      <div className="flex h-9 items-center gap-4 border-b border-border bg-card px-4">
+        {[28, 32, 40, 56, 44, 36].map((w, i) => (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: static decorative placeholders
+            key={i}
+            className={cn("h-2.5 rounded bg-muted", !failed && "animate-pulse")}
+            style={{ width: w }}
+          />
+        ))}
+      </div>
+      <div className="flex h-9 items-center gap-3 border-b border-border bg-card px-4">
+        {Array.from({ length: 9 }, (_, i) => (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: static decorative placeholders
+            key={i}
+            className={cn("size-4 rounded bg-muted", !failed && "animate-pulse")}
+          />
+        ))}
+      </div>
+      <div className="relative flex min-h-0 flex-1">
+        <div className="hidden w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-3 sm:flex">
+          <span className={cn("h-7 rounded-md bg-muted", !failed && "animate-pulse")} />
+          <div className="mt-1 grid grid-cols-4 gap-2">
+            {Array.from({ length: 16 }, (_, i) => (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: static decorative placeholders
+                key={i}
+                className={cn("aspect-square rounded bg-muted/70", !failed && "animate-pulse")}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          {failed ? (
+            <div className="flex max-w-xs flex-col items-center gap-3 px-6 text-center">
+              <p className="font-display text-base">The diagram editor didn’t start</p>
+              <p className="text-sm text-muted-foreground">
+                draw.io is taking too long to load. Your diagram is safe — check your connection and
+                try again.
+              </p>
+              <Button size="sm" variant="outline" onClick={onRetry}>
+                Try again
+              </Button>
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">Starting diagram editor…</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

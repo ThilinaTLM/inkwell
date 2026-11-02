@@ -26,7 +26,7 @@
 //     a new tab · ⌘/Ctrl+A selects all · arrows/Home/End move focus.
 //   • right-click menu: Open · Open in new tab · Share… · Star · Rename · Move to… · Duplicate ·
 //     Download · Tags… · Move to Trash.
-//   • drag items onto folders / sidebar projects / the Inbox row (lib/dnd).
+//   • drag items onto folders / sidebar projects (lib/dnd).
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -88,6 +88,14 @@ export interface ItemCollectionProps {
   /** Hug the content (no minimum height) — for embedded strips such as Home. */
   compact?: boolean;
   /**
+   * Collection-page scroll model: fill the available height (parent must be a
+   * flex column, e.g. `<PageContainer fixed>`), keep the toolbar fixed and make
+   * the items the ONLY scroll region. Without it the page scrolls instead.
+   */
+  scroll?: boolean;
+  /** With `scroll`: content shown above the items that scrolls with them. */
+  scrollHeader?: ReactNode;
+  /**
    * Visitor mode (share-token pages): no context menu, drag-and-drop, quick
    * actions, quick look or owner commands. Opening goes through `onOpen`.
    */
@@ -121,6 +129,8 @@ export function ItemCollection({
   scope = "collection",
   ariaLabel = "Items",
   compact = false,
+  scroll = false,
+  scrollHeader,
   readOnly = false,
   onOpen,
   className,
@@ -314,6 +324,7 @@ export function ItemCollection({
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     const root = rootRef.current;
     if (!root || (e.target as HTMLElement).closest("[data-item-key], button, a, input")) return;
+    if (e.clientX > root.getBoundingClientRect().right) return;
     const start = { x: e.clientX, y: e.clientY };
     const base = e.metaKey || e.ctrlKey || e.shiftKey ? [...selRef.current.selected] : [];
     const mode = base.length ? "add" : "replace";
@@ -382,9 +393,14 @@ export function ItemCollection({
     toolbarEnd !== undefined;
 
   return (
-    <div className={cn("flex min-w-0 flex-col", className)}>
+    <div className={cn("flex min-w-0 flex-col", scroll && "min-h-0 flex-1", className)}>
       {showToolbar ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2",
+            scroll ? "shrink-0 pt-4 pb-3" : "mb-4",
+          )}
+        >
           {toolbarStart}
           {filterChips && present.size > 0 ? (
             <div role="toolbar" aria-label="Filter by type" className="flex flex-wrap gap-1.5">
@@ -413,87 +429,100 @@ export function ItemCollection({
         </div>
       ) : null}
 
-      {loading ? (
-        <CollectionSkeleton layout={layout} />
-      ) : ordered.length === 0 ? (
-        <div className="py-10">
-          {empty ?? <p className="text-center text-sm text-muted-foreground">Nothing here yet.</p>}
-        </div>
-      ) : (
-        <CollectionRoot
-          readOnly={readOnly}
-          rootProps={{
-            ref: rootRef,
-            role: "listbox",
-            "aria-multiselectable": true,
-            "aria-label": ariaLabel,
-            onKeyDown,
-            onClick: onBackgroundClick,
-            onPointerDown: onMarqueeDown,
-            onContextMenuCapture,
-            className: cn("relative select-none outline-none", !compact && "min-h-64"),
-          }}
-        >
-          {layout === "list" ? (
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+      <ScrollRegion scroll={scroll} header={scrollHeader} padTop={layout !== "list"}>
+        {loading ? (
+          <CollectionSkeleton layout={layout} />
+        ) : ordered.length === 0 ? (
+          <div className="py-10">
+            {empty ?? (
+              <p className="text-center text-sm text-muted-foreground">Nothing here yet.</p>
+            )}
+          </div>
+        ) : (
+          <CollectionRoot
+            readOnly={readOnly}
+            rootProps={{
+              ref: rootRef,
+              role: "listbox",
+              "aria-multiselectable": true,
+              "aria-label": ariaLabel,
+              onKeyDown,
+              onClick: onBackgroundClick,
+              onPointerDown: onMarqueeDown,
+              onContextMenuCapture,
+              className: cn(
+                "relative select-none outline-none",
+                scroll ? "min-h-[max(16rem,100%)]" : !compact && "min-h-64",
+              ),
+            }}
+          >
+            {layout === "list" ? (
               <div
-                aria-hidden
                 className={cn(
-                  "hidden items-center gap-3 border-b border-border bg-surface-2 px-3 py-2 text-[11px] font-semibold tracking-wide text-faint uppercase md:grid",
-                  showLocation ? LIST_COLS.withLocation : LIST_COLS.plain,
+                  "rounded-xl border border-border bg-card shadow-card",
+                  scroll ? "overflow-clip" : "overflow-hidden",
                 )}
               >
-                <span>Name</span>
-                {showLocation ? <span>Location</span> : null}
-                <span>Modified</span>
-                <span>Size</span>
+                <div
+                  aria-hidden
+                  className={cn(
+                    "hidden items-center gap-3 border-b border-border bg-surface-2 px-3 py-2 text-[11px] font-semibold tracking-wide text-faint uppercase md:grid",
+                    scroll && "sticky top-0 z-10",
+                    showLocation ? LIST_COLS.withLocation : LIST_COLS.plain,
+                  )}
+                >
+                  <span>Name</span>
+                  {showLocation ? <span>Location</span> : null}
+                  <span>Modified</span>
+                  <span>Size</span>
+                </div>
+                {ordered.map((i) => (
+                  <ListRow
+                    key={i.key}
+                    item={i}
+                    selected={selected.has(i.key)}
+                    tabbable={i.key === tabbableKey}
+                    handlers={handlers}
+                    location={locationOf(i)}
+                    readOnly={readOnly}
+                    withLocation={showLocation}
+                  />
+                ))}
               </div>
-              {ordered.map((i) => (
-                <ListRow
-                  key={i.key}
-                  item={i}
-                  selected={selected.has(i.key)}
-                  tabbable={i.key === tabbableKey}
-                  handlers={handlers}
-                  location={locationOf(i)}
-                  readOnly={readOnly}
-                  withLocation={showLocation}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-6">
-              {folderItems.length ? (
-                <div ref={foldersGrid} className={FOLDER_GRID}>
-                  {folderItems.map(renderFolder)}
-                </div>
-              ) : null}
-              {fileItems.length ? (
-                <div ref={filesGrid} className={FILE_GRID}>
-                  {fileItems.map((i) => (
-                    <FileCard
-                      key={i.key}
-                      item={i}
-                      selected={selected.has(i.key)}
-                      tabbable={i.key === tabbableKey}
-                      handlers={handlers}
-                      location={locationOf(i)}
-                      readOnly={readOnly}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-          {box ? (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute z-10 rounded-sm border border-primary/70 bg-primary/10"
-              style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
-            />
-          ) : null}
-        </CollectionRoot>
-      )}
+            ) : (
+              <div className="flex flex-col gap-6">
+                {folderItems.length ? (
+                  <div ref={foldersGrid} className={FOLDER_GRID}>
+                    {folderItems.map(renderFolder)}
+                  </div>
+                ) : null}
+                {fileItems.length ? (
+                  <div ref={filesGrid} className={FILE_GRID}>
+                    {fileItems.map((i) => (
+                      <FileCard
+                        key={i.key}
+                        item={i}
+                        selected={selected.has(i.key)}
+                        tabbable={i.key === tabbableKey}
+                        handlers={handlers}
+                        location={locationOf(i)}
+                        readOnly={readOnly}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+            {box ? (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute z-10 rounded-sm border border-primary/70 bg-primary/10"
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+              />
+            ) : null}
+          </CollectionRoot>
+        )}
+      </ScrollRegion>
       {readOnly ? null : (
         <QuickLook
           items={ordered}
@@ -501,6 +530,33 @@ export function ItemCollection({
           onStep={(i) => dispatch({ type: "click", key: i.key, order: orderRef.current })}
         />
       )}
+    </div>
+  );
+}
+
+/** The single scroll region in `scroll` mode; a transparent passthrough otherwise. */
+function ScrollRegion({
+  scroll,
+  header,
+  padTop,
+  children,
+}: {
+  scroll: boolean;
+  header?: ReactNode;
+  /** Room for the hover-lift of cards; lists need none (sticky header sits flush). */
+  padTop: boolean;
+  children: ReactNode;
+}) {
+  if (!scroll) return <>{children}</>;
+  return (
+    <div
+      className={cn(
+        "-mx-2 min-h-0 flex-1 scroll-pt-10 overflow-y-auto overscroll-contain px-2 pb-8",
+        padTop && "pt-1",
+      )}
+    >
+      {header}
+      {children}
     </div>
   );
 }

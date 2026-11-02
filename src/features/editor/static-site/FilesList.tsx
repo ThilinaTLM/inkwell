@@ -1,102 +1,107 @@
-// FilesList — card panel listing every asset in a static-site bundle.
-//
-// Pure presentation — receives a manifest and a handful of callbacks.
-// Sorts so the entry row appears first (this addresses a real
-// scannability problem: today the entry can sit mid-list when the
-// list is strictly alphabetical, so users hunt for it).
+// FilesList — the bundle table. Same card + hairline-row treatment as
+// the library list; delete goes through a confirmation.
 
-import { useMemo } from "react";
-import { EmptyState } from "@/components/EmptyState";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { StaticSiteFileBlob } from "@/lib/api/client";
-import { FileRow } from "./FileRow";
+import { cn } from "@/lib/utils";
+import { FILE_GRID, FileRow } from "./FileRow";
+import { formatBytes } from "./sitePaths";
 
 export interface FilesListProps {
   manifest: StaticSiteFileBlob;
-  totalLabel: string;
   writable: boolean;
   busy: boolean;
+  /** `(path) => url` for downloads, or null before a session exists. */
+  fileUrl: ((path: string) => string) | null;
+  onOpen: (path: string) => void;
   onSetEntry: (path: string) => void;
   onDelete: (path: string) => void;
 }
 
 export function FilesList({
   manifest,
-  totalLabel,
   writable,
   busy,
+  fileUrl,
+  onOpen,
   onSetEntry,
   onDelete,
 }: FilesListProps) {
-  const assets = manifest.assets;
-  const entry = manifest.entry;
-  const isEmpty = assets.length === 0;
-
-  // Entry-first, then alphabetical. The server already returns
-  // assets sorted alphabetically, so we just hoist the entry. This
-  // also means a paths-equal-to-entry-string fallback returns the
-  // first row, which is the same row we'd hoist; idempotent.
-  const sorted = useMemo(() => {
-    if (assets.length === 0) return assets;
-    const e = assets.find((a) => a.path === entry);
-    if (!e) return assets;
-    return [e, ...assets.filter((a) => a.path !== entry)];
-  }, [assets, entry]);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const total = manifest.assets.reduce((a, b) => a + b.size, 0);
 
   return (
-    <section
-      aria-label="Files in bundle"
-      className="relative rounded-xl border border-border bg-card"
-    >
-      <header className="relative flex items-center justify-between gap-2 px-4 pt-3 pb-2 sm:px-5">
-        <div className="flex items-center gap-2">
-          <h2 className="font-heading text-sm font-semibold">Files</h2>
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            inside the bundle
-          </span>
-        </div>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-          {totalLabel}
+    <section aria-label="Files in the bundle">
+      <div className="mb-2 flex items-baseline justify-between px-1">
+        <h2 className="text-sm font-medium text-foreground">Files in this site</h2>
+        <span className="text-xs text-muted-foreground">
+          {manifest.assets.length} {manifest.assets.length === 1 ? "file" : "files"} ·{" "}
+          {formatBytes(total)}
         </span>
-      </header>
-
-      <div aria-hidden className="relative mx-4 h-px bg-border/40 sm:mx-5" />
-
-      {isEmpty ? (
-        <div className="relative px-4 pb-6 sm:px-5">
-          <EmptyState
-            title="No pages yet"
-            body={
-              writable
-                ? "Drop a .zip on the upload card to publish your first page."
-                : "This bundle is empty."
-            }
-          />
+      </div>
+      <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-card">
+        <div
+          className={cn(
+            FILE_GRID,
+            "hidden border-b border-border/60 bg-muted/30 px-4 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase md:grid",
+          )}
+        >
+          <span>Name</span>
+          <span>Type</span>
+          <span>Size</span>
+          <span>Modified</span>
+          <span className="sr-only">Actions</span>
         </div>
-      ) : (
-        <ul className="relative divide-y divide-border/30">
-          {sorted.map((a) => (
+        <ul>
+          {manifest.assets.map((a) => (
             <FileRow
               key={a.path}
-              path={a.path}
-              size={formatBytes(a.size)}
-              isEntry={a.path === entry}
+              asset={a}
+              isEntry={a.path === manifest.entry}
               writable={writable}
               busy={busy}
-              onSetEntry={() => onSetEntry(a.path)}
-              onDelete={() => onDelete(a.path)}
+              href={fileUrl ? fileUrl(a.path) : null}
+              onOpen={onOpen}
+              onSetEntry={onSetEntry}
+              onDelete={setPendingDelete}
             />
           ))}
         </ul>
-      )}
+      </div>
+
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <code className="font-mono text-foreground">{pendingDelete}</code> will be removed
+              from the site. Pages that link to it may break.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) onDelete(pendingDelete);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
-}
-
-// Local copy of the byte formatter — kept here so `FilesList` is
-// drop-in usable without importing from `StaticSiteEditor`.
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

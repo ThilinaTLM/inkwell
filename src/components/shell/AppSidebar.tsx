@@ -2,20 +2,20 @@
 //
 //   wordmark · collapse
 //   Search (opens the command palette, shows ⌘K)
-//   Home · Inbox (count of loose root files) · Files
+//   Home · Recents · Files
 //   PROJECTS – top-level folders (ProjectIcon, name, item count); each row is a
 //              drop target (data-drop-folder) so items can be dragged in
 //   + New project
 //   footer: uploads indicator · Settings · account menu
 //
 // Drop-target attributes follow lib/dnd/itemDnd.ts:
-//   Inbox  data-drop-folder="root"      project  data-drop-folder="<id>"
+//   project  data-drop-folder="<id>"
 
 import {
   Add01Icon,
+  Clock01Icon,
   Folder01Icon,
   Home01Icon,
-  InboxIcon,
   PinIcon,
   Search01Icon,
   Settings02Icon,
@@ -30,7 +30,6 @@ import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useFiles } from "@/data/files";
 import { useFolders } from "@/data/folders";
 import { ProjectMenuItems } from "@/features/projects/ProjectMenuItems";
 import { openProjectDialog } from "@/features/projects/projectDialogStore";
@@ -44,7 +43,6 @@ import { SidebarUserMenu } from "./SidebarUserMenu";
 import { openPalette, toggleSidebar } from "./shellStore";
 
 const PROJECT_LIMIT = 12;
-const ROOT_FILES = { folderId: "root" } as const;
 
 const DROP_CLASSES = cn(
   "data-[file-drop-over=true]:bg-accent-soft data-[file-drop-over=true]:outline-dashed data-[file-drop-over=true]:outline-[1.5px] data-[file-drop-over=true]:outline-primary",
@@ -56,7 +54,6 @@ export function AppSidebar({ user, onNavigate }: { user: User; onNavigate?: () =
   useRegistryVersion();
   const { pathname } = useLocation();
   const folders = useFolders();
-  const inbox = useFiles(ROOT_FILES);
   const uploads = useUploadSummary();
 
   const projects = useMemo(
@@ -133,13 +130,11 @@ export function AppSidebar({ user, onNavigate }: { user: User; onNavigate?: () =
           onNavigate={onNavigate}
         />
         <NavItem
-          to="/inbox"
-          icon={InboxIcon}
-          label="Inbox"
-          count={inbox.data?.length}
-          active={pathname.startsWith("/inbox")}
+          to="/recents"
+          icon={Clock01Icon}
+          label="Recents"
+          active={pathname.startsWith("/recents")}
           onNavigate={onNavigate}
-          dropFolder="root"
         />
         <NavItem
           to="/files"

@@ -125,7 +125,7 @@ function describe(refs: ItemRef[]): string {
 }
 
 function folderName(id: string | null): string {
-  if (id === null) return "Inbox";
+  if (id === null) return "Loose files";
   return findFolderMeta(qc(), id)?.name ?? "folder";
 }
 
@@ -188,7 +188,7 @@ function open(ref: ItemRef, opts: { newTab?: boolean } = {}) {
 
 function reveal(ref: ItemRef) {
   const [info] = resolveItems(qc(), [ref]);
-  const base = info.parentId ? `/folders/${info.parentId}` : "/inbox";
+  const base = info.parentId ? `/folders/${info.parentId}` : "/files";
   nav(`${base}?select=${ref.type}:${ref.id}`);
 }
 
@@ -503,8 +503,8 @@ async function restore(refs: ItemRef[]) {
       {
         description: relocated
           ? relocated === 1
-            ? "1 item was restored to Inbox because its original folder is unavailable."
-            : `${relocated} items were restored to Inbox because their original folders are unavailable.`
+            ? "1 item was restored to Loose files because its original folder is unavailable."
+            : `${relocated} items were restored to Loose files because their original folders are unavailable.`
           : undefined,
       },
     );

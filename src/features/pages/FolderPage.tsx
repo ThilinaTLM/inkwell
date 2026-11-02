@@ -68,9 +68,9 @@ export function FolderPage() {
 
   if (folders.isPending) {
     return (
-      <PageContainer>
+      <PageContainer fixed>
         <PageHeader title=" " />
-        <ItemCollection items={[]} loading scope={`folder:${folderId}`} />
+        <ItemCollection scroll items={[]} loading scope={`folder:${folderId}`} />
       </PageContainer>
     );
   }
@@ -99,7 +99,7 @@ export function FolderPage() {
 
   return (
     <PageDropZone folderId={folder.id} name={folder.name}>
-      <PageContainer>
+      <PageContainer fixed>
         <PageHeader
           breadcrumb={
             isProject
@@ -209,8 +209,9 @@ export function FolderPage() {
             </>
           }
         />
-        {overview ? <ProjectOverview note={overview} /> : null}
         <ItemCollection
+          scroll
+          scrollHeader={overview ? <ProjectOverview note={overview} /> : null}
           items={items}
           loading={files.isPending}
           filterChips

@@ -3,8 +3,17 @@
 // optional breadcrumb above the title.
 //
 // PUBLIC CONTRACT
-//   <PageContainer className?>…</PageContainer>
-//        – scrollable page body (fills <main>), centred max-width column.
+//   <PageContainer className? fixed?>…</PageContainer>
+//        – centred max-width column filling <main>.
+//        SCROLL MODEL (one scrollbar per page, never nested):
+//          • default (dashboard pages: Home, Projects, Settings) – the whole
+//            page scrolls at the page level.
+//          • `fixed` (collection pages: Files, Recents, Folder) – the page does
+//            NOT scroll. Header, tabs and toolbar stay put and exactly one
+//            child scrolls: <ItemCollection scroll> or <PageScroll>.
+//   <PageScroll>…</PageScroll>
+//        – the single scroll region inside a `fixed` PageContainer, for
+//          content that is not an ItemCollection (Shared, Trash).
 //   <PageHeader
 //      title            ReactNode   – rendered in an <h1> (Fraunces)
 //      icon?            ReactNode   – leading tile, e.g. <ProjectIcon size="lg" />
@@ -32,10 +41,26 @@ export interface Crumb {
 export function PageContainer({
   children,
   className,
+  fixed = false,
 }: {
   children: ReactNode;
   className?: string;
+  fixed?: boolean;
 }) {
+  if (fixed) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "mx-auto flex min-h-0 w-full max-w-[1120px] flex-1 flex-col px-4 pt-5 sm:px-8 md:pt-8",
+            className,
+          )}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div
@@ -46,6 +71,20 @@ export function PageContainer({
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+/** The one scroll region of a `fixed` PageContainer. */
+export function PageScroll({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "-mx-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-5 pb-8",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }
