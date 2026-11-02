@@ -56,14 +56,11 @@ export function ProjectCard({ project }: { project: Project & ProjectFields }) {
               </div>
             </div>
           </div>
-          <p
-            className={cn(
-              "line-clamp-2 min-h-[2.5rem] text-[13px] leading-5",
-              project.description ? "text-muted-foreground" : "text-faint",
-            )}
-          >
-            {project.description || "No description"}
-          </p>
+          {project.description ? (
+            <p className="line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+              {project.description}
+            </p>
+          ) : null}
           <div className="mt-auto text-xs text-muted-foreground">
             {n} {n === 1 ? "item" : "items"} · edited {relTime(project.updatedAt)}
           </div>

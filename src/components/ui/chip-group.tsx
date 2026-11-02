@@ -31,7 +31,7 @@ export function ChipGroup<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "inline-flex h-7 items-center rounded-full border border-border px-2.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-45",
-              on && "border-primary/50 bg-accent text-accent-foreground hover:bg-accent",
+              on && "border-primary/50 bg-accent-soft font-medium text-accent-text hover:bg-accent-soft",
             )}
           >
             {o.label}

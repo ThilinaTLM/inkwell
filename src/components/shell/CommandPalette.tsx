@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { Kbd } from "./Kbd";
 import { closePalette, useShellState } from "./shellStore";
 
-type Group = "Recent" | "Projects" | "Files" | "Commands" | "Tags" | "In project" | "Actions";
+type Group = "Recent" | "Projects" | "Files" | "Folders" | "Commands" | "Tags" | "In project" | "Actions";
 
 interface Result {
   key: string;
@@ -371,7 +371,7 @@ function PaletteBody({ initialQuery }: { initialQuery: string }) {
         (f) => f.name,
         4,
       )) {
-        out.push(folderResult(h.item, "Files", h.positions));
+        out.push(folderResult(h.item, "Folders", h.positions));
       }
     }
 

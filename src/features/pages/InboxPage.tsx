@@ -33,7 +33,7 @@ function MoveSelected() {
         aria-label={`Move ${items.length} selected to a project`}
       >
         <HugeiconsIcon icon={FolderTransferIcon} strokeWidth={1.8} />
-        Move {items.length} to…
+        {items.length === 1 ? "Move to project…" : `Move ${items.length} to project…`}
       </Button>
       <Button
         variant="ghost"
