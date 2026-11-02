@@ -10,7 +10,7 @@
 //   Non-hook equivalents: openDialog / closeDialog / confirmDialog (./dialogStore)
 //
 //   Names → props (see dialogStore.ts):
-//     "newFile"   { folderId, kind? }        quick kind picker (screen 09)
+//     "newFile"   { folderId, kind? }        quick Capture dialog (text → note, Note/Whiteboard/Diagram/Upload)
 //     "newFolder" { parentId, onCreated? }
 //     "move"      { items: ItemRef[] }       screen 13
 //     "rename"    { item: ItemRef }
