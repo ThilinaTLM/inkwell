@@ -46,6 +46,8 @@ export interface CollectionItem {
   mime?: string | null;
   file?: FileMeta;
   folder?: FolderMeta;
+  /** Share-token visitor item: previews use these URLs instead of owner-only APIs. */
+  visitor?: { rawUrl: string | null };
 }
 
 const KNOWN_KINDS: readonly string[] = ["excalidraw", "drawio", "notes", "static-site", "file"];

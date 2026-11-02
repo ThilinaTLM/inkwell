@@ -28,6 +28,7 @@
 //     Download · Tags… · Move to Trash.
 //   • drag items onto folders / sidebar projects / the Inbox row (lib/dnd).
 
+import { useQuery } from "@tanstack/react-query";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -42,9 +43,10 @@ import {
 } from "react";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFolders } from "@/data/folders";
 import { folderPathLabel } from "@/features/actions/itemCache";
 import { itemActions } from "@/features/actions/useItemActions";
+import { type FolderMeta, folders as foldersApi } from "@/lib/api/client";
+import { keys } from "@/lib/api/query-keys";
 import { CommandMenuItems } from "@/lib/commands/CommandMenuItems";
 import { onCommandSignal } from "@/lib/commands/signals";
 import { startItemDrag, useItemDropTargets } from "@/lib/dnd/itemDnd";
@@ -85,6 +87,13 @@ export interface ItemCollectionProps {
   ariaLabel?: string;
   /** Hug the content (no minimum height) — for embedded strips such as Home. */
   compact?: boolean;
+  /**
+   * Visitor mode (share-token pages): no context menu, drag-and-drop, quick
+   * actions, quick look or owner commands. Opening goes through `onOpen`.
+   */
+  readOnly?: boolean;
+  /** Open handler (required for `readOnly`); defaults to the owner `itemActions.open`. */
+  onOpen?: (item: CollectionItem) => void;
   className?: string;
 }
 
@@ -112,12 +121,19 @@ export function ItemCollection({
   scope = "collection",
   ariaLabel = "Items",
   compact = false,
+  readOnly = false,
+  onOpen,
   className,
 }: ItemCollectionProps) {
   const [prefLayout] = useCollectionLayout();
   const layout = layoutProp ?? prefLayout;
   const [kind, setKind] = useState<KindFilter>("all");
-  const folders = useFolders();
+  // Owner-only; visitors have no access to the folder list.
+  const folders = useQuery<FolderMeta[]>({
+    queryKey: keys.folders.list(),
+    queryFn: () => foldersApi.list(),
+    enabled: showLocation && !readOnly,
+  });
   useItemDropTargets();
 
   const sorted = useMemo(() => (sort ? sortCollectionItems(items) : items), [items, sort]);
@@ -160,9 +176,10 @@ export function ItemCollection({
 
   // Mirror to the global store (commands, menus read it).
   useEffect(() => {
+    if (readOnly) return;
     const refs = sel.selected.flatMap((k) => parseRefKey(k) ?? []);
     setSelection({ scope, items: refs, focused: sel.focus ? parseRefKey(sel.focus) : null });
-  }, [sel, scope]);
+  }, [sel, scope, readOnly]);
   useEffect(() => () => clearSelection(scope), [scope]);
   // Something else cleared the global selection (Esc, route change).
   useEffect(() => {
@@ -180,6 +197,12 @@ export function ItemCollection({
 
   // ── Pointer / drag handlers ────────────────────────────────────────
   const pointerType = useRef<string>("mouse");
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
+  const openItem = useCallback((item: CollectionItem, opts?: { newTab?: boolean }) => {
+    if (onOpenRef.current) onOpenRef.current(item);
+    else itemActions.open(item.ref, opts);
+  }, []);
   const handlers = useMemo<ItemHandlers>(
     () => ({
       onItemPointerDown: (e: ReactPointerEvent) => {
@@ -187,22 +210,22 @@ export function ItemCollection({
       },
       onItemClick: (item, e: ReactMouseEvent) => {
         if (pointerType.current === "touch") {
-          itemActions.open(item.ref);
+          openItem(item);
           return;
         }
         if (e.metaKey || e.ctrlKey) {
-          itemActions.open(item.ref, { newTab: true });
+          openItem(item, { newTab: true });
           return;
         }
         dispatch({ type: "click", key: item.key, shift: e.shiftKey, order: orderRef.current });
       },
       onItemDoubleClick: (item) => {
-        if (pointerType.current !== "touch") itemActions.open(item.ref);
+        if (pointerType.current !== "touch") openItem(item);
       },
       onItemAuxClick: (item, e) => {
         if (e.button !== 1) return;
         e.preventDefault();
-        itemActions.open(item.ref, { newTab: true });
+        openItem(item, { newTab: true });
       },
       onItemDragStart: (item, e) => {
         const cur = selRef.current;
@@ -215,7 +238,7 @@ export function ItemCollection({
         startItemDrag(e, refs, { thumbUrl: item.thumbUrl });
       },
     }),
-    [],
+    [openItem],
   );
 
   // ── Keyboard ───────────────────────────────────────────────────────
@@ -225,6 +248,14 @@ export function ItemCollection({
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
     if (e.defaultPrevented) return;
+    if (readOnly && e.key === "Enter" && sel.focus) {
+      const focused = byKey.get(sel.focus);
+      if (focused) {
+        e.preventDefault();
+        openItem(focused);
+        return;
+      }
+    }
     const nav = navKeyFromEvent(e.key);
     if (!nav || e.altKey) return;
     if ((e.target as HTMLElement).closest("input, textarea, [role=menu]")) return;
@@ -340,6 +371,7 @@ export function ItemCollection({
       tabbable={i.key === tabbableKey}
       handlers={handlers}
       location={locationOf(i)}
+      readOnly={readOnly}
     />
   );
 
@@ -388,90 +420,111 @@ export function ItemCollection({
           {empty ?? <p className="text-center text-sm text-muted-foreground">Nothing here yet.</p>}
         </div>
       ) : (
-        <ContextMenu>
-          <ContextMenuTrigger
-            render={
-              <div
-                ref={rootRef}
-                role="listbox"
-                aria-multiselectable="true"
-                aria-label={ariaLabel}
-                onKeyDown={onKeyDown}
-                onClick={onBackgroundClick}
-                onPointerDown={onMarqueeDown}
-                onContextMenuCapture={onContextMenuCapture}
-                className={cn("relative select-none outline-none", !compact && "min-h-64")}
-              />
-            }
-          >
-            {layout === "list" ? (
-              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-                <div
-                  aria-hidden
-                  className={cn(
-                    "hidden items-center gap-3 border-b border-border bg-surface-2 px-3 py-2 text-[11px] font-semibold tracking-wide text-faint uppercase md:grid",
-                    showLocation ? LIST_COLS.withLocation : LIST_COLS.plain,
-                  )}
-                >
-                  <span>Name</span>
-                  {showLocation ? <span>Location</span> : null}
-                  <span>Modified</span>
-                  <span>Size</span>
-                </div>
-                {ordered.map((i) => (
-                  <ListRow
-                    key={i.key}
-                    item={i}
-                    selected={selected.has(i.key)}
-                    tabbable={i.key === tabbableKey}
-                    handlers={handlers}
-                    location={locationOf(i)}
-                    withLocation={showLocation}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-6">
-                {folderItems.length ? (
-                  <div ref={foldersGrid} className={FOLDER_GRID}>
-                    {folderItems.map(renderFolder)}
-                  </div>
-                ) : null}
-                {fileItems.length ? (
-                  <div ref={filesGrid} className={FILE_GRID}>
-                    {fileItems.map((i) => (
-                      <FileCard
-                        key={i.key}
-                        item={i}
-                        selected={selected.has(i.key)}
-                        tabbable={i.key === tabbableKey}
-                        handlers={handlers}
-                        location={locationOf(i)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            )}
-            {box ? (
+        <CollectionRoot
+          readOnly={readOnly}
+          rootProps={{
+            ref: rootRef,
+            role: "listbox",
+            "aria-multiselectable": true,
+            "aria-label": ariaLabel,
+            onKeyDown,
+            onClick: onBackgroundClick,
+            onPointerDown: onMarqueeDown,
+            onContextMenuCapture,
+            className: cn("relative select-none outline-none", !compact && "min-h-64"),
+          }}
+        >
+          {layout === "list" ? (
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
               <div
                 aria-hidden
-                className="pointer-events-none absolute z-10 rounded-sm border border-primary/70 bg-primary/10"
-                style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
-              />
-            ) : null}
-          </ContextMenuTrigger>
-          <ContextMenuContent className="w-64">
-            <CommandMenuItems ids={COLLECTION_MENU_IDS} as="context" />
-          </ContextMenuContent>
-        </ContextMenu>
+                className={cn(
+                  "hidden items-center gap-3 border-b border-border bg-surface-2 px-3 py-2 text-[11px] font-semibold tracking-wide text-faint uppercase md:grid",
+                  showLocation ? LIST_COLS.withLocation : LIST_COLS.plain,
+                )}
+              >
+                <span>Name</span>
+                {showLocation ? <span>Location</span> : null}
+                <span>Modified</span>
+                <span>Size</span>
+              </div>
+              {ordered.map((i) => (
+                <ListRow
+                  key={i.key}
+                  item={i}
+                  selected={selected.has(i.key)}
+                  tabbable={i.key === tabbableKey}
+                  handlers={handlers}
+                  location={locationOf(i)}
+                  readOnly={readOnly}
+                  withLocation={showLocation}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {folderItems.length ? (
+                <div ref={foldersGrid} className={FOLDER_GRID}>
+                  {folderItems.map(renderFolder)}
+                </div>
+              ) : null}
+              {fileItems.length ? (
+                <div ref={filesGrid} className={FILE_GRID}>
+                  {fileItems.map((i) => (
+                    <FileCard
+                      key={i.key}
+                      item={i}
+                      selected={selected.has(i.key)}
+                      tabbable={i.key === tabbableKey}
+                      handlers={handlers}
+                      location={locationOf(i)}
+                      readOnly={readOnly}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
+          {box ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute z-10 rounded-sm border border-primary/70 bg-primary/10"
+              style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+            />
+          ) : null}
+        </CollectionRoot>
       )}
-      <QuickLook
-        items={ordered}
-        onOpen={(i) => itemActions.open(i.ref)}
-        onStep={(i) => dispatch({ type: "click", key: i.key, order: orderRef.current })}
-      />
+      {readOnly ? null : (
+        <QuickLook
+          items={ordered}
+          onOpen={(i) => itemActions.open(i.ref)}
+          onStep={(i) => dispatch({ type: "click", key: i.key, order: orderRef.current })}
+        />
+      )}
     </div>
+  );
+}
+
+/** Listbox root; owners get the command context menu, visitors a plain div. */
+function CollectionRoot({
+  readOnly,
+  rootProps,
+  children,
+}: {
+  readOnly: boolean;
+  rootProps: React.ComponentProps<"div">;
+  children: ReactNode;
+}) {
+  if (readOnly) {
+    return <div {...rootProps}>{children}</div>;
+  }
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={<div {...rootProps} />}>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-64">
+        <CommandMenuItems ids={COLLECTION_MENU_IDS} as="context" />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

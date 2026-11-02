@@ -35,13 +35,15 @@ interface ItemProps {
   tabbable: boolean;
   handlers: ItemHandlers;
   location?: string;
+  /** Share-token visitor: no drag, no quick actions. */
+  readOnly?: boolean;
 }
 
 const base =
   "group/item relative outline-none transition-[box-shadow,background-color,border-color] focus-visible:ring-2 focus-visible:ring-ring/50 data-[drop-over=true]:border-primary data-[drop-over=true]:bg-accent-soft data-[drop-over=true]:ring-2 data-[drop-over=true]:ring-primary/40";
 
 function useItemProps(
-  { item, selected, tabbable, handlers }: ItemProps,
+  { item, selected, tabbable, handlers, readOnly }: ItemProps,
   extra: { draggable?: boolean } = {},
 ) {
   const dragging = useIsDragSource(item.key);
@@ -53,14 +55,14 @@ function useItemProps(
     "data-selected": selected,
     "data-dragging": dragging,
     tabIndex: tabbable ? 0 : -1,
-    draggable: extra.draggable ?? true,
+    draggable: readOnly ? false : (extra.draggable ?? true),
     onClick: (e: MouseEvent) => handlers.onItemClick(item, e),
     onDoubleClick: () => handlers.onItemDoubleClick(item),
     onAuxClick: (e: MouseEvent) => handlers.onItemAuxClick(item, e),
     onPointerDown: handlers.onItemPointerDown,
     onDragStart: (e: React.DragEvent) => handlers.onItemDragStart(item, e),
     // Folders accept drops (items moved into them).
-    "data-drop-folder": item.type === "folder" ? item.id : undefined,
+    "data-drop-folder": item.type === "folder" && !readOnly ? item.id : undefined,
   };
 }
 
@@ -193,7 +195,7 @@ export const FolderCard = memo(function FolderCard(props: ItemProps) {
           {props.location ? ` · ${props.location}` : ""}
         </div>
       </div>
-      <QuickActions item={item} className="absolute top-1.5 right-1.5" />
+      {props.readOnly ? null : <QuickActions item={item} className="absolute top-1.5 right-1.5" />}
     </div>
   );
 });
@@ -224,7 +226,7 @@ export const FileCard = memo(function FileCard(props: ItemProps) {
           </span>
         </div>
       </div>
-      <QuickActions item={item} className="absolute top-2 right-2" />
+      {props.readOnly ? null : <QuickActions item={item} className="absolute top-2 right-2" />}
     </div>
   );
 });
@@ -275,10 +277,12 @@ export const ListRow = memo(function ListRow(props: ItemProps & { withLocation: 
           ? `${item.itemCount ?? 0} ${item.itemCount === 1 ? "item" : "items"}`
           : formatBytes(item.sizeBytes ?? 0)}
       </span>
-      <QuickActions
-        item={item}
-        className="absolute top-1/2 right-2 -translate-y-1/2 max-md:hidden"
-      />
+      {props.readOnly ? null : (
+        <QuickActions
+          item={item}
+          className="absolute top-1/2 right-2 -translate-y-1/2 max-md:hidden"
+        />
+      )}
     </div>
   );
 });

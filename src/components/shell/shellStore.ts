@@ -10,7 +10,6 @@
 //
 // Most consumers should use `useShell()` from `./AppShell` instead.
 
-import { getExplorerPref } from "@/lib/explorerPrefs";
 import { createStore, useStore } from "@/lib/store";
 
 export interface ShellState {
@@ -44,17 +43,10 @@ function writeBool(key: string, v: boolean) {
   }
 }
 
-function initialDetailsOpen(): boolean {
-  const mode = getExplorerPref("detailsPanel");
-  if (mode === "always") return true;
-  if (mode === "hidden") return false;
-  return readBool(DETAILS_KEY, false);
-}
-
 export const shellStore = createStore<ShellState>({
   sidebarOpen: typeof localStorage === "undefined" ? true : readBool(SIDEBAR_KEY, true),
   mobileSidebarOpen: false,
-  detailsOpen: typeof localStorage === "undefined" ? false : initialDetailsOpen(),
+  detailsOpen: typeof localStorage === "undefined" ? false : readBool(DETAILS_KEY, false),
   paletteOpen: false,
   paletteQuery: "",
   sheetOpen: false,
@@ -81,7 +73,7 @@ export function toggleSidebar(): void {
 }
 
 export function setDetailsOpen(open: boolean): void {
-  if (getExplorerPref("detailsPanel") === "remember") writeBool(DETAILS_KEY, open);
+  writeBool(DETAILS_KEY, open);
   shellStore.set((s) => (s.detailsOpen === open ? s : { ...s, detailsOpen: open }));
 }
 

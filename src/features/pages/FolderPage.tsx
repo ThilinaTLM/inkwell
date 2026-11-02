@@ -81,7 +81,7 @@ export function FolderPage() {
           title="Folder not found"
           body="It may have been moved to the trash or deleted."
           action={
-            <Button render={<Link to="/projects" />} variant="outline">
+            <Button nativeButton={false} render={<Link to="/projects" />} variant="outline">
               Back to projects
             </Button>
           }

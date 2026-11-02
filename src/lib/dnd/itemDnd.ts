@@ -34,10 +34,8 @@ import {
   resolveItems,
 } from "@/features/actions/itemCache";
 import { getActionsQueryClient, itemActions } from "@/features/actions/useItemActions";
-import { confirmDialog } from "@/features/dialogs/dialogStore";
 import { dragHasFiles } from "@/features/upload";
 import type { ItemRef } from "@/lib/api/client";
-import { getExplorerPref } from "@/lib/explorerPrefs";
 import { createStore, useStore } from "@/lib/store";
 
 export const ITEM_MIME = "application/x-inkwell-items";
@@ -174,8 +172,7 @@ function judge(s: Session, t: Target, alt: boolean): Verdict {
   if (t.folderId !== null && s.invalid.has(t.folderId)) {
     return { ok: false, label: "Can't move a folder into itself" };
   }
-  const dupe = alt && getExplorerPref("altDrag") === "duplicate";
-  if (alt) return { ok: true, label: `${dupe ? "Duplicate" : "Copy"} ${n} into ${t.name}` };
+  if (alt) return { ok: true, label: `Duplicate ${n} into ${t.name}` };
   const movable = s.parents.filter((p) => p !== t.folderId).length;
   if (movable === 0) return { ok: false, label: null };
   return { ok: true, label: `Move ${plural(movable)} to ${t.name} · hold ${ALT} to duplicate` };
@@ -353,14 +350,6 @@ async function performDrop(s: Session, t: Target, alt: boolean): Promise<void> {
     return;
   }
   if (alt) {
-    if (getExplorerPref("altDrag") === "ask") {
-      const ok = await confirmDialog({
-        title: `Duplicate ${plural(s.refs.length)} into “${t.name}”?`,
-        confirmLabel: "Duplicate",
-        destructive: false,
-      });
-      if (!ok) return;
-    }
     await itemActions.duplicate(s.refs, t.folderId);
     return;
   }

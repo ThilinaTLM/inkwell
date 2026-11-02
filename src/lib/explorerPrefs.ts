@@ -1,311 +1,63 @@
-// Device-local explorer preferences (localStorage `inkwell.explorer.*`,
-// cross-tab synced via the `storage` event, same spirit as preferences.ts).
+// Device-local layout preference for <ItemCollection>: "cards" or "list"
+// (localStorage `inkwell.explorer.collectionLayout`, cross-tab synced via
+// the `storage` event). Remembered per device, not per folder.
 //
-// PUBLIC CONTRACT
-//   type ExplorerView = "grid" | "compact" | "list" | "columns"
-//   type ThumbSize = "s" | "m" | "l" | "xl"
-//   type SortKey = "name" | "modified" | "created" | "size" | "kind"
-//   interface SortPref { key: SortKey; dir: "asc" | "desc" }
-//   type ListColumn = "name" | "kind" | "modified" | "created" | "size" | "tags" | "location" | "shared"
-//
-//   type CollectionLayout = "cards" | "list"      – redesign: the only layout pref that survives
-//                                                    stage 3 (key `collectionLayout`, default "cards")
-//   interface ExplorerPrefs {
-//     collectionLayout: CollectionLayout;
-//     defaultView: ExplorerView;                 // "grid"
-//     thumbSize: ThumbSize;                      // "m"
-//     sort: SortPref;                            // { key: "name", dir: "asc" }
-//     foldersFirst: boolean;                     // true
-//     detailsPanel: "hidden" | "remember" | "always";   // "remember"
-//     openWith: "double" | "single";             // "double"
-//     openFilesIn: "same" | "new";               // "same"
-//     altDrag: "duplicate" | "ask";              // "duplicate"
-//     uploadConflict: "ask" | "keepBoth" | "replace";   // "ask"
-//     confirmTrash: boolean;                     // false
-//     singleKeyShortcuts: boolean;               // true
-//     listColumns: ListColumn[];                 // ["name","modified","size","tags"]
-//     listColumnWidths: Partial<Record<ListColumn, number>>;  // {}
-//   }
-//
-//   EXPLORER_PREF_DEFAULTS
-//   getExplorerPref(key) / setExplorerPref(key, value) / resetExplorerPref(key)
-//   useExplorerPref(key): [value, setValue]
-//   useFolderView(viewKey: string | null): [ExplorerView, (v: ExplorerView) => void]
-//       per-folder view memory (LRU of 200), falls back to `defaultView`.
-//       `viewKey` = folder id, `null` = Home; library pages use `route:/recent` etc.
-//       (see `viewKeyFor(ctx)`).
-//   getFolderView(viewKey) / setFolderView(viewKey, view)
-//   hasFolderView(viewKey): boolean – true when the user picked a view for this key
-//   viewKeyFor({ currentFolderId, route }): string
-//   THUMB_SIZES (ordered) / stepThumbSize(size, +1 | -1)
-//   lruSet(entries, key, value, max) – pure helper (tested)
+//   type CollectionLayout = "cards" | "list"
+//   getCollectionLayout() / setCollectionLayout(layout)
+//   useCollectionLayout(): [CollectionLayout, (l: CollectionLayout) => void]
 
 import { useCallback, useSyncExternalStore } from "react";
 
-export type ExplorerView = "grid" | "compact" | "list" | "columns";
-export type ThumbSize = "s" | "m" | "l" | "xl";
-export type SortKey = "name" | "modified" | "created" | "size" | "kind";
-export interface SortPref {
-  key: SortKey;
-  dir: "asc" | "desc";
-}
-export type ListColumn =
-  | "name"
-  | "kind"
-  | "modified"
-  | "created"
-  | "size"
-  | "tags"
-  | "location"
-  | "shared";
-
 export type CollectionLayout = "cards" | "list";
 
-export interface ExplorerPrefs {
-  /** Redesign: Cards/List layout of <ItemCollection>, remembered per device. */
-  collectionLayout: CollectionLayout;
-  defaultView: ExplorerView;
-  thumbSize: ThumbSize;
-  sort: SortPref;
-  foldersFirst: boolean;
-  detailsPanel: "hidden" | "remember" | "always";
-  openWith: "double" | "single";
-  openFilesIn: "same" | "new";
-  altDrag: "duplicate" | "ask";
-  uploadConflict: "ask" | "keepBoth" | "replace";
-  confirmTrash: boolean;
-  singleKeyShortcuts: boolean;
-  listColumns: ListColumn[];
-  listColumnWidths: Partial<Record<ListColumn, number>>;
+const STORAGE_KEY = "inkwell.explorer.collectionLayout";
+const DEFAULT_LAYOUT: CollectionLayout = "cards";
+
+const listeners = new Set<() => void>();
+let cached: CollectionLayout | null = null;
+
+function isLayout(v: unknown): v is CollectionLayout {
+  return v === "cards" || v === "list";
 }
 
-export type ExplorerPrefKey = keyof ExplorerPrefs;
-
-export const EXPLORER_PREF_DEFAULTS: ExplorerPrefs = {
-  collectionLayout: "cards",
-  defaultView: "grid",
-  thumbSize: "m",
-  sort: { key: "name", dir: "asc" },
-  foldersFirst: true,
-  detailsPanel: "remember",
-  openWith: "double",
-  openFilesIn: "same",
-  altDrag: "duplicate",
-  uploadConflict: "ask",
-  confirmTrash: false,
-  singleKeyShortcuts: true,
-  listColumns: ["name", "modified", "size", "tags"],
-  listColumnWidths: {},
-};
-
-const PREFIX = "inkwell.explorer.";
-const FOLDER_VIEWS_KEY = `${PREFIX}folderViews`;
-export const FOLDER_VIEW_LRU_MAX = 200;
-
-export const THUMB_SIZES: ThumbSize[] = ["s", "m", "l", "xl"];
-const VIEWS: ExplorerView[] = ["grid", "compact", "list", "columns"];
-
-export function stepThumbSize(size: ThumbSize, delta: 1 | -1): ThumbSize {
-  const i = THUMB_SIZES.indexOf(size);
-  return THUMB_SIZES[Math.max(0, Math.min(THUMB_SIZES.length - 1, (i < 0 ? 1 : i) + delta))];
-}
-
-// ─── Validation ────────────────────────────────────────────────────────
-
-function isValid<K extends ExplorerPrefKey>(key: K, v: unknown): v is ExplorerPrefs[K] {
-  const d = EXPLORER_PREF_DEFAULTS[key];
-  if (Array.isArray(d)) return Array.isArray(v) && v.every((x) => typeof x === "string");
-  if (typeof d === "boolean") return typeof v === "boolean";
-  if (key === "sort") {
-    const s = v as SortPref;
-    return (
-      !!s &&
-      typeof s === "object" &&
-      ["name", "modified", "created", "size", "kind"].includes(s.key) &&
-      (s.dir === "asc" || s.dir === "desc")
-    );
-  }
-  if (key === "listColumnWidths") return !!v && typeof v === "object" && !Array.isArray(v);
-  const allowed: Partial<Record<ExplorerPrefKey, readonly string[]>> = {
-    collectionLayout: ["cards", "list"],
-    defaultView: VIEWS,
-    thumbSize: THUMB_SIZES,
-    detailsPanel: ["hidden", "remember", "always"],
-    openWith: ["double", "single"],
-    openFilesIn: ["same", "new"],
-    altDrag: ["duplicate", "ask"],
-    uploadConflict: ["ask", "keepBoth", "replace"],
-  };
-  const list = allowed[key];
-  return !!list && typeof v === "string" && list.includes(v);
-}
-
-// ─── Storage-backed cache with subscribers ─────────────────────────────
-
-const cache = new Map<string, unknown>();
-const listeners = new Map<string, Set<() => void>>();
-
-function storageKey(key: string) {
-  return key.startsWith(PREFIX) ? key : PREFIX + key;
-}
-
-function readRaw(fullKey: string): unknown {
+export function getCollectionLayout(): CollectionLayout {
+  if (cached) return cached;
+  let value: CollectionLayout = DEFAULT_LAYOUT;
   try {
-    const raw = localStorage.getItem(fullKey);
-    return raw == null ? undefined : JSON.parse(raw);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed: unknown = raw == null ? undefined : JSON.parse(raw);
+    if (isLayout(parsed)) value = parsed;
   } catch {
-    return undefined;
+    /* storage unavailable or malformed — use the default */
   }
+  cached = value;
+  return value;
 }
 
-function writeRaw(fullKey: string, value: unknown) {
+export function setCollectionLayout(layout: CollectionLayout): void {
+  cached = layout;
   try {
-    if (value === undefined) localStorage.removeItem(fullKey);
-    else localStorage.setItem(fullKey, JSON.stringify(value));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
   } catch {
-    /* storage unavailable — in-memory only */
+    /* in-memory only */
   }
+  for (const l of listeners) l();
 }
 
-function notify(fullKey: string) {
-  for (const l of listeners.get(fullKey) ?? []) l();
-}
-
-function subscribeKey(fullKey: string, l: () => void): () => void {
-  const set = listeners.get(fullKey) ?? new Set();
-  set.add(l);
-  listeners.set(fullKey, set);
-  return () => set.delete(l);
+function subscribe(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
 }
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (!e.key?.startsWith(PREFIX)) return;
-    cache.delete(e.key);
-    notify(e.key);
+    if (e.key !== STORAGE_KEY) return;
+    cached = null;
+    for (const l of listeners) l();
   });
 }
 
-export function getExplorerPref<K extends ExplorerPrefKey>(key: K): ExplorerPrefs[K] {
-  const fk = storageKey(key);
-  if (cache.has(fk)) return cache.get(fk) as ExplorerPrefs[K];
-  const raw = readRaw(fk);
-  const v = isValid(key, raw) ? raw : EXPLORER_PREF_DEFAULTS[key];
-  cache.set(fk, v);
-  return v;
-}
-
-export function setExplorerPref<K extends ExplorerPrefKey>(key: K, value: ExplorerPrefs[K]): void {
-  const fk = storageKey(key);
-  cache.set(fk, value);
-  writeRaw(fk, value);
-  notify(fk);
-}
-
-export function resetExplorerPref(key: ExplorerPrefKey): void {
-  const fk = storageKey(key);
-  cache.delete(fk);
-  writeRaw(fk, undefined);
-  notify(fk);
-}
-
-export function subscribeExplorerPref(key: ExplorerPrefKey, l: () => void): () => void {
-  return subscribeKey(storageKey(key), l);
-}
-
-export function useExplorerPref<K extends ExplorerPrefKey>(
-  key: K,
-): [ExplorerPrefs[K], (v: ExplorerPrefs[K]) => void] {
-  const fk = storageKey(key);
-  const value = useSyncExternalStore(
-    useCallback((l: () => void) => subscribeKey(fk, l), [fk]),
-    () => getExplorerPref(key),
-    () => EXPLORER_PREF_DEFAULTS[key],
-  );
-  const set = useCallback((v: ExplorerPrefs[K]) => setExplorerPref(key, v), [key]);
-  return [value, set];
-}
-
-// ─── Per-folder view memory (LRU) ──────────────────────────────────────
-
-export type LruEntries<V> = Array<[string, V]>;
-
-/** Pure: moves/inserts `key` to the most-recent end and trims to `max`. */
-export function lruSet<V>(
-  entries: LruEntries<V>,
-  key: string,
-  value: V,
-  max: number,
-): LruEntries<V> {
-  const next = entries.filter(([k]) => k !== key);
-  next.push([key, value]);
-  return next.length > max ? next.slice(next.length - max) : next;
-}
-
-function readFolderViews(): LruEntries<ExplorerView> {
-  if (cache.has(FOLDER_VIEWS_KEY)) return cache.get(FOLDER_VIEWS_KEY) as LruEntries<ExplorerView>;
-  const raw = readRaw(FOLDER_VIEWS_KEY);
-  const v = Array.isArray(raw)
-    ? (raw as unknown[]).filter(
-        (e): e is [string, ExplorerView] =>
-          Array.isArray(e) && typeof e[0] === "string" && VIEWS.includes(e[1] as ExplorerView),
-      )
-    : [];
-  cache.set(FOLDER_VIEWS_KEY, v);
-  return v;
-}
-
-function normViewKey(viewKey: string | null): string {
-  return viewKey ?? "root";
-}
-
-export function getFolderView(viewKey: string | null): ExplorerView {
-  const k = normViewKey(viewKey);
-  const hit = readFolderViews().find(([id]) => id === k);
-  return hit ? hit[1] : getExplorerPref("defaultView");
-}
-
-export function hasFolderView(viewKey: string | null): boolean {
-  const k = normViewKey(viewKey);
-  return readFolderViews().some(([id]) => id === k);
-}
-
-export function setFolderView(viewKey: string | null, view: ExplorerView): void {
-  const next = lruSet(readFolderViews(), normViewKey(viewKey), view, FOLDER_VIEW_LRU_MAX);
-  cache.set(FOLDER_VIEWS_KEY, next);
-  writeRaw(FOLDER_VIEWS_KEY, next);
-  notify(FOLDER_VIEWS_KEY);
-}
-
-export function useFolderView(viewKey: string | null): [ExplorerView, (v: ExplorerView) => void] {
-  const subscribe = useCallback((l: () => void) => {
-    const a = subscribeKey(FOLDER_VIEWS_KEY, l);
-    const b = subscribeKey(storageKey("defaultView"), l);
-    return () => {
-      a();
-      b();
-    };
-  }, []);
-  const view = useSyncExternalStore(
-    subscribe,
-    () => getFolderView(viewKey),
-    () => EXPLORER_PREF_DEFAULTS.defaultView,
-  );
-  const set = useCallback((v: ExplorerView) => setFolderView(viewKey, v), [viewKey]);
-  return [view, set];
-}
-
-/** The view-memory key for a command context: folder id, "root" for
- *  Home, or `route:<pathname>` for non-folder pages. */
-export function viewKeyFor(ctx: {
-  currentFolderId: string | null | undefined;
-  route: string;
-}): string | null {
-  if (ctx.currentFolderId !== undefined) return ctx.currentFolderId;
-  return `route:${ctx.route}`;
-}
-
-/** Cards/List choice for <ItemCollection>, remembered per device (not per folder). */
-export function useCollectionLayout(): [CollectionLayout, (v: CollectionLayout) => void] {
-  return useExplorerPref("collectionLayout");
+export function useCollectionLayout(): [CollectionLayout, (layout: CollectionLayout) => void] {
+  const layout = useSyncExternalStore(subscribe, getCollectionLayout, () => DEFAULT_LAYOUT);
+  return [layout, useCallback((l: CollectionLayout) => setCollectionLayout(l), [])];
 }

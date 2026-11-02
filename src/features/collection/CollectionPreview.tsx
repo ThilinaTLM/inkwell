@@ -111,7 +111,7 @@ export function CollectionPreview({
 }) {
   const [ref, inView] = useInView<HTMLDivElement>();
   const [broken, setBroken] = useState(false);
-  const note = useNoteParts(item, inView);
+  const note = useNoteParts(item, inView && !item.visitor);
   const image = isImageFile(item);
   const thumb = item.thumbUrl && !broken ? item.thumbUrl : null;
 
@@ -130,10 +130,10 @@ export function CollectionPreview({
         ) : null}
       </div>
     );
-  } else if (image && inView && !broken) {
+  } else if (image && inView && !broken && (!item.visitor || item.visitor.rawUrl)) {
     body = (
       <img
-        src={files.rawUrl(item.id)}
+        src={item.visitor?.rawUrl ?? files.rawUrl(item.id)}
         alt=""
         loading="lazy"
         draggable={false}

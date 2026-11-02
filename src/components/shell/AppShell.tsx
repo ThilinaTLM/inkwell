@@ -13,10 +13,8 @@
 //   }
 //   useInShell(): boolean        – true inside the shell (AppPage uses it to drop its own chrome)
 //
-// New pages render inside <main> (a flex column) with <PageContainer> +
-// <PageHeader> from "@/components/PageHeader". Legacy pages still use
-// PageFrame / PageToolbar from ./page and portal their inspector through
-// <DetailsPanel> until stage 3 removes them. The shell also:
+// Pages render inside <main> (a flex column) with <PageContainer> +
+// <PageHeader> from "@/components/PageHeader". The shell also:
 //   - mounts useGlobalHotkeys (so single-key shortcuts never run in editors)
 //   - registers the app command set (features/actions/itemCommands)
 //   - publishes { route, currentFolderId } to the command context
@@ -38,12 +36,9 @@ import { UploadTray, useGlobalFileDrop } from "@/features/upload";
 import { setCommandContext } from "@/lib/commands/registry";
 import { useGlobalHotkeys } from "@/lib/commands/useGlobalHotkeys";
 import { clearSelection, selectionStore } from "@/lib/selection";
-import { useStore } from "@/lib/store";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import { cn } from "@/lib/utils";
 import { AppSidebar } from "./AppSidebar";
 import { CommandPalette } from "./CommandPalette";
-import { detailsSlotStore } from "./DetailsPanel";
 import { MobileBottomBar } from "./MobileBottomBar";
 import { ShortcutSheet } from "./ShortcutSheet";
 import {
@@ -114,9 +109,6 @@ export function AppShell() {
 
   const sidebarOpen = useShellState((s) => s.sidebarOpen);
   const mobileSidebarOpen = useShellState((s) => s.mobileSidebarOpen);
-  const detailsOpen = useShellState((s) => s.detailsOpen);
-  const panelCount = useStore(detailsSlotStore, (s) => s.count);
-  const showDetails = !isMobile && detailsOpen && panelCount > 0;
 
   if (!me.data) return null; // App.tsx redirects anonymous users to /login.
   const user = me.data;
@@ -133,14 +125,6 @@ export function AppShell() {
           <main id="main" className="flex min-w-0 flex-1 flex-col">
             <Outlet />
           </main>
-          <aside
-            ref={(el) => detailsSlotStore.set((s) => (s.el === el ? s : { ...s, el }))}
-            aria-label="Details"
-            className={cn(
-              "w-[300px] shrink-0 overflow-y-auto border-l border-border bg-card",
-              !showDetails && "hidden",
-            )}
-          />
         </div>
         {isMobile ? <MobileBottomBar /> : null}
       </div>
