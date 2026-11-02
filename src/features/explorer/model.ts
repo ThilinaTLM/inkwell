@@ -52,7 +52,7 @@ export interface ExplorerItem {
   extra?: Record<string, unknown>;
 }
 
-export const KIND_ORDER: FileKind[] = ["excalidraw", "drawio", "notes", "static-site"];
+export const KIND_ORDER: FileKind[] = ["excalidraw", "drawio", "notes", "static-site", "file"];
 
 export const KIND_META: Record<ItemKind, { label: string; short: string; color: string }> = {
   folder: { label: "Folder", short: "", color: "var(--color-folder)" },
@@ -60,6 +60,7 @@ export const KIND_META: Record<ItemKind, { label: string; short: string; color: 
   drawio: { label: "Draw.io", short: "DR", color: "#f08705" },
   notes: { label: "Markdown", short: "MD", color: "#5aa9ff" },
   "static-site": { label: "Static site", short: "SI", color: "#4cc38a" },
+  file: { label: "File", short: "FI", color: "#9a8f80" },
 };
 
 export function kindLabel(kind: ItemKind): string {
