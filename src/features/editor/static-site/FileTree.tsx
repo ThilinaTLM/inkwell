@@ -5,13 +5,16 @@
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
+  File01Icon,
   Folder01Icon,
   FolderOpenIcon,
   Home01Icon,
   LayoutGridIcon,
+  SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import type { StaticSiteAsset } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { chipForPath } from "./fileKindChip";
@@ -25,6 +28,10 @@ export interface FileTreeProps {
   dirty: ReadonlySet<string>;
   onSelect: (path: string) => void;
   onOverview: () => void;
+  /** Shows "New file" in the header when provided. */
+  onNewFile?: () => void;
+  /** Shows a collapse button in the header when provided. */
+  onCollapse?: () => void;
   className?: string;
 }
 
@@ -35,6 +42,8 @@ export function FileTree({
   dirty,
   onSelect,
   onOverview,
+  onNewFile,
+  onCollapse,
   className,
 }: FileTreeProps) {
   const tree = useMemo(() => buildTree(assets), [assets]);
@@ -61,9 +70,34 @@ export function FileTree({
           Overview &amp; uploads
         </button>
       </div>
-      <p className="px-4 pt-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-        Files
-      </p>
+      <div className="flex items-center gap-1 pr-2 pl-4">
+        <p className="flex-1 pt-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          Files
+        </p>
+        {onNewFile ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onNewFile}
+            title="New file"
+            aria-label="New file"
+            data-testid="site-new-file"
+          >
+            <HugeiconsIcon icon={File01Icon} strokeWidth={1.8} />
+          </Button>
+        ) : null}
+        {onCollapse ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onCollapse}
+            title="Hide files"
+            aria-label="Hide files"
+          >
+            <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={1.8} />
+          </Button>
+        ) : null}
+      </div>
       <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         <Nodes
           nodes={tree}
@@ -165,7 +199,7 @@ function Nodes({
                 className="size-2 shrink-0 rounded-full"
                 style={{ background: chip.color }}
               />
-              <span className={cn("truncate", dirty.has(n.path) && "italic")}>{n.name}</span>
+              <span className="truncate">{n.name}</span>
               <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
                 {n.path === entry ? (
                   <HugeiconsIcon

@@ -24,7 +24,9 @@ import { useLeaveConfirm } from "./lifecycle/useLeaveConfirm";
 import { useSaveLifecycle } from "./lifecycle/useSaveLifecycle";
 import { useThumbPipeline } from "./lifecycle/useThumbPipeline";
 import { MarkdownEditorChrome } from "./MarkdownEditorChrome";
+import { MarkdownFormatBar } from "./MarkdownFormatBar";
 import { CodeMirrorEditor } from "./markdown/CodeMirrorEditor";
+import type { CrepeHandle } from "./markdown/CrepeEditor";
 import {
   fingerprintMarkdown,
   isCanonicalMarkdownBlob,
@@ -80,6 +82,7 @@ export default function MarkdownEditor({
   const selectedFont = fontStack(font);
   const initialFingerprint = fingerprintMarkdown(canonical ?? "");
   const latestRef = useRef({ source: canonical ?? "", fp: initialFingerprint });
+  const [crepeHandle, setCrepeHandle] = useState<CrepeHandle | null>(null);
   const thumb = useThumbPipeline({ saveThumb, onThumbSaved, readOnly });
 
   const lifecycle = useSaveLifecycle<FileBlob, LoadedFile>({
@@ -140,6 +143,12 @@ export default function MarkdownEditor({
     // Version bumps after every save while the blob reference stays stable;
     // re-running then would overwrite unsaved CodeMirror state.
   }, [loaded.blob]);
+
+  // The Crepe instance is recreated on mode switches and reseeds.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on these changes
+  useEffect(() => {
+    setCrepeHandle(null);
+  }, [mode, epoch]);
 
   useEffect(() => {
     void loadNotesFont(font);
@@ -206,9 +215,16 @@ export default function MarkdownEditor({
       discard: discardPendingLocalWork,
       requestLeave,
       toolbar: <MarkdownEditorChrome />,
+      subbar:
+        mode === "write" && !readOnly && source !== null ? (
+          <MarkdownFormatBar handle={crepeHandle} />
+        ) : undefined,
+      autosave: true,
       exporters,
     }),
     [
+      mode,
+      crepeHandle,
       exporters,
       source,
       readOnly,
@@ -306,7 +322,8 @@ export default function MarkdownEditor({
           <div
             className={cn(
               "mx-auto w-full px-5 pt-8 sm:px-10 sm:pt-12 lg:pt-14",
-              widthMaxClass(width),
+              // Raw Markdown needs room: never narrower than "wide".
+              widthMaxClass(mode === "source" && width === "narrow" ? "wide" : width),
             )}
           >
             {mode === "source" ? (
@@ -333,7 +350,10 @@ export default function MarkdownEditor({
                   readOnly={readOnly}
                   onChange={handleChange}
                   onImageUpload={uploadImage}
-                  onReady={consumeRestore}
+                  onReady={(api) => {
+                    setCrepeHandle(api);
+                    consumeRestore();
+                  }}
                 />
               </Suspense>
             )}

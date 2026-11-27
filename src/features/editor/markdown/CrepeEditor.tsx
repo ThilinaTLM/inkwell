@@ -16,7 +16,9 @@ import { EditorView } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
+import type { Ctx } from "@milkdown/kit/ctx";
 import { useEffect, useRef, useState } from "react";
+import { type FormatAction, type FormatState, readFormatState, runFormat } from "./formatCommands";
 import { renderMermaidPreview } from "./mermaidPreview";
 import { configureMarkdownStyle } from "./milkdownStyle";
 
@@ -36,11 +38,19 @@ export interface CrepeHandle {
   /** Scroll position helper: the ProseMirror root element. */
   root: HTMLElement | null;
   focus: () => void;
+  /** Run a toolbar formatting action on the current selection. */
+  format: (action: FormatAction) => void;
+  /** Current block / mark state for the toolbar's active highlights. */
+  getFormatState: () => FormatState;
+  /** Notified on selection / document / focus changes. Returns unsubscribe. */
+  subscribe: (listener: () => void) => () => void;
 }
 
 // CodeMirror skin for fenced code blocks, driven by --ink-hl-* variables
 // defined in crepe.css (so it follows light/dark with no re-creation).
 const codeTheme = [
+  // Long lines wrap instead of being clipped (diagram / formula sources).
+  EditorView.lineWrapping,
   EditorView.theme({
     "&": { backgroundColor: "transparent", color: "var(--foreground)" },
     ".cm-gutters": { display: "none" },
@@ -122,8 +132,18 @@ export function CrepeEditor({
     crepeRef.current = crepe;
     crepe.editor.config(configureMarkdownStyle);
 
+    const listeners = new Set<() => void>();
+    const notify = () => {
+      for (const l of listeners) l();
+    };
+    const withCtx = <T,>(fn: (ctx: Ctx) => T): T => crepe.editor.action(fn);
+
     let baseline = "";
     crepe.on((api) => {
+      api.selectionUpdated(notify);
+      api.updated(notify);
+      api.focus(notify);
+      api.blur(notify);
       api.markdownUpdated((_ctx, markdown) => {
         if (disposed || readOnlyRef.current) return;
         cb.current.onChange(markdown === baseline ? seed : markdown);
@@ -143,14 +163,25 @@ export function CrepeEditor({
         cb.current.onReady?.({
           root: host.querySelector<HTMLElement>(".ProseMirror"),
           focus: () => view.focus(),
+          format: (action) => {
+            if (!readOnlyRef.current) withCtx((ctx) => runFormat(ctx, action));
+          },
+          getFormatState: () => withCtx(readFormatState),
+          subscribe: (listener) => {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+          },
         });
       })
       .catch((reason: unknown) => {
         console.error("Crepe failed to start", reason);
       });
 
+    const disposePreviews = watchPreviewBlocks(host, () => readOnlyRef.current);
+
     return () => {
       disposed = true;
+      disposePreviews();
       crepeRef.current = null;
       void crepe.destroy();
     };
@@ -168,6 +199,64 @@ export function CrepeEditor({
       data-readonly={readOnly ? "true" : "false"}
     />
   );
+}
+
+const BLOCK = ".milkdown-code-block";
+
+function previewToggle(block: Element): HTMLElement | null {
+  return block.querySelector<HTMLElement>(".preview-toggle-button");
+}
+function sourceVisible(block: Element): boolean {
+  const cm = block.querySelector(".codemirror-host");
+  return Boolean(cm) && !cm?.classList.contains("hidden");
+}
+
+/**
+ * Blocks with a rendered preview (Mermaid, LaTeX) show only the preview while
+ * idle. Clicking the preview (or the Edit button) reveals the source editor;
+ * leaving the block collapses it again. Blocks that are focused while their
+ * preview first appears (e.g. a freshly inserted, still-empty diagram) are
+ * left open so typing is never interrupted.
+ */
+function watchPreviewBlocks(host: HTMLElement, isReadOnly: () => boolean): () => void {
+  const settle = (block: Element) => {
+    if (!(block instanceof HTMLElement) || block.dataset.inkPreviewInit) return;
+    const toggle = previewToggle(block);
+    if (!toggle || !block.querySelector(".codemirror-host")) return;
+    block.dataset.inkPreviewInit = "1";
+    if (!block.contains(document.activeElement) && sourceVisible(block)) toggle.click();
+  };
+  const sweep = () => {
+    for (const block of host.querySelectorAll(BLOCK)) settle(block);
+  };
+  const observer = new MutationObserver(sweep);
+  observer.observe(host, { childList: true, subtree: true });
+  sweep();
+
+  const onFocusOut = (event: FocusEvent) => {
+    const block = (event.target as Element | null)?.closest(BLOCK);
+    if (!block) return;
+    window.setTimeout(() => {
+      if (!block.isConnected || block.contains(document.activeElement)) return;
+      if (sourceVisible(block)) previewToggle(block)?.click();
+    }, 0);
+  };
+  const onClick = (event: MouseEvent) => {
+    if (isReadOnly()) return;
+    const target = event.target as Element | null;
+    const panel = target?.closest(".preview-panel");
+    const block = panel?.closest(BLOCK);
+    if (!panel || !block || sourceVisible(block)) return;
+    previewToggle(block)?.click();
+    window.setTimeout(() => block.querySelector<HTMLElement>(".cm-content")?.focus(), 30);
+  };
+  host.addEventListener("focusout", onFocusOut);
+  host.addEventListener("click", onClick);
+  return () => {
+    observer.disconnect();
+    host.removeEventListener("focusout", onFocusOut);
+    host.removeEventListener("click", onClick);
+  };
 }
 
 function fileToDataUrl(file: File): Promise<string> {

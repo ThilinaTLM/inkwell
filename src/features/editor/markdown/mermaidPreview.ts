@@ -27,6 +27,15 @@ export function renderMermaidPreview(source: string, apply: (value: string | nul
           lineColor: readVar("--muted-foreground", "#8f8873"),
           secondaryColor: readVar("--muted", dark ? "#2a2621" : "#efe8d8"),
           tertiaryColor: readVar("--background", dark ? "#171513" : "#f7f2e8"),
+          mainBkg: readVar("--card", dark ? "#1f1c19" : "#fffdf8"),
+          nodeBorder: readVar("--input", dark ? "#433c34" : "#d6cbb2"),
+          textColor: readVar("--foreground", dark ? "#ede6d8" : "#1e2330"),
+          // Edge labels sit on the page, not on a tinted box.
+          edgeLabelBackground: readVar("--card", dark ? "#1f1c19" : "#fffdf8"),
+          clusterBkg: readVar("--muted", dark ? "#2a2621" : "#efe8d8"),
+          clusterBorder: readVar("--input", dark ? "#433c34" : "#d6cbb2"),
+          dropShadow: "none",
+          fontSize: "14px",
         },
       });
       const { svg } = await mermaid.render(id, source);
