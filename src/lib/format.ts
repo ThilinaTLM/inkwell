@@ -4,31 +4,45 @@
 // `fmtDateTime` was duplicated as `fmtDate` in Admin.tsx and `fmt`
 // in ShareDialog.tsx.
 
-/**
- * Human-friendly relative time: "just now", "5m ago", "3h ago", "2d ago",
- * or an absolute date for anything older than ~30 days.
- */
-export function relTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
-}
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+const DAY = 24 * HOUR;
 
-/** Locale date only, e.g. "11/2/2026". */
-export function fmtDate(ms: number): string {
-  return new Date(ms).toLocaleDateString();
-}
-
-/** Locale date + short time, e.g. "11/2/2026 14:32". */
-export function fmtDateTime(ms: number): string {
+function startOfDay(ms: number): number {
   const d = new Date(ms);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** "Mar 4" this year, "Mar 4, 2025" otherwise. */
+export function fmtDate(ms: number, now: number = Date.now()): string {
+  const sameYear = new Date(ms).getFullYear() === new Date(now).getFullYear();
+  return new Date(ms).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/** Date + short time, e.g. "Mar 4, 2:32 PM". */
+export function fmtDateTime(ms: number, now: number = Date.now()): string {
+  const t = new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${fmtDate(ms, now)}, ${t}`;
+}
+
+/**
+ * The single relative-time helper: "just now", "5m ago", "2h ago",
+ * "yesterday", weekday (< 7 days), "Mar 4" (this year), "Mar 4, 2025".
+ */
+export function relTime(ms: number, now: number = Date.now()): string {
+  const diff = Math.max(0, now - ms);
+  if (diff < MIN) return "just now";
+  if (diff < HOUR) return `${Math.floor(diff / MIN)}m ago`;
+  const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY);
+  if (days <= 0) return `${Math.floor(diff / HOUR)}h ago`;
+  if (days === 1) return "yesterday";
+  if (days < 7) return new Date(ms).toLocaleDateString(undefined, { weekday: "long" });
+  return fmtDate(ms, now);
 }
 
 /**
@@ -64,8 +78,5 @@ export function expiresPhrase(expiresAt: number | null): string | null {
     return `expires in ${hours}h`;
   }
   if (days <= 7) return `expires in ${days}d`;
-  return `expires ${new Date(expiresAt).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })}`;
+  return `expires ${fmtDate(expiresAt, now)}`;
 }

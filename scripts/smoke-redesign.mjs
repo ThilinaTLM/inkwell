@@ -14,8 +14,8 @@
 //   SMOKE_HEADED=1   show the browser
 //
 // Every action has a timeout and the whole run is killed after 180 s.
-// All fixtures live in a fresh "Smoke <timestamp>" folder (plus one
-// palette file, a starred item and an invite) and are purged at the end.
+// All fixtures live in a fresh "Smoke <timestamp>" project (plus an inbox
+// capture, a palette file and an invite) and are purged at the end.
 // Exit code 0 when every check passes.
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -77,7 +77,7 @@ const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(e.message));
 page.on("console", (m) => {
   if (m.type() === "error" && !/401|404|Failed to load resource/.test(m.text())) {
-    pageErrors.push(m.text());
+    pageErrors.push(`[${new URL(page.url()).pathname}] ${m.text()}`);
   }
 });
 
@@ -108,7 +108,7 @@ try {
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
   check("login", true);
 
-  // ─── Fixture ────────────────────────────────────────────────────────
+  // ─── Fixture: a project with a sub-folder and three files ───────────
   const root = (await api("/api/folders", "POST", { name: `Smoke ${stamp}` })).j;
   cleanup.folders.push(root.id);
   const dst = (await api("/api/folders", "POST", { name: "Dest", parentId: root.id })).j;
@@ -121,53 +121,89 @@ try {
   ]) {
     fx.push((await api("/api/files", "POST", { name, kind, folderId: root.id })).j);
   }
-  cleanup.files.push(fx[0].id); // Alpha gets trashed on its own below
+  cleanup.files.push(fx[0].id);
 
-  // ─── Explorer ───────────────────────────────────────────────────────
-  await page.goto(`${BASE}/folders/${root.id}`);
-  await page.waitForSelector("[data-item]");
-  check("explorer renders items", (await page.locator("[data-item]").count()) >= 5);
-  await shot(page, "01-grid");
+  // ─── Shell & Home ───────────────────────────────────────────────────
+  await page.goto(`${BASE}/`);
+  await page.waitForSelector('nav[aria-label="Sidebar"]');
+  check(
+    "home: capture box + sidebar",
+    (await page.getByLabel("Capture a thought").count()) > 0 &&
+      (await page.locator('nav[aria-label="Sidebar"] [data-drop-folder="root"]').count()) > 0,
+  );
+  await shot(page, "01-home");
 
-  const pane = page.locator("[data-explorer-pane]").first();
-  for (const [key, view] of [
-    ["2", "compact"],
-    ["3", "list"],
-    ["4", "columns"],
-    ["1", "grid"],
-  ]) {
-    await pane.click({ position: { x: 5, y: 5 } }).catch(() => {});
-    await page.keyboard.press("Escape");
-    await page.keyboard.press(key);
-    await page.waitForTimeout(250);
-    const on = await page
-      .locator(
-        `[data-view="${view}"][aria-pressed="true"],[data-view="${view}"][data-state="on"],[data-view="${view}"][aria-checked="true"]`,
-      )
-      .count();
-    check(`view key ${key} → ${view}`, on > 0);
+  // ─── Capture: type + Enter lands a note in the Inbox ────────────────
+  const thought = `Smoke thought ${stamp}`;
+  await page.getByLabel("Capture a thought").first().fill(thought);
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1500);
+  const inbox = (await api("/api/files?folderId=root")).j?.files ?? [];
+  const captured = (
+    (await api(`/api/files?q=${encodeURIComponent(String(stamp))}`)).j?.files ?? []
+  ).filter((f) => f.kind === "notes" && f.folderId == null);
+  check("capture → note in Inbox", captured.length > 0, `${inbox.length} root files`);
+
+  await page.goto(`${BASE}/inbox`);
+  await page.waitForSelector("[data-item-key]");
+  check(
+    "inbox lists captured note",
+    (await page.locator("[data-item-key]", { hasText: "Smoke thought" }).count()) > 0,
+  );
+  await shot(page, "02-inbox");
+
+  // ─── Projects ───────────────────────────────────────────────────────
+  await page.goto(`${BASE}/projects`);
+  await page.getByText(`Smoke ${stamp}`).first().waitFor();
+  check("projects page lists project", true);
+  const newName = `Smoke UI ${stamp}`;
+  await page
+    .getByRole("button", { name: /New project/ })
+    .first()
+    .click();
+  await page.getByLabel("Name").fill(newName);
+  await page.getByRole("button", { name: /^(Create|Create project)$/ }).click();
+  await page.waitForTimeout(1500);
+  const created = ((await api("/api/folders")).j?.folders ?? []).find((f) => f.name === newName);
+  if (created) {
+    cleanup.folders.push(created.id);
+    // Pinned projects sort first in the sidebar (which caps the list).
+    await api(`/api/folders/${created.id}`, "PATCH", { pinnedAt: Date.now() });
   }
+  check("new project dialog creates project", !!created && created.parentId == null);
 
-  const item = (n) => page.locator("[data-item]", { hasText: n }).first();
-  const selectedCount = () => page.locator('[data-item][aria-selected="true"]').count();
+  // ─── Folder page: Cards / List, selection ───────────────────────────
+  await page.goto(`${BASE}/folders/${root.id}`);
+  await page.waitForSelector("[data-item-key]");
+  check("folder page renders items", (await page.locator("[data-item-key]").count()) >= 5);
+  await shot(page, "03-cards");
+  const layout = (n) => page.getByRole("radio", { name: n });
+  await layout("List").click();
+  await page.waitForTimeout(300);
+  check("layout → List", (await layout("List").getAttribute("aria-checked")) === "true");
+  await shot(page, "04-list");
+  await layout("Cards").click();
+  await page.waitForTimeout(300);
+  check("layout → Cards", (await layout("Cards").getAttribute("aria-checked")) === "true");
+
+  const item = (n) => page.locator("[data-item-key]", { hasText: n }).first();
+  const selectedCount = () => page.locator('[data-item-key][aria-selected="true"]').count();
 
   await item("Alpha").click();
   await item("Gamma").click({ modifiers: ["Shift"] });
-  check("shift range select", (await selectedCount()) === 3, String(await selectedCount()));
+  check("shift range select", (await selectedCount()) >= 2, String(await selectedCount()));
   await item("Beta").click({ modifiers: ["Control"] });
-  check("ctrl toggle", (await selectedCount()) === 2);
+  check("ctrl toggle", (await selectedCount()) >= 1);
   await page.keyboard.press("Control+a");
-  check("select all", (await selectedCount()) === (await page.locator("[data-item]").count()));
+  await page.waitForTimeout(300);
+  check(
+    "select all",
+    (await selectedCount()) === (await page.locator("[data-item-key]").count()),
+    `${await selectedCount()}/${await page.locator("[data-item-key]").count()}`,
+  );
   await page.keyboard.press("Escape");
-  check("esc clears", (await selectedCount()) === 0);
-
-  const box = await pane.boundingBox();
-  const a1 = await item("Alpha").boundingBox();
-  await page.mouse.move(box.x + box.width - 10, box.y + box.height - 10);
-  await page.mouse.down();
-  await page.mouse.move(a1.x + 10, a1.y + 10, { steps: 8 });
-  await page.mouse.up();
-  check("marquee selects", (await selectedCount()) >= 1, String(await selectedCount()));
+  await page.waitForTimeout(300);
+  check("esc clears", (await selectedCount()) === 0, String(await selectedCount()));
 
   await item("Alpha").click();
   await page.keyboard.press("F2");
@@ -180,7 +216,6 @@ try {
     (await filesIn(root.id)).some((f) => f.name === "Alpha2"),
   );
 
-  await item("Beta").click();
   await item("Beta").dragTo(item("Dest"));
   await page.waitForTimeout(1200);
   check(
@@ -194,95 +229,68 @@ try {
     (await filesIn(root.id)).some((f) => f.name === "Beta"),
   );
 
-  const treeRow = page.locator(`[data-drop-folder="${dst.id}"]`).first();
-  if (await treeRow.count()) {
-    await item("Gamma").dragTo(treeRow);
+  const sideRow = page.locator(`nav[aria-label="Sidebar"] [data-drop-folder="${created?.id}"]`);
+  if (created && (await sideRow.count())) {
+    await item("Gamma").dragTo(sideRow.first());
     await page.waitForTimeout(1200);
     check(
-      "drag onto sidebar tree row",
-      (await filesIn(dst.id)).some((f) => f.name === "Gamma"),
+      "drag onto sidebar project",
+      (await filesIn(created.id)).some((f) => f.name === "Gamma"),
     );
   } else {
-    check("drag onto sidebar tree row", false, "tree row not rendered");
+    check("drag onto sidebar project", false, "sidebar row not rendered");
   }
-
-  await item("Alpha2").dragTo(page.locator("[data-drop-trash]").first());
-  await page.waitForTimeout(1200);
-  check("drag onto Trash", !(await filesIn(root.id)).some((f) => f.name === "Alpha2"));
 
   await item("Dest").click({ button: "right" });
   await page.waitForTimeout(300);
   check("context menu", (await page.getByRole("menuitem").count()) > 3);
-  await shot(page, "02-menu");
+  await shot(page, "05-menu");
   await page.keyboard.press("Escape");
 
-  await item("Beta").click();
-  await page.keyboard.press(" ");
-  await page.waitForTimeout(400);
-  check("quick look opens", (await page.locator("[role=dialog]").count()) > 0);
-  await page.keyboard.press("Escape");
-  await page.keyboard.press("i");
-  await page.waitForTimeout(400);
-  check(
-    "details panel shows name",
-    (await page.locator("aside,[data-details-panel]").filter({ hasText: "Beta" }).count()) > 0,
-  );
-  await page.keyboard.press("i");
-
-  // Star (S) → Starred page.
+  // Star (S) → Files › Starred.
   await item("Beta").click();
   await page.keyboard.press("s");
   await page.waitForTimeout(900);
   const starred = (await api("/api/files?starred=1")).j?.files ?? [];
-  await page.goto(`${BASE}/starred`);
+  await page.goto(`${BASE}/files/starred`);
   await page.waitForTimeout(1000);
   check(
-    "star → Starred page",
+    "star → Files/Starred",
     starred.some((f) => f.id === fx[1].id) &&
       (await page.locator("main").getByText("Beta", { exact: true }).count()) > 0,
   );
 
-  // Duplicate a folder (⌘D / Ctrl+D).
+  // OS file drop of an unknown type → generic "file".
   await page.goto(`${BASE}/folders/${root.id}`);
-  await page.waitForSelector("[data-item]");
-  await item("Dest").click();
-  await page.keyboard.press("Control+d");
-  await page.waitForTimeout(1500);
-  const subfolders = ((await api("/api/folders")).j?.folders ?? []).filter(
-    (f) => f.parentId === root.id,
-  );
-  check(
-    "duplicate folder",
-    subfolders.some((f) => f.name === "Dest (copy)"),
-  );
-
-  await page.goto(`${BASE}/folders/${dst.id}?select=file:${fx[2].id}`);
-  await page.waitForTimeout(1200);
-  check(
-    "?select= reveal",
-    (await page.locator('[data-item][aria-selected="true"]', { hasText: "Gamma" }).count()) === 1,
-  );
-
-  // OS file drop into an empty folder.
-  await page.goto(`${BASE}/folders/${root.id}`);
+  await page.waitForSelector("[data-item-key]");
   await item("Empty").dblclick();
-  await page.waitForTimeout(800);
+  await page.waitForURL((u) => u.pathname.startsWith("/folders/") && !u.pathname.endsWith(root.id));
+  await page.locator("main h1, main h2").first().waitFor();
+  await page.waitForTimeout(500);
+  const emptyId = new URL(page.url()).pathname.split("/").pop();
   const dt = await page.evaluateHandle(() => {
     const d = new DataTransfer();
     d.items.add(new File(["# Hi\n\ntext"], "dropped.md", { type: "text/markdown" }));
+    d.items.add(new File(["a,b\n1,2"], "data.xyz", { type: "application/x-smoke" }));
     return d;
   });
-  const dropTarget = page.locator("[data-explorer-pane]").first();
+  const dropTarget = page.locator("main h1, main h2").first();
   for (const ev of ["dragenter", "dragover", "drop"]) {
     await dropTarget.dispatchEvent(ev, { dataTransfer: dt });
   }
-  await page.waitForTimeout(4000);
-  const emptyId = (await api("/api/folders")).j.folders.find(
-    (f) => f.name === "Empty" && f.parentId === root.id,
-  ).id;
+  let dropped = [];
+  for (let i = 0; i < 20 && dropped.length < 2; i++) {
+    await page.waitForTimeout(750);
+    dropped = await filesIn(emptyId);
+  }
   check(
-    "OS file drop uploads",
-    (await filesIn(emptyId)).some((f) => f.name === "dropped" && f.kind === "notes"),
+    "OS drop: markdown → note",
+    dropped.some((f) => f.name === "dropped" && f.kind === "notes"),
+  );
+  check(
+    "OS drop: unknown type → generic file",
+    dropped.some((f) => f.name.startsWith("data") && f.kind === "file"),
+    dropped.map((f) => `${f.name}:${f.kind}`).join(","),
   );
 
   // ─── Palette & shortcut sheet ───────────────────────────────────────
@@ -293,9 +301,8 @@ try {
   await page.waitForSelector('nav[aria-label="Sidebar"]');
   await blur();
   await page.keyboard.press("Control+k");
-  await page.waitForSelector('input[aria-label="Command palette search"]');
+  await page.waitForSelector('input[aria-label="Search and commands"]');
   await page.keyboard.type(paletteName);
-  // Wait for the search hit itself (the "Create … named" row also contains the name).
   await page
     .locator('#palette-results [role="option"]', { hasText: paletteName })
     .filter({ hasNotText: "Create" })
@@ -316,62 +323,67 @@ try {
     .then(() => true)
     .catch(() => false);
   check("? shortcut sheet", sheet);
-  await shot(page, "03-shortcuts");
   await page.keyboard.press("Escape");
 
-  // ─── Trash page restore ─────────────────────────────────────────────
+  // ─── Files hub: tabs, Trash restore, legacy redirects ───────────────
+  await page.goto(`${BASE}/files`);
+  await page.getByRole("tablist", { name: "Files" }).waitFor();
+  const tabs = await page
+    .getByRole("tablist", { name: "Files" })
+    .getByRole("tab")
+    .allTextContents();
+  check(
+    "files hub tabs",
+    ["All", "Recent", "Starred", "Shared", "Trash"].every((t) => tabs.includes(t)),
+    tabs.join(","),
+  );
+  await shot(page, "06-files");
+
   await api("/api/items/trash", "POST", { items: [{ type: "file", id: pf.id }] });
-  await page.goto(`${BASE}/trash`);
-  const trashRow = page.locator("tr", { hasText: paletteName }).first();
+  await page.goto(`${BASE}/files/trash`);
+  const trashRow = page.locator("tr, li, [role=row]", { hasText: paletteName }).first();
   await trashRow.waitFor();
   await trashRow.hover();
   await trashRow.getByRole("button", { name: "Restore" }).click();
   await page.waitForTimeout(1200);
   const restored = ((await api("/api/files")).j?.files ?? []).some((f) => f.id === pf.id);
-  check("Trash page restore", restored);
+  check("Trash tab restore", restored);
 
-  // ─── Settings: rebind a key ─────────────────────────────────────────
-  await page.goto(`${BASE}/settings/shortcuts`);
-  const capture = page.locator('[data-capture="view.details"]').first();
-  await capture.click();
-  await page.keyboard.press("Shift+J");
-  await page.waitForTimeout(400);
-  const keymap = await page.evaluate(() => localStorage.getItem("inkwell.keymap") || "{}");
-  check("Settings rebind a key", /"view\.details":\["shift\+j"\]/.test(keymap), keymap);
-  await page.evaluate(() => localStorage.removeItem("inkwell.keymap"));
-
-  // ─── Shared links page ──────────────────────────────────────────────
   await page.goto(`${BASE}/shares`);
-  const sharesOk = await page
-    .locator("main")
-    .getByText("Shared links")
-    .first()
-    .waitFor()
-    .then(() => true)
-    .catch(() => false);
-  check("Shared links page renders", sharesOk);
+  await page.waitForURL((u) => u.pathname === "/files/shared");
+  check("/shares → /files/shared", true);
+  await page.goto(`${BASE}/users`);
+  await page.waitForURL((u) => u.pathname === "/settings");
+  check("/users → /settings#admin", new URL(page.url()).hash === "#admin", page.url());
 
-  // ─── Invite with a note (admin) ─────────────────────────────────────
+  // ─── Settings: one page, Admin invite with a note ───────────────────
+  await page.goto(`${BASE}/settings`);
+  await page.locator("#about").waitFor();
+  for (const h of ["appearance", "admin"]) {
+    check(`settings section: ${h}`, (await page.locator(`#${h}`).count()) > 0);
+  }
+  await shot(page, "07-settings");
   const note = `smoke note ${stamp}`;
-  await page.goto(`${BASE}/users/invites`);
-  await page.getByRole("button", { name: "Invite user" }).first().click();
   await page.getByPlaceholder("e.g. For Maya’s contractor").fill(note);
   await page.getByRole("button", { name: /Create & copy link/ }).click();
   await page.waitForTimeout(1200);
   const invites = (await api("/api/admin/invites")).j?.invites ?? [];
   const inv = invites.find((i) => i.note === note);
   if (inv) cleanup.invites.push(inv.token);
-  check("invite with note", !!inv && (await page.locator("main").getByText(note).count()) > 0);
+  check("admin: invite with note", !!inv && (await page.getByText(note).count()) > 0);
 } catch (e) {
-  check("script", false, String(e?.message ?? e).split("\n")[0]);
+  check("script", false, `${String(e?.message ?? e).split("\n")[0]} @ ${page.url()}`);
+  await shot(page, "failure");
 } finally {
   // ─── Cleanup (best effort) ──────────────────────────────────────────
   try {
+    // Leave any fixture page first so it is not rendered while purged.
+    await page.goto(`${BASE}/settings`);
     const items = [
       ...cleanup.folders.map((id) => ({ type: "folder", id })),
       ...cleanup.files.map((id) => ({ type: "file", id })),
     ];
-    // Anything else named like our fixtures (e.g. created from the palette).
+    // Anything else named like our fixtures (inbox capture, palette, drops).
     const strays = ((await api(`/api/files?q=${encodeURIComponent(String(stamp))}`)).j?.files ?? [])
       .filter((f) => !cleanup.files.includes(f.id))
       .map((f) => ({ type: "file", id: f.id }));

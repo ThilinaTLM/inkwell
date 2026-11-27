@@ -16,12 +16,14 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { FileKindGlyph } from "@/components/icons/file-kind-icons";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
   bindQueryClient,
+  bindUploadNavigate,
   cancelAll,
   cancelJob,
   dismissTray,
@@ -49,6 +51,8 @@ const STAGE_LABEL: Record<UploadJob["stage"], string> = {
 export function UploadTray() {
   const qc = useQueryClient();
   useEffect(() => bindQueryClient(qc), [qc]);
+  const navigate = useNavigate();
+  useEffect(() => bindUploadNavigate((to) => navigate(to)), [navigate]);
 
   const state = useStore(uploadStore);
   if (!state.open || state.jobs.length === 0 || typeof document === "undefined") return null;

@@ -177,6 +177,11 @@ export async function duplicateItems(
         deleted_at: null,
         trashed_via: null,
         starred_at: null,
+        icon: src.icon,
+        color: src.color,
+        description: src.description,
+        status: src.status,
+        pinned_at: null,
       });
     }
   }

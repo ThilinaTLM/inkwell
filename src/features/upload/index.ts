@@ -11,8 +11,10 @@ export {
   useGlobalFileDrop,
   useUploadSummary,
 } from "./hooks";
+export { imageToThumbSvg, isThumbnailableImage } from "./imageThumb";
 export { openUploadPicker, type UploadPickerOptions } from "./picker";
 export {
+  bindUploadNavigate,
   CONFLICT_PREF_KEY,
   cancelAll,
   clearFinished,

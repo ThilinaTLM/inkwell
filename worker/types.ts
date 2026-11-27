@@ -126,11 +126,13 @@ export type FolderRow = InferSelectModel<typeof t.folders>;
 // Compact preview info for a single file inside a folder. Used by
 // `FolderCard` to render thumbnails between the folds. Carries only
 // what the card needs — not the full FileMeta.
-export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site";
+export type FileKind = "excalidraw" | "drawio" | "notes" | "static-site" | "file";
 
-/** Coerce arbitrary user input to a valid FileKind. Anything that
- *  isn't an explicit known variant collapses to "excalidraw" — the
- *  default file type. This is the single boundary where untrusted
+/** Coerce arbitrary user input to a valid *creatable* FileKind (a kind
+ *  that can be seeded from JSON). `"file"` is deliberately not accepted:
+ *  uploaded files are created only through `POST /api/files/upload`.
+ *  Anything that isn't an explicit known variant collapses to
+ *  "excalidraw" — the default file type. This is the single boundary where untrusted
  *  `kind` values become typed. */
 export function normalizeFileKind(input: unknown): FileKind {
   if (input === "drawio") return "drawio";
@@ -163,6 +165,16 @@ export interface FolderMeta {
   activeShareCount: number;
   /** unix-ms when the owner starred this item; `null` if not starred. */
   starredAt: number | null;
+  /** Curated icon key (see `lib/folder-meta.ts`); `null` = default. */
+  icon: string | null;
+  /** Curated colour key; `null` = default. */
+  color: string | null;
+  /** Free text, ≤ 280 chars. */
+  description: string | null;
+  /** `null` = not set (display as active). */
+  status: "active" | "paused" | "done" | null;
+  /** unix-ms when pinned to Home; `null` if not pinned. */
+  pinnedAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -187,6 +199,11 @@ export function rowToFolderMeta(
     previews: extras.previews ?? [],
     activeShareCount: extras.activeShareCount ?? 0,
     starredAt: r.starred_at ?? null,
+    icon: r.icon ?? null,
+    color: r.color ?? null,
+    description: r.description ?? null,
+    status: r.status ?? null,
+    pinnedAt: r.pinned_at ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -205,6 +222,8 @@ export interface FileMeta {
   tags: string[];
   version: number;
   sizeBytes: number;
+  /** Content-Type of an uploaded `kind: "file"`; `null` for every other kind. */
+  mime: string | null;
   hasThumb: boolean;
   /** Cache-bust token for `/api/files/:id/thumb`. Bumped to `now()` on
    *  every successful thumb upload; `0` means no thumb yet. */
@@ -233,6 +252,7 @@ export function rowToMeta(
     tags,
     version: r.version,
     sizeBytes: r.size_bytes,
+    mime: r.mime ?? null,
     hasThumb: r.has_thumb,
     thumbUpdatedAt: r.thumb_updated_at,
     activeShareCount: extras.activeShareCount ?? 0,

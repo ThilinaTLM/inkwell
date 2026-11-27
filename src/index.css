@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
 @import "@fontsource-variable/fraunces/full.css";
 @import "@fontsource-variable/fraunces/full-italic.css";
 @import "@excalidraw/excalidraw/index.css";
@@ -9,21 +9,22 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────────────────────────────────
-   Inkwell theme — single canonical palette.
+   Inkwell theme — "warm paper" (light) / "warm charcoal" (dark).
 
-   We expose only the standard shadcn semantic tokens (background, foreground,
+   We expose the standard shadcn semantic tokens (background, foreground,
    card, popover, primary, secondary, muted, accent, destructive, border,
-   input, ring, chart-{1..5}, sidebar-*) plus a tiny decoration namespace
-   (folder, folder-soft, tag-{1..5}) for visuals that have no
-   shadcn analog (manila folder silhouette, the five tag-chip swatches).
-
-   The visual identity (burnt-orange brand, clean white, warm-stone neutrals,
-   manila folder, five tag colours) is preserved verbatim — only the names
-   change. Components consume colours exclusively through these tokens.
+   input, ring, chart-{1..5}, sidebar-*) plus a small extension namespace:
+     accent-soft / accent-text   – quiet brand tint (active states, tiles)
+     success / warning (+ -soft) – status pills (Active / Paused)
+     folder, folder-soft         – legacy folder glyph colours
+     tag-{1..5}                  – tag chip swatches
+   Components consume colours exclusively through these tokens.
+   Accent (burnt orange) is used sparingly: primary buttons, the active
+   nav marker, focus rings.
    ─────────────────────────────────────────────────────────────────────── */
 @theme inline {
   /* ─── Fonts ─── */
-  --font-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-heading: var(--font-sans);
   --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
 
@@ -62,7 +63,15 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* ─── Decoration namespace (no shadcn analog) ─── */
+  /* ─── Extension namespace ─── */
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-faint: var(--faint);
+  --color-surface-2: var(--surface-2);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-folder: var(--folder);
   --color-folder-soft: var(--folder-soft);
   --color-tag-1: var(--tag-1);
@@ -70,6 +79,9 @@
   --color-tag-3: var(--tag-3);
   --color-tag-4: var(--tag-4);
   --color-tag-5: var(--tag-5);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -79,112 +91,134 @@
   --radius-3xl: calc(var(--radius) * 2.2);
 }
 
-/* ─── Light ─────────────────────────────────────────────────────── */
+/* ─── Light: warm paper ─────────────────────────────────────────── */
 :root {
-  /* shadcn semantic tokens */
-  --background: #ffffff;
-  --foreground: #1c1814; /* warm dark "ink" */
+  --background: #f7f2e8;
+  --foreground: #1e2330;
 
-  --card: #ffffff;
-  --card-foreground: #1c1814;
-  --popover: #ffffff;
-  --popover-foreground: #1c1814;
+  --card: #fffdf8;
+  --card-foreground: #1e2330;
+  --popover: #fffdf8;
+  --popover-foreground: #1e2330;
 
-  --primary: #e8731f; /* burnt orange */
-  --primary-foreground: #fdf6e8; /* warm cream — readable on burnt orange */
-  --primary-hover: #b8560f; /* darker burnt orange for primary hover */
+  --primary: #b84a14; /* burnt orange */
+  --primary-foreground: #ffffff;
+  --primary-hover: #9a3c0d;
 
-  --secondary: #ececec; /* neutral cool gray surface */
-  --secondary-foreground: #1c1814;
+  --secondary: #efe8d8;
+  --secondary-foreground: #1e2330;
 
-  --muted: #ececec; /* same value as secondary; semantic intent differs */
-  --muted-foreground: #5b5044; /* warm-stone secondary text */
+  --muted: #efe8d8;
+  --muted-foreground: #6a6455;
+  --faint: #8f8873;
+  --surface-2: #fbf7ee;
 
-  --accent: #fad9b8; /* orange-soft — interactive highlight */
-  --accent-foreground: #b8560f; /* burnt-orange-dark — text on accent */
+  --accent: #ece4d2; /* neutral warm hover tint */
+  --accent-foreground: #1e2330;
+  --accent-soft: #f6e4d5; /* quiet brand tint */
+  --accent-text: #9a3c0d;
 
-  --destructive: #c0392b; /* red — kept distinct from primary */
-  --destructive-foreground: #fdf6e8;
+  --destructive: #b83227;
+  --destructive-foreground: #ffffff;
 
-  --border: oklch(0 0 0 / 12%);
-  --input: oklch(0 0 0 / 18%);
-  --ring: #e8731f;
+  --success: #3f7a55;
+  --success-soft: #e1ede3;
+  --warning: #9a6a12;
+  --warning-soft: #f5e8c8;
 
-  --chart-1: #e8731f; /* primary */
-  --chart-2: #3e5f8a; /* graphite (cool ramp) */
-  --chart-3: #c9a659; /* warning / pending ramp */
-  --chart-4: #5b5044; /* muted-foreground */
-  --chart-5: #9bbf7b; /* success / active ramp */
+  --border: #e4dbc8;
+  --input: #d6cbb2;
+  --ring: #b84a14;
 
-  --radius: 0.5rem;
+  --chart-1: #b84a14;
+  --chart-2: #3e5f8a;
+  --chart-3: #c9a659;
+  --chart-4: #6a6455;
+  --chart-5: #3f7a55;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1c1814;
-  --sidebar-primary: #e8731f;
-  --sidebar-primary-foreground: #fdf6e8;
-  --sidebar-accent: #ececec;
-  --sidebar-accent-foreground: #1c1814;
-  --sidebar-border: oklch(0 0 0 / 10%);
-  --sidebar-ring: #e8731f;
+  --radius: 0.75rem;
 
-  /* Decoration namespace — used only where no shadcn token applies. */
-  --folder: #e8c77a; /* manila — folder back panel */
-  --folder-soft: #f3e3b6; /* manila-soft — folder front pocket, scene fold corner */
+  --shadow-card: 0 1px 2px rgba(60, 40, 10, 0.06), 0 4px 14px rgba(60, 40, 10, 0.05);
+  --shadow-pop: 0 2px 4px rgba(60, 40, 10, 0.06), 0 16px 40px rgba(60, 40, 10, 0.14);
 
-  --tag-1: #f4d77a; /* yellow */
-  --tag-2: #e88484; /* pink */
-  --tag-3: #9bbf7b; /* green */
-  --tag-4: #7fa9d1; /* blue */
-  --tag-5: #b89bd6; /* purple */
+  --sidebar: #f1ebdd;
+  --sidebar-foreground: #1e2330;
+  --sidebar-primary: #b84a14;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(60, 45, 20, 0.07);
+  --sidebar-accent-foreground: #1e2330;
+  --sidebar-border: #e4dbc8;
+  --sidebar-ring: #b84a14;
+
+  --folder: #c4902f;
+  --folder-soft: #f1e2bd;
+
+  --tag-1: #e0bd4f;
+  --tag-2: #d96f6f;
+  --tag-3: #7fa862;
+  --tag-4: #6f9bc6;
+  --tag-5: #a98acb;
 }
 
-/* ─── Dark ────────────────────────────────────────────────── */
+/* ─── Dark: warm charcoal ────────────────────────────────────────────── */
 .dark {
-  --background: #121212;
-  --foreground: #efe9dc; /* warm off-white */
+  --background: #171513;
+  --foreground: #ede6d8;
 
-  --card: #18181c; /* near-black surface, ~6 pts above --background (#121212) */
-  --card-foreground: #efe9dc;
-  --popover: #232329;
-  --popover-foreground: #efe9dc;
+  --card: #1f1c19;
+  --card-foreground: #ede7d9;
+  --popover: #25211d;
+  --popover-foreground: #ede7d9;
 
-  --primary: #f5893a; /* burnt orange (brighter on dark) */
-  --primary-foreground: #1c1814;
-  --primary-hover: #ffa05a;
+  --primary: #ee8442;
+  --primary-foreground: #1a1008;
+  --primary-hover: #f4a06a;
 
-  --secondary: #2a2a2e; /* neutral cool dark surface */
-  --secondary-foreground: #efe9dc;
+  --secondary: #2a2621;
+  --secondary-foreground: #ede7d9;
 
-  --muted: #2a2a2e;
-  --muted-foreground: #b9b0a0;
+  --muted: #2a2621;
+  --muted-foreground: #aba294;
+  --faint: #807769;
+  --surface-2: #1b1916;
 
-  --accent: #4a2d10; /* orange-soft on dark */
-  --accent-foreground: #fad9b8;
+  --accent: #2e2924;
+  --accent-foreground: #ede7d9;
+  --accent-soft: #3b2a1f;
+  --accent-text: #f4a06a;
 
-  --destructive: #e74c3c;
-  --destructive-foreground: #1c1814;
+  --destructive: #e8604f;
+  --destructive-foreground: #1a1008;
 
-  --border: oklch(1 0 0 / 14%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: #f5893a;
+  --success: #7cc49a;
+  --success-soft: #1f2e22;
+  --warning: #e4b75a;
+  --warning-soft: #3a3120;
 
-  --chart-1: #f5893a;
-  --chart-2: #7da3cf;
-  --chart-3: #d4b25c;
-  --chart-4: #b9b0a0;
-  --chart-5: #7ea267;
+  --border: #312c26;
+  --input: #433c34;
+  --ring: #ee8442;
 
-  --sidebar: #232329;
-  --sidebar-foreground: #efe9dc;
-  --sidebar-primary: #f5893a;
-  --sidebar-primary-foreground: #1c1814;
-  --sidebar-accent: #2a2a2e;
-  --sidebar-accent-foreground: #efe9dc;
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: #f5893a;
+  --chart-1: #ee8442;
+  --chart-2: #8fb0a0;
+  --chart-3: #e4b75a;
+  --chart-4: #aba294;
+  --chart-5: #7cc49a;
 
-  --folder: #d4b25c; /* manila reads warmer on slate */
-  --folder-soft: #4a3f25;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.2);
+  --shadow-pop: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
+
+  --sidebar: #12110f;
+  --sidebar-foreground: #ede7d9;
+  --sidebar-primary: #ee8442;
+  --sidebar-primary-foreground: #1a1008;
+  --sidebar-accent: rgba(255, 240, 210, 0.07);
+  --sidebar-accent-foreground: #ede7d9;
+  --sidebar-border: #2a2621;
+  --sidebar-ring: #ee8442;
+
+  --folder: #e4b75a;
+  --folder-soft: #3a3120;
 
   --tag-1: #c9ad5c;
   --tag-2: #c66a6a;
@@ -443,16 +477,16 @@
   --color-primary-hover: var(--primary-hover);
   --color-primary-darker: var(--primary-hover);
   --color-primary-darkest: var(--destructive);
-  --color-primary-light: var(--accent);
-  --color-primary-light-darker: var(--accent);
+  --color-primary-light: var(--accent-soft);
+  --color-primary-light-darker: var(--accent-soft);
   --color-brand-active: var(--primary-hover);
   --color-brand-hover: var(--primary-hover);
 
   /* Material 3 "primary container" — selected stroke-width / font-size
      / alignment / edges radio buttons and similar "this option is
      active" pills. */
-  --color-surface-primary-container: var(--accent);
-  --color-on-primary-container: var(--accent-foreground);
+  --color-surface-primary-container: var(--accent-soft);
+  --color-on-primary-container: var(--accent-text);
 
   /* Surface ramp. The key fix here is `--color-surface-high`: it backs
      `--button-hover-bg` which drives hover for menu items, the
@@ -543,38 +577,6 @@
 }
 
 /* ─── Markdown editor ─────────────────────────────────────────────── */
-.markdown-editor-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  background: var(--color-background);
-}
-
-.markdown-source-pane,
-.markdown-preview-pane {
-  min-width: 0;
-  background: var(--color-background);
-}
-
-.markdown-source-pane {
-  overflow: hidden;
-}
-
-/* On phones Split intentionally behaves as Source. Rendering large diagrams
-   below the editor would make the writing surface impractically short. */
-.markdown-layout-split .markdown-preview-pane {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .markdown-layout-split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .markdown-layout-split .markdown-preview-pane {
-    display: block;
-    border-left: 1px solid var(--color-border);
-  }
-}
-
 .markdown-preview {
   color: var(--color-foreground);
   font-size: 1rem;

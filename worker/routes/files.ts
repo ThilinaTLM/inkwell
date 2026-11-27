@@ -24,8 +24,10 @@ import {
   jsonResponse,
   r2FileKey,
   r2ThumbKey,
+  safeMime,
   serveR2WithCache,
   streamFileResponse,
+  streamRawFile,
 } from "../lib/responses";
 import { now } from "../lib/util";
 import { requireSession } from "../middleware/auth";
@@ -33,8 +35,10 @@ import { parseJson, parseJsonOrEmpty } from "../middleware/body";
 import type { AppEnv } from "../middleware/types";
 import {
   createFile,
+  createUploadedFile,
   MAX_FILE_BYTES,
   MAX_THUMB_BYTES,
+  MAX_UPLOAD_BYTES,
   mirrorRenameIntoExcalidrawBlob,
   normalizeImportedExcalidraw,
   putFileBlob,
@@ -228,12 +232,74 @@ r.post("/import", async (c) => {
   return jsonResponse(meta);
 });
 
+// ─── Upload (generic file → kind "file") ─────────────────────────────
+//
+// POST /api/files/upload?name=<name>&folderId=<id>
+//
+// Body: the raw bytes (NOT multipart). Content-Type is stored as the
+// file's `mime` (a `mime=` query param overrides it). `Content-Length`
+// is required — the body is streamed to R2 without buffering — and must
+// not exceed MAX_UPLOAD_BYTES (100 MB): 411 without it, 413 over the cap.
+// Returns the new FileMeta (kind "file").
+r.post("/upload", async (c) => {
+  const owner = c.get("session").userId;
+  const params = new URL(c.req.url).searchParams;
+
+  const folderId = params.get("folderId") || null;
+  if (folderId !== null && !(await foldersRepo.existsForOwner(c.env, owner, folderId))) {
+    return errorResponse(404, "folder not found");
+  }
+  const name = (params.get("name") || "").trim();
+  if (!name) return errorResponse(400, "name required");
+
+  const lengthHeader = c.req.header("content-length");
+  const size = lengthHeader === undefined ? Number.NaN : Number(lengthHeader);
+  if (!Number.isInteger(size) || size < 0) return errorResponse(411, "Content-Length required");
+  if (size > MAX_UPLOAD_BYTES) {
+    return errorResponse(413, `file too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+  }
+
+  const mime = safeMime(params.get("mime") || c.req.header("content-type"));
+  const meta = await createUploadedFile(c.env, owner, folderId, name, {
+    body: size === 0 ? null : c.req.raw.body,
+    size,
+    mime,
+  });
+  return jsonResponse(meta);
+});
+
 // ─── Read ────────────────────────────────────────────────────────────
+// Metadata only — works for every kind (incl. uploaded files, whose blob
+// has no JSON form).
+r.get("/:id/meta", async (c) => {
+  const owner = c.get("session").userId;
+  const id = c.req.param("id");
+  const row = await filesRepo.findById(c.env, owner, id);
+  if (!row) return errorResponse(404, "file not found");
+  const tags = await tagsRepo.listForEntity(c.env, "file", id);
+  const shareMap = await sharesRepo.countActiveByTarget(c.env, owner, "file", [id]);
+  return jsonResponse(rowToMeta(row, tags, { activeShareCount: shareMap.get(id) ?? 0 }));
+});
+
+// Raw bytes of an uploaded file, inline, with the stored Content-Type.
+// HTML/SVG/XML are served with `Content-Security-Policy: sandbox`.
+r.get("/:id/raw", async (c) => {
+  const owner = c.get("session").userId;
+  const id = c.req.param("id");
+  const row = await filesRepo.findById(c.env, owner, id);
+  if (!row) return errorResponse(404, "file not found");
+  if (row.kind !== "file") return errorResponse(400, "not an uploaded file");
+  return await streamRawFile(c.env, row, { request: c.req.raw });
+});
+
 r.get("/:id", async (c) => {
   const owner = c.get("session").userId;
   const id = c.req.param("id");
   const row = await filesRepo.findById(c.env, owner, id);
   if (!row) return errorResponse(404, "file not found");
+  if (row.kind === "file") {
+    return errorResponse(415, "uploaded file has no JSON blob; use /raw, /download or /meta");
+  }
   return await streamFileResponse(c.env, row, { includeFolderId: true });
 });
 
@@ -455,6 +521,7 @@ async function siteResponse(
     tags,
     version: committed.version,
     sizeBytes: committed.sizeBytes,
+    mime: row.mime ?? null,
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
     activeShareCount: shareMap.get(row.id) ?? 0,

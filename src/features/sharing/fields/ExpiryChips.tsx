@@ -5,7 +5,7 @@
 //          e.g. an existing link whose expiry doesn't match a preset)
 //   customAt / onCustomAt: the custom timestamp (ms) when value === "custom"
 
-import { ChipGroup } from "@/features/settings/controls";
+import { ChipGroup } from "@/components/ui/chip-group";
 import { EXPIRY_PRESETS, type ExpiryPresetId } from "../shareStatus";
 
 export type ExpiryChoice = ExpiryPresetId | "custom";

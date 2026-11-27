@@ -34,38 +34,48 @@ on Cloudflare."**
 
 Features at a glance:
 
-- A file-manager-style **app shell**: top bar, sidebar (Library, folder
-  tree, tags, Settings, Users), a details panel and a status bar on every
-  signed-in page
-- **Explorer views**: Grid, Compact, Details (sortable list with column
-  chooser) and Columns (Miller). The view is remembered per folder.
-  Multi-select (click, ⌘/Ctrl-click, ⇧-click, rubber band, ⌘A), inline
-  rename, quick look, drag-and-drop move (onto folders, breadcrumbs, the
-  sidebar tree or Trash; hold ⌥/Alt to duplicate), cut/copy/paste
-- **Keyboard first**: every action is available from a button, a context
-  menu and a shortcut. The **command palette** (⌘K / Ctrl+K) searches files,
-  folders, tags and commands. The **shortcut sheet** (`?`) lists every
-  binding, and shortcuts can be rebound in *Settings → Shortcuts*.
-  Moves, renames, tag edits, stars and trashing can be undone (⌘Z or the
-  toast's *Undo* button).
-- **Trash** with restore, *Delete forever*, *Empty trash* and an automatic
-  purge after 30 days. **Starred** and **Recent** views, and tag pages.
-- **Duplicate** files and whole folders (including R2 blobs, thumbnails and
-  static-site assets)
-- **Uploads for every file kind**: drop files or folders from the desktop, or
-  use Upload / `U`. `.excalidraw`, `.drawio`/`.xml`, Markdown/text (preserved
-  as Markdown) and `.zip`/HTML bundles (Static sites) are supported, with
-  conflict handling (keep both / replace / skip) and an upload tray.
-- Multi-file dashboard with **folders** (nested, per-user) and **tags**
-- Four equal-priority file kinds today: Excalidraw, draw.io, **Markdown** via
-  [CodeMirror](https://codemirror.net/) with GFM, Mermaid and TeX previews,
-  and **Static sites** for publishing uploaded HTML/CSS/JS bundles
+- **Projects, Inbox and Home.** A *project* is a top-level folder with an
+  icon, colour, description, status (active / paused / done) and an optional
+  pin; sub-folders are plain folders. The **Inbox** holds loose files that
+  are not in any folder. **Home** greets you with a capture box, recent
+  items to continue, pinned projects and an Inbox preview.
+- **Quick capture.** Type a thought and press Enter to save a Markdown
+  note to the Inbox (or into the project/folder you are in). The capture
+  dialog (from the sidebar or the mobile bottom bar) also creates blank
+  notes, whiteboards and diagrams, or opens the upload picker.
+- **Files hub** (`/files`): All (flat, type-filterable), Recent, Starred,
+  Shared links and Trash tabs. Trash has restore, *Delete forever*, *Empty
+  trash* and an automatic purge after 30 days.
+- **Cards and List layouts** for every collection, remembered per device.
+  Items are sorted by recently edited, folders first. Multi-select (click,
+  ⌘/Ctrl-click, ⇧-click, rubber band, ⌘A), inline rename, drag-and-drop
+  move (onto folders, breadcrumbs, sidebar projects or the Inbox) and
+  cut/copy/paste. Double-click opens; ⌘/Ctrl-click opens a new tab.
+- **Responsive.** Desktop first; on small screens the sidebar becomes a
+  drawer and a bottom bar gives Home, Inbox, Capture, Search and Files.
+- **Command palette** (⌘K / Ctrl+K) searches files, projects and commands;
+  the **shortcut sheet** (`?`) lists the key bindings. Moves, renames,
+  stars and trashing can be undone (⌘Z or the toast's *Undo* button).
+- **Any file, not just diagrams.** Drop or upload anything: Excalidraw,
+  draw.io, Markdown/text and `.zip`/HTML bundles (Static sites) open in
+  their editors, and every other type is stored as a generic file with an
+  inline viewer (images, PDF, text) and a download. Conflicts keep both
+  copies; an upload tray tracks progress.
+- **Editors** share one header with title, save status, share, an export
+  dialog with the formats that fit the file kind, and a **Present** mode
+  for whiteboards (fullscreen, laser pointer, frames as slides).
+  Kinds: Excalidraw, draw.io, **Markdown** via [CodeMirror](https://codemirror.net/)
+  with GFM, Mermaid and TeX previews, and **Static sites**.
 - **Share links** for individual files or whole folder subtrees, read or
-  read-write, with optional expiry and downloads, managed from one filterable
-  *Shared links* page
+  read-write, with optional expiry and downloads, managed from *Files →
+  Shared*.
+- **Settings** is one page: Profile & password, Appearance (theme,
+  editor fonts), Admin (users and invites, admins only) and About.
 - **Email + password auth**, invitation-only signup (invites can carry a
   note), super-admin bootstrap
 - Client-rendered SVG thumbnails, debounced autosave, optimistic concurrency
+- Duplicate files and whole folders (including R2 blobs, thumbnails and
+  static-site assets)
 
 ## Architecture
 
@@ -104,7 +114,7 @@ Key choices:
   path filters trashed rows, so share links to trashed items return 404.
   Restoring puts an item back in its original folder. If that folder is
   gone, is itself trashed, or the move would exceed the maximum folder
-  depth, the item goes to Home instead. A daily cron (`0 4 * * *`, the
+  depth, the item goes to the Inbox instead. A daily cron (`0 4 * * *`, the
   `scheduled` handler in `worker/index.ts`) permanently purges items that
   were trashed more than 30 days ago, cleaning up R2 first.
 - **Stars** are a `starred_at` timestamp on files and folders.
@@ -112,10 +122,10 @@ Key choices:
   `POST /api/items/{move,trash,restore,purge,star,duplicate}` (at most 500
   refs per request; each request runs as one D1 batch), plus
   `GET`/`DELETE /api/trash`.
-- **Uploads use the existing endpoints.** Files are classified in the
-  browser. Excalidraw goes through `/api/files/import`; draw.io and Markdown
-  are created and then saved; static sites use the assets/zip endpoints.
-  There is no dedicated upload endpoint.
+- **Uploads.** Files are classified in the browser. Excalidraw goes through
+  `/api/files/import`; draw.io and Markdown are created and then saved;
+  static sites use the assets/zip endpoints; everything else goes to the raw
+  upload endpoint as a generic file.
 - **Front end:** a single command registry (`src/lib/commands/`) drives the
   keyboard shortcuts, context menus, the command palette and the shortcut
   sheet. Item operations are implemented once, in
@@ -162,7 +172,7 @@ pnpm deploy
 For local dev, copy `.dev.vars.example` to `.dev.vars` and adjust. The
 super-admin row is created lazily on the first login attempt that matches
 `SUPER_ADMIN_EMAIL` + `SUPER_ADMIN_PASSWORD`. Further accounts come in via
-single-use invite links generated from the **Users** panel.
+single-use invite links generated from *Settings → Admin*.
 
 Draw.io support uses a pinned first-party static asset snapshot under
 `public/drawio/`. That directory is intentionally git-ignored because the
@@ -178,7 +188,8 @@ pnpm test     # vitest: keymap, fuzzy matcher, selection, upload classifier, nam
 pnpm smoke    # Playwright end-to-end smoke against a running `pnpm dev` + `pnpm dev:worker`
 ```
 
-`pnpm smoke` logs in with `SMOKE_EMAIL` / `SMOKE_PASSWORD` (falling back to
+`pnpm smoke` walks the redesigned UI (Home, capture, Inbox, projects,
+folder pages, Files hub, Settings → Admin, uploads) and logs in with `SMOKE_EMAIL` / `SMOKE_PASSWORD` (falling back to
 the super-admin credentials in `.dev.vars`). It targets `SMOKE_BASE_URL`,
 which defaults to `http://localhost:3838`. It creates its own fixtures and
 purges them afterwards; the invite check needs an admin account. On the
@@ -220,8 +231,8 @@ comfortably, and R2 has no egress fees.
   across tabs (with a `version` check that catches the common case).
 - **No password recovery flow.** Admins can re-issue an invite; there is
   no email-bound reset.
-- **No touch drag-and-drop.** On touch devices, use the Move dialog or the
-  bulk bar. Starred items can't be reordered manually.
+- **No touch drag-and-drop.** On touch devices, use the *Move to…* action.
+  Starred items can't be reordered manually.
 
 ## License
 

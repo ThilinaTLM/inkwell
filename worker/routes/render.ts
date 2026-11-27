@@ -27,14 +27,16 @@
 //
 // The two routers differ in how they authenticate:
 //
-//   * `ownerSites` REQUIRES a session cookie. `requireSession` runs
-//     before every handler and `row.owner === session.userId` is
-//     re-checked per request. The HMAC signature stays as a
-//     TTL-bound defense in depth that binds the URL to (file, owner)
-//     and prevents id-substitution attacks. Sub-resource requests
-//     (`<script>`, `<img>`, `<link>`) inside the rendered HTML carry
-//     the cookie because they are same-origin GETs and the cookie is
-//     `SameSite=Lax`.
+//   * `ownerSites` is authorized by the HMAC signature alone. The sig
+//     payload is `ownerRenderPayload(id, owner)` and is only minted by
+//     session-authed API routes for the file's owner, so the URL is a
+//     short-lived (30 min) capability bound to (this file, this owner).
+//     No session cookie is required: the owner preview renders inside
+//     an iframe sandboxed WITHOUT `allow-same-origin` (so the uploaded
+//     site's scripts can never act with the user's Inkwell session),
+//     which gives it an opaque origin. Its sub-resource requests
+//     (`<link>`, `<script>`, `<img>`) therefore carry no cookies, and
+//     requiring one would break every multi-file site preview.
 //
 //   * `sharedSites` is cookie-less by design — a share-token URL is
 //     the credential. Each request re-resolves the share row via
@@ -50,8 +52,9 @@
 //   2. Each route handler hard-codes the matching payload builder.
 //      Param names differ (`:id` vs `:token`) so there's no shape
 //      under which the wrong path could feed the wrong verifier.
-//   3. The owner route additionally requires a session cookie and
-//      that the authenticated user owns the file. The share routes
+//   3. The owner route verifies against the file's CURRENT owner, so a
+//      sig minted for a different owner (or before an ownership
+//      change) never verifies. The share routes
 //      additionally re-query the share row on every request and
 //      reject if the share is gone, expired, or no longer covers the
 //      requested file.
@@ -70,7 +73,6 @@ import * as foldersRepo from "../db/repos/folders";
 import * as sharesRepo from "../db/repos/shares";
 import { ownerRenderPayload, shareRenderPayload, verifyRender } from "../lib/crypto";
 import { errorResponse } from "../lib/responses";
-import { requireSession } from "../middleware/auth";
 import type { AppEnv } from "../middleware/types";
 import { r2StaticSiteAssetKey, readManifest } from "../services/static-site";
 import type { Env, FileRow, StaticSiteFileBlob } from "../types";
@@ -80,10 +82,8 @@ import type { Env, FileRow, StaticSiteFileBlob } from "../types";
 // `:path{.*}` (regex-named, matches empty so the root request
 // resolves to `manifest.entry`).
 const ownerSites = new Hono<AppEnv>();
-ownerSites.use("*", requireSession);
 
 ownerSites.get("/:id/:sig/:path{.*}", async (c) => {
-  const session = c.get("session");
   const id = c.req.param("id");
   const sig = c.req.param("sig");
   const relpath = c.req.param("path") ?? "";
@@ -92,15 +92,10 @@ ownerSites.get("/:id/:sig/:path{.*}", async (c) => {
   const row = await filesRepo.findByIdAnyOwner(c.env, id);
   if (row?.kind !== "static-site") return errorResponse(404, "not found");
 
-  // Ownership check: the signed URL binds to (file, owner) but the
-  // authoritative gate is the session cookie. An attacker who obtains
-  // a sig URL out-of-band (URL leak, browser history sync, etc.)
-  // still can't replay it without being signed in as the owner.
-  if (row.owner !== session.userId) return errorResponse(403, "not authorized");
-
-  // Verifier is locked to `ownerRenderPayload`. A share-minted sig
-  // produces a payload starting with "share|" and therefore cannot
-  // satisfy this check — see "Access-control invariants" above.
+  // Signature-only auth (see "Cookies vs. signatures" above). The
+  // payload binds to (file, current owner); the verifier is locked to
+  // `ownerRenderPayload`, so a share-minted sig ("share|…") can never
+  // satisfy it — see "Access-control invariants" above.
   const ok = await verifyRender(c.env.SESSION_SECRET, sig, ownerRenderPayload(row.id, row.owner));
   if (!ok) return errorResponse(403, "expired or invalid render session");
 

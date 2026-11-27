@@ -2,7 +2,7 @@
 // `lockedToRead` disables "Can edit" (static sites have no write path on
 // the share-token side); the caller keeps `value` at "read" in that case.
 
-import { Segmented } from "@/features/settings/controls";
+import { Segmented } from "@/components/ui/segmented";
 import type { SharePermission } from "@/lib/api/client";
 
 export function PermissionSegment({

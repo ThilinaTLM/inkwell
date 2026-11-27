@@ -1,0 +1,39 @@
+/* Excalidraw ↔ Inkwell surface polish. Chrome variables are bound to
+   the shadcn palette in src/index.css; this file covers the remaining
+   gaps (canvas ground colour, duplicate controls). */
+
+/* The Library trigger is duplicated by the Library button in the editor
+   header toolbar on desktop. Keep Excalidraw's own trigger on touch
+   layouts, where the header toolbar is tight. */
+@media (min-width: 640px) {
+  .excalidraw .layer-ui__wrapper__top-right .sidebar-trigger {
+    display: none;
+  }
+}
+
+/* Tint the scene ground to Inkwell's paper / charcoal instead of pure
+   white / #121212. The static canvas is blended against the container's
+   background: `multiply` turns white into paper in light mode, and
+   `lighten` lifts Excalidraw's inverted near-black to warm charcoal in
+   dark mode. Strokes and fills stay intact; exports are unaffected. */
+.excalidraw.excalidraw-container {
+  background-color: var(--background);
+}
+.excalidraw canvas.excalidraw__canvas.static {
+  mix-blend-mode: multiply;
+}
+.excalidraw.theme--dark canvas.excalidraw__canvas.static {
+  mix-blend-mode: lighten;
+}
+
+/* Hint text under the toolbar: keep it quiet. */
+.excalidraw .HintViewer {
+  color: var(--faint);
+}
+
+/* Present mode: the slide is the whole stage — drop zoom/undo controls
+   (the floating present bar owns navigation). */
+[data-presenting="true"] .excalidraw .layer-ui__wrapper__footer-left,
+[data-presenting="true"] .excalidraw .layer-ui__wrapper__footer-right {
+  display: none;
+}

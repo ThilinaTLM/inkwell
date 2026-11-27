@@ -1,4 +1,4 @@
-// Markdown editor preferences — layout, content width, and typeface, persisted
+// Markdown editor preferences — mode, content width, and typeface, persisted
 // per-browser in localStorage.
 //
 // These are presentation-only choices that don't belong in the saved
@@ -29,7 +29,8 @@ import {
 } from "react";
 
 export type NotesEditorWidth = "narrow" | "wide" | "full";
-export type MarkdownEditorLayout = "source" | "split" | "preview";
+/** "write" = WYSIWYG (Milkdown Crepe); "source" = raw Markdown (CodeMirror). */
+export type MarkdownEditorMode = "write" | "source";
 export type NotesEditorFont =
   | "inter"
   | "manrope"
@@ -103,19 +104,19 @@ export function fontStack(value: NotesEditorFont): string {
 
 const WIDTH_KEY = "inkwell:notes:width";
 const FONT_KEY = "inkwell:notes:font";
-const LAYOUT_KEY = "inkwell:markdown:layout";
+const MODE_KEY = "inkwell:markdown:mode";
 
 const DEFAULT_WIDTH: NotesEditorWidth = "narrow";
 const DEFAULT_FONT: NotesEditorFont = "inter";
-const DEFAULT_LAYOUT: MarkdownEditorLayout = "split";
+const DEFAULT_MODE: MarkdownEditorMode = "write";
 
 interface NotesPreferencesValue {
   width: NotesEditorWidth;
   font: NotesEditorFont;
-  layout: MarkdownEditorLayout;
+  mode: MarkdownEditorMode;
   setWidth: (w: NotesEditorWidth) => void;
   setFont: (f: NotesEditorFont) => void;
-  setLayout: (layout: MarkdownEditorLayout) => void;
+  setMode: (mode: MarkdownEditorMode) => void;
 }
 
 const NotesPreferencesContext = createContext<NotesPreferencesValue | null>(null);
@@ -140,20 +141,20 @@ function readFont(): NotesEditorFont {
   return DEFAULT_FONT;
 }
 
-function readLayout(): MarkdownEditorLayout {
+function readMode(): MarkdownEditorMode {
   try {
-    const value = localStorage.getItem(LAYOUT_KEY);
-    if (value === "source" || value === "split" || value === "preview") return value;
+    const value = localStorage.getItem(MODE_KEY);
+    if (value === "write" || value === "source") return value;
   } catch {
     /* storage unavailable */
   }
-  return DEFAULT_LAYOUT;
+  return DEFAULT_MODE;
 }
 
 export function NotesPreferencesProvider({ children }: { children: ReactNode }) {
   const [width, setWidthState] = useState<NotesEditorWidth>(() => readWidth());
   const [font, setFontState] = useState<NotesEditorFont>(() => readFont());
-  const [layout, setLayoutState] = useState<MarkdownEditorLayout>(() => readLayout());
+  const [mode, setModeState] = useState<MarkdownEditorMode>(() => readMode());
 
   useEffect(() => {
     try {
@@ -173,19 +174,19 @@ export function NotesPreferencesProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     try {
-      localStorage.setItem(LAYOUT_KEY, layout);
+      localStorage.setItem(MODE_KEY, mode);
     } catch {
       /* ignore */
     }
-  }, [layout]);
+  }, [mode]);
 
   const setWidth = useCallback((w: NotesEditorWidth) => setWidthState(w), []);
   const setFont = useCallback((f: NotesEditorFont) => setFontState(f), []);
-  const setLayout = useCallback((value: MarkdownEditorLayout) => setLayoutState(value), []);
+  const setMode = useCallback((value: MarkdownEditorMode) => setModeState(value), []);
 
   const value = useMemo<NotesPreferencesValue>(
-    () => ({ width, font, layout, setWidth, setFont, setLayout }),
-    [width, font, layout, setWidth, setFont, setLayout],
+    () => ({ width, font, mode, setWidth, setFont, setMode }),
+    [width, font, mode, setWidth, setFont, setMode],
   );
 
   return (
@@ -202,10 +203,10 @@ export function useNotesPreferences(): NotesPreferencesValue {
     return {
       width: DEFAULT_WIDTH,
       font: DEFAULT_FONT,
-      layout: DEFAULT_LAYOUT,
+      mode: DEFAULT_MODE,
       setWidth: () => {},
       setFont: () => {},
-      setLayout: () => {},
+      setMode: () => {},
     };
   }
   return ctx;

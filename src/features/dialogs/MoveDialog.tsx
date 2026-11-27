@@ -9,12 +9,13 @@ import {
   ArrowRight01Icon,
   Folder01Icon,
   FolderAddIcon,
-  Home01Icon,
+  InboxIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Kbd } from "@/components/shell/Kbd";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -108,7 +109,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
         kind: "folder",
         key: `${hint ? "m" : "t"}:${id ?? "root"}:${depth}`,
         id,
-        name: f?.name ?? "Home",
+        name: f?.name ?? "Loose files",
         depth,
         hint,
         hasChildren: kids.length > 0,
@@ -120,10 +121,10 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
     if (query.trim()) {
       out.push({ kind: "header", label: "Matches", key: "h-m" });
       const matches = fuzzyFilter(query, all, (f) => f.name, 50);
-      if ("home".includes(query.trim().toLowerCase())) out.push(folderRow(null, 0, "Top level"));
+      if ("inbox".includes(query.trim().toLowerCase())) out.push(folderRow(null, 0, "Loose files"));
       for (const m of matches) {
-        const parentPath = folderPathLabel(all, m.item.parentId);
-        out.push(folderRow(m.item, 0, `${parentPath} /`));
+        const hint = m.item.parentId ? `${folderPathLabel(all, m.item.parentId)} /` : "Project";
+        out.push(folderRow(m.item, 0, hint));
       }
       if (creating) out.push({ kind: "new", key: "new", parentId: creating.parentId, depth: 0 });
       return out;
@@ -141,7 +142,11 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
             kind: "folder";
           }),
           key: `r:${id ?? "root"}`,
-          hint: f ? `${folderPathLabel(all, f.parentId)} /` : "Top level",
+          hint: f?.parentId
+            ? `${folderPathLabel(all, f.parentId)} /`
+            : f
+              ? "Project"
+              : "Loose files",
           hasChildren: false,
         });
       }
@@ -245,18 +250,18 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
   const title = items.length === 1 ? `Move "${infos[0]?.name}"` : `Move ${items.length} items`;
   const from =
     currentParent !== undefined
-      ? `from ${currentParent ? (all.find((f) => f.id === currentParent)?.name ?? "folder") : "Home"}`
+      ? `from ${currentParent ? (all.find((f) => f.id === currentParent)?.name ?? "folder") : "Loose files"}`
       : "";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="gap-0 p-0 sm:max-w-[520px]" onKeyDown={onKeyDown}>
         <div className="flex items-baseline gap-2 border-b border-border px-4 py-3 pr-10">
-          <DialogTitle className="truncate text-sm font-semibold">{title}</DialogTitle>
+          <DialogTitle className="truncate font-display text-base font-medium">{title}</DialogTitle>
           <DialogDescription className="text-xs">{from}</DialogDescription>
         </div>
         <div className="px-4 py-2.5">
-          <div className="flex h-8 items-center gap-2 rounded-md border border-input bg-background px-2">
+          <div className="flex h-9 items-center gap-2 rounded-[10px] border border-input bg-surface-2 px-2.5">
             <HugeiconsIcon
               icon={Search01Icon}
               strokeWidth={2}
@@ -270,7 +275,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
                 setQuery(e.target.value);
                 setHighlight(undefined);
               }}
-              placeholder="Type to filter folders…"
+              placeholder="Search projects and folders…"
               aria-label="Filter folders"
               className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
@@ -348,7 +353,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
                 onDoubleClick={() => !r.disabled && void commit(false)}
                 onKeyDown={() => undefined}
                 className={cn(
-                  "relative flex h-7 cursor-default items-center gap-1.5 rounded-md pr-2 text-sm text-muted-foreground",
+                  "relative flex h-8 cursor-default items-center gap-1.5 rounded-lg pr-2 text-sm text-muted-foreground",
                   active && "bg-accent text-accent-foreground",
                   r.disabled && "opacity-40",
                 )}
@@ -373,11 +378,19 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
                     className="size-3"
                   />
                 </button>
-                <HugeiconsIcon
-                  icon={r.id === null ? Home01Icon : Folder01Icon}
-                  strokeWidth={1.7}
-                  className="size-4 shrink-0"
-                />
+                {r.id === null ? (
+                  <span className="grid size-5 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-text">
+                    <HugeiconsIcon icon={InboxIcon} strokeWidth={1.8} className="size-3" />
+                  </span>
+                ) : isProject(all, r.id) ? (
+                  <ProjectIcon folder={all.find((f) => f.id === r.id)} size="xs" />
+                ) : (
+                  <HugeiconsIcon
+                    icon={Folder01Icon}
+                    strokeWidth={1.7}
+                    className="size-4 shrink-0"
+                  />
+                )}
                 <span className={cn("truncate", active && "font-medium")}>{r.name}</span>
                 {r.current ? (
                   <span className="ml-auto text-[11px] text-muted-foreground">current</span>
@@ -437,4 +450,8 @@ function depthOf(all: FolderMeta[], id: string | null): number {
     cur = byId.get(cur.parentId);
   }
   return d;
+}
+
+function isProject(all: FolderMeta[], id: string): boolean {
+  return all.find((f) => f.id === id)?.parentId === null;
 }

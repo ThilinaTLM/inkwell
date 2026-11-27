@@ -9,6 +9,7 @@ import { MAX_DEPTH } from "../db/repos/folders";
 import * as sharesRepo from "../db/repos/shares";
 import * as tagsRepo from "../db/repos/tags";
 import { newId } from "../lib/crypto";
+import { parseFolderMeta } from "../lib/folder-meta";
 import { checkFolderMove } from "../lib/items";
 import { errorResponse, jsonResponse } from "../lib/responses";
 import { now } from "../lib/util";
@@ -52,6 +53,10 @@ interface CreateFolderBody {
   name?: string;
   parentId?: string | null;
   tags?: string[];
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+  status?: string | null;
 }
 
 r.post("/", async (c) => {
@@ -69,6 +74,9 @@ r.post("/", async (c) => {
     if (depth >= MAX_DEPTH) return errorResponse(400, `max nesting depth is ${MAX_DEPTH}`);
   }
 
+  const meta = parseFolderMeta(body);
+  if (typeof meta === "string") return errorResponse(400, meta);
+
   const id = newId();
   const ts = now();
   const row: FolderRow = {
@@ -81,6 +89,11 @@ r.post("/", async (c) => {
     deleted_at: null,
     trashed_via: null,
     starred_at: null,
+    icon: meta.icon ?? null,
+    color: meta.color ?? null,
+    description: meta.description ?? null,
+    status: meta.status ?? null,
+    pinned_at: meta.pinned_at ?? null,
   };
   await foldersRepo.insert(c.env, row);
 
@@ -91,11 +104,16 @@ r.post("/", async (c) => {
   return jsonResponse(rowToFolderMeta(row, { tags, fileCount: 0, subfolderCount: 0 }));
 });
 
-// ─── Patch (rename / move / retag) ───────────────────────────────────
+// ─── Patch (rename / move / retag / project metadata) ───────────────────────────────────
 interface PatchFolderBody {
   name?: string;
   parentId?: string | null;
   tags?: string[];
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+  status?: string | null;
+  pinnedAt?: number | null;
 }
 
 r.patch("/:id", async (c) => {
@@ -106,6 +124,9 @@ r.patch("/:id", async (c) => {
 
   const body = await parseJson<PatchFolderBody>(c);
   if (body instanceof Response) return body;
+
+  const meta = parseFolderMeta(body);
+  if (typeof meta === "string") return errorResponse(400, meta);
 
   let nextName = folder.name;
   let nextParent: string | null = folder.parent_id;
@@ -141,6 +162,7 @@ r.patch("/:id", async (c) => {
     name: nextName,
     parent_id: nextParent,
     updated_at: ts,
+    ...meta,
   });
 
   let tags = await tagsRepo.listForEntity(c.env, "folder", id);
@@ -154,6 +176,7 @@ r.patch("/:id", async (c) => {
     name: nextName,
     parent_id: nextParent,
     updated_at: ts,
+    ...meta,
   };
   return jsonResponse(
     rowToFolderMeta(updated, {

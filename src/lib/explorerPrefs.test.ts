@@ -1,65 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { lruSet, stepThumbSize, viewKeyFor } from "./explorerPrefs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("lruSet", () => {
-  it("appends new keys as most recent", () => {
-    expect(lruSet([["a", 1]], "b", 2, 5)).toEqual([
-      ["a", 1],
-      ["b", 2],
-    ]);
-  });
-  it("moves an existing key to the end with the new value", () => {
-    expect(
-      lruSet(
-        [
-          ["a", 1],
-          ["b", 2],
-          ["c", 3],
-        ],
-        "a",
-        9,
-        5,
-      ),
-    ).toEqual([
-      ["b", 2],
-      ["c", 3],
-      ["a", 9],
-    ]);
-  });
-  it("evicts the least recently used entries beyond max", () => {
-    let e: Array<[string, number]> = [];
-    for (let i = 0; i < 205; i++) e = lruSet(e, `f${i}`, i, 200);
-    expect(e).toHaveLength(200);
-    expect(e[0][0]).toBe("f5");
-    expect(e[199][0]).toBe("f204");
-  });
-  it("does not mutate the input", () => {
-    const input: Array<[string, number]> = [["a", 1]];
-    lruSet(input, "b", 2, 1);
-    expect(input).toEqual([["a", 1]]);
-  });
+const store = new Map<string, string>();
+vi.stubGlobal("localStorage", {
+  getItem: (k: string) => store.get(k) ?? null,
+  setItem: (k: string, v: string) => void store.set(k, v),
+  removeItem: (k: string) => void store.delete(k),
+  clear: () => store.clear(),
 });
 
-describe("helpers", () => {
-  it("steps thumbnail sizes within bounds", () => {
-    expect(stepThumbSize("m", 1)).toBe("l");
-    expect(stepThumbSize("xl", 1)).toBe("xl");
-    expect(stepThumbSize("s", -1)).toBe("s");
-  });
-  it("derives view keys", () => {
-    expect(viewKeyFor({ currentFolderId: null, route: "/" })).toBeNull();
-    expect(viewKeyFor({ currentFolderId: "abc", route: "/folders/abc" })).toBe("abc");
-    expect(viewKeyFor({ currentFolderId: undefined, route: "/recent" })).toBe("route:/recent");
-  });
-});
+import { getCollectionLayout, setCollectionLayout } from "./explorerPrefs";
 
-import { getFolderView, hasFolderView, setFolderView } from "./explorerPrefs";
+describe("collection layout pref", () => {
+  beforeEach(() => store.clear());
 
-describe("folder view memory", () => {
-  it("reports whether a view was remembered", () => {
-    expect(hasFolderView("route:/recent-test")).toBe(false);
-    setFolderView("route:/recent-test", "list");
-    expect(hasFolderView("route:/recent-test")).toBe(true);
-    expect(getFolderView("route:/recent-test")).toBe("list");
+  it("defaults to cards and remembers the choice", () => {
+    expect(getCollectionLayout()).toBe("cards");
+    setCollectionLayout("list");
+    expect(getCollectionLayout()).toBe("list");
+    expect(store.get("inkwell.explorer.collectionLayout")).toBe('"list"');
   });
 });

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-screen="home">
+<head>
+<meta charset="utf-8">
+<title>Inkwell — Direction B · Warm &amp; crafted</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Caveat:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F2E8; --side:#F1EBDD; --surface:#FFFDF8; --surface2:#FBF7EE; --text:#1E2330; --muted:#6A6455; --faint:#8F8873;
+  --border:#E4DBC8; --border2:#D6CBB2; --accent:#B84A14; --accent-soft:#F6E4D5; --accent-text:#9A3C0D; --on-accent:#fff;
+  --green:#3F7A55; --green-soft:#E1EDE3; --amber:#9A6A12; --amber-soft:#F5E8C8; --hover:rgba(60,45,20,.06);
+  --shadow:0 1px 2px rgba(60,40,10,.06),0 4px 14px rgba(60,40,10,.05); --shadow-lg:0 2px 4px rgba(60,40,10,.06),0 16px 40px rgba(60,40,10,.14);
+  --canvas:#FFFEFA; --dot:#D9CFB9; --stroke:#1E2330; --grain:.35;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --hand:'Caveat','Comic Sans MS',cursive;
+}
+[data-theme=dark]{
+  --bg:#0E1525; --side:#0B1120; --surface:#151D31; --surface2:#121A2C; --text:#EDE7D9; --muted:#A2A9B8; --faint:#7C859A;
+  --border:#252F4A; --border2:#34416A; --accent:#EE8442; --accent-soft:#3A2A24; --accent-text:#F4A06A; --on-accent:#1A1008;
+  --green:#7CC49A; --green-soft:#1D3329; --amber:#E4B75A; --amber-soft:#3A3120; --hover:rgba(255,240,210,.06);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.2); --shadow-lg:0 2px 4px rgba(0,0,0,.4),0 16px 40px rgba(0,0,0,.5);
+  --canvas:#101829; --dot:#26314E; --stroke:#EDE7D9; --grain:.12;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden;transition:background .25s,color .25s}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:200;opacity:var(--grain);mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .3 0 0 0 0 .15 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+[data-theme=dark] body::before{mix-blend-mode:screen}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.serif{font-family:var(--serif)}
+.screen{display:none;height:100vh;min-width:1280px}
+[data-screen=home] #home,[data-screen=project] #project{display:flex}
+[data-screen=editor] #editor{display:flex}
+
+/* sidebar */
+.side{width:248px;background:var(--side);border-right:1px solid var(--border);padding:18px 12px 14px;display:flex;flex-direction:column;gap:2px;flex:none}
+.logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;font-family:var(--serif);font-size:22px;font-weight:500;letter-spacing:-.01em}
+.logo .mark{width:26px;height:26px;border-radius:8px;background:var(--text);color:var(--bg);display:grid;place-items:center}
+.logo .mark svg{width:15px;height:15px}
+.logo b{color:var(--accent);font-weight:500}
+.search{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:7px 10px;border:1px solid var(--border);background:var(--surface);border-radius:9px;color:var(--faint);font-size:13px;width:100%;text-align:left;transition:.15s}
+.search:hover{border-color:var(--border2)}
+kbd{margin-left:auto;font:500 11px var(--sans);padding:1px 6px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted)}
+.nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:var(--muted);font-weight:500;width:100%;text-align:left;transition:.15s}
+.nav:hover{background:var(--hover);color:var(--text)}
+.nav.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.nav.on svg{color:var(--accent)}
+.sect{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:20px 10px 6px;display:flex;justify-content:space-between}
+.proj .e{width:20px;text-align:center;font-size:15px;line-height:1}
+.proj.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.proj .n{margin-left:auto;font-size:11px;color:var(--faint);font-weight:400}
+.newp{color:var(--faint)}
+.spacer{flex:1}
+.user{display:flex;align-items:center;gap:10px;padding:10px 8px 0;margin-top:8px;border-top:1px solid var(--border)}
+.av{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:grid;place-items:center;font-size:12px;font-weight:600;border:1px solid var(--border2)}
+.user small{display:block;color:var(--faint);font-size:12px;line-height:1.2}
+.user div{line-height:1.25;font-weight:500}
+
+/* main */
+.main{flex:1;overflow-y:auto;padding:44px 56px 100px}
+.wrap{max-width:1060px;margin:0 auto}
+h1.hello{font-family:var(--serif);font-weight:400;font-size:38px;letter-spacing:-.02em;line-height:1.15}
+h1.hello em{font-style:italic;color:var(--accent)}
+.date{color:var(--faint);margin:4px 0 22px}
+.capture{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:6px 6px 6px 18px;display:flex;align-items:center;gap:10px;transition:.2s}
+.capture:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.capture input{flex:1;border:0;background:none;font:400 17px var(--serif);color:var(--text);padding:14px 0;outline:0}
+.capture input::placeholder{color:var(--faint);font-style:italic}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;font-weight:500;font-size:13px;border:1px solid var(--border);background:var(--surface2);color:var(--text);transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--hover);border-color:var(--border2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.ghost:hover{background:var(--hover)}
+.h2{display:flex;align-items:baseline;justify-content:space-between;margin:40px 0 14px}
+.h2 h2{font-family:var(--serif);font-weight:500;font-size:20px;letter-spacing:-.01em}
+.h2 a{color:var(--muted);font-size:13px;text-decoration:none}
+.h2 a:hover{color:var(--accent)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s,border-color .2s;cursor:pointer;position:relative;display:block;text-align:left}
+.card:hover,.card.hov{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--border2)}
+.prev{height:128px;background:var(--surface2);border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+.prev svg.art{width:100%;height:100%;display:block}
+.dots{background-image:radial-gradient(var(--dot) 1px,transparent 1.2px);background-size:14px 14px}
+.cb{padding:12px 14px 13px}
+.cb .t{font-weight:600;font-size:14px;display:flex;gap:7px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb .m{color:var(--faint);font-size:12px;margin-top:2px;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.tag{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--muted)}
+.tag svg{width:13px;height:13px}
+.note-prev{padding:14px 16px;font-size:12px;color:var(--muted);line-height:1.55}
+.note-prev h4{font-family:var(--serif);font-weight:500;font-size:15px;color:var(--text);margin-bottom:5px}
+.note-prev code{font:11px ui-monospace,monospace;background:var(--hover);padding:0 4px;border-radius:4px;color:var(--accent-text)}
+.fade::after{content:"";position:absolute;left:0;right:0;bottom:0;height:34px;background:linear-gradient(transparent,var(--surface2))}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:500}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.active{background:var(--green-soft);color:var(--green)}
+.pill.paused{background:var(--amber-soft);color:var(--amber)}
+.pc{padding:18px;display:flex;flex-direction:column;gap:12px}
+.pc .top{display:flex;align-items:center;gap:12px}
+.pc .em{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:var(--accent-soft)}
+.pc .nm{font-family:var(--serif);font-size:17px;font-weight:500;line-height:1.2}
+.pc .top .pill{margin-left:auto}
+.bar{height:5px;background:var(--hover);border-radius:9px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:9px;background:var(--accent)}
+.pc .row{display:flex;justify-content:space-between;color:var(--faint);font-size:12px}
+.spark{display:flex;align-items:flex-end;gap:3px;height:18px}
+.spark i{width:5px;border-radius:2px;background:var(--border2)}
+.spark i.h{background:var(--accent)}
+.inbox{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.ib{display:flex;gap:14px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border);transition:.15s;cursor:pointer}
+.ib:last-child{border:0}
+.ib:hover{background:var(--surface2)}
+.ib .bul{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--accent);flex:none}
+.ib p{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib span{color:var(--faint);font-size:12px}
+.ib .btn{opacity:0;padding:4px 10px}
+.ib:hover .btn{opacity:1}
+
+/* project */
+.crumb{color:var(--faint);font-size:13px;display:flex;gap:6px;align-items:center;margin-bottom:18px}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+.ph{display:flex;gap:18px;align-items:flex-start}
+.ph .big{width:64px;height:64px;border-radius:18px;background:var(--accent-soft);display:grid;place-items:center;font-size:34px;border:1px solid var(--border);flex:none}
+.ph h1{font-family:var(--serif);font-weight:400;font-size:36px;letter-spacing:-.02em;line-height:1.1;display:flex;gap:14px;align-items:center}
+.ph p{color:var(--muted);margin-top:6px;max-width:620px;font-size:15px}
+.ph .acts{margin-left:auto;display:flex;gap:8px;align-items:center}
+.ov{margin-top:26px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow)}
+.ov summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 18px;cursor:pointer;font-weight:500;color:var(--muted)}
+.ov summary::-webkit-details-marker{display:none}
+.ov summary .chev{transition:transform .2s;margin-left:auto}
+.ov[open] summary .chev{transform:rotate(180deg)}
+.ov .body{padding:2px 22px 20px 44px;color:var(--muted);font-size:14px;line-height:1.7;column-count:2;column-gap:40px}
+.ov .body b{color:var(--text)}
+.ov summary span.l{font-family:var(--serif);color:var(--text);font-size:16px}
+.tb{display:flex;align-items:center;gap:12px;margin:30px 0 18px}
+.chips{display:flex;gap:4px;padding:3px;background:var(--hover);border-radius:11px}
+.chip{padding:5px 13px;border-radius:8px;font-weight:500;color:var(--muted);transition:.15s;font-size:13px}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.chip small{color:var(--faint);margin-left:4px;font-weight:400}
+.seg{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-left:auto}
+.seg button{padding:6px 9px;color:var(--faint);display:grid;place-items:center}
+.seg button.on{background:var(--surface);color:var(--text)}
+.seg button:hover{color:var(--text)}
+.qa{position:absolute;top:8px;right:8px;display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--surface);border:1px solid var(--border2);box-shadow:var(--shadow);opacity:0;transform:translateY(-3px);transition:.15s}
+.card:hover .qa,.card.hov .qa{opacity:1;transform:none}
+.qa button{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted)}
+.qa button:hover{background:var(--hover);color:var(--accent)}
+.folder .prev{display:grid;place-items:center;background:var(--accent-soft)}
+.badge{position:absolute;left:10px;bottom:10px;font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--muted);z-index:2}
+
+/* editor */
+#editor{flex-direction:column;position:relative;background:var(--canvas)}
+.canvas{position:absolute;inset:0}
+.ehead{position:relative;z-index:5;height:52px;display:flex;align-items:center;gap:6px;padding:0 14px;background:linear-gradient(var(--canvas) 55%,transparent);}
+.ibtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.ehead .crumb{margin:0 0 0 4px;font-size:13px}
+.title{font:500 14px var(--sans);color:var(--text);border:1px solid transparent;border-radius:7px;padding:4px 8px;background:none;width:190px;transition:.15s;margin-left:-4px}
+.title:hover{border-color:var(--border)}
+.title:focus{outline:0;border-color:var(--accent);background:var(--surface)}
+.saved{display:flex;align-items:center;gap:5px;color:var(--faint);font-size:12px;margin-left:8px;position:relative;cursor:default;padding:4px 6px;border-radius:6px}
+.saved svg{color:var(--green);width:14px;height:14px}
+.saved .tip{position:absolute;top:30px;left:0;white-space:nowrap;background:var(--text);color:var(--bg);font-size:11.5px;padding:4px 8px;border-radius:6px;opacity:0;pointer-events:none;transition:.15s;transform:translateY(-3px)}
+.saved:hover .tip{opacity:1;transform:none}
+.saved .tip kbd{background:rgba(255,255,255,.15);border-color:transparent;color:inherit;margin-left:6px}
+.ehead .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.menu{position:absolute;right:14px;top:48px;width:236px;background:var(--surface);border:1px solid var(--border2);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;z-index:20;font-size:13px}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:7px;text-align:left;color:var(--text)}
+.menu button:hover{background:var(--hover)}
+.menu button svg{color:var(--muted)}
+.menu hr{border:0;border-top:1px solid var(--border);margin:5px 4px}
+.menu .sub{display:flex;gap:4px;padding:2px 10px 6px 36px}
+.menu .sub span{font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.menu .sub span:hover{border-color:var(--accent);color:var(--accent)}
+.menu .danger,.menu .danger svg{color:#C23B2B}
+[data-theme=dark] .menu .danger,[data-theme=dark] .menu .danger svg{color:#F08272}
+.menu .k{margin-left:auto;font-size:11px;color:var(--faint)}
+.island{position:absolute;z-index:4;top:62px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.island button{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:var(--muted);position:relative}
+.island button:hover{background:var(--hover);color:var(--text)}
+.island button.on{background:var(--accent-soft);color:var(--accent-text)}
+.island i{width:1px;background:var(--border);margin:5px 4px}
+.zoom{position:absolute;z-index:4;left:16px;bottom:16px;display:flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);font-size:12px;color:var(--muted)}
+.zoom button{width:30px;height:30px;display:grid;place-items:center}.zoom button:hover{color:var(--accent)}
+.styles{position:absolute;z-index:4;left:16px;top:70px;width:188px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;font-size:11.5px;color:var(--muted)}
+.styles .lab{margin-bottom:5px;font-weight:500}
+.styles .row{display:flex;gap:6px;margin-bottom:12px}
+.styles .row:last-child{margin:0}
+.sw{width:22px;height:22px;border-radius:6px;border:1px solid var(--border2)}
+.sw.sel{outline:2px solid var(--accent);outline-offset:1px}
+.hand{font-family:var(--hand);font-size:22px;fill:var(--stroke);stroke:none}
+
+/* floating controls */
+.dock{position:fixed;z-index:300;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:4px;border-radius:99px;background:var(--text);color:var(--bg);box-shadow:var(--shadow-lg);align-items:center}
+.dock button{padding:6px 15px;border-radius:99px;font-weight:500;font-size:13px;opacity:.7;transition:.15s;color:inherit}
+.dock button:hover{opacity:1}
+.dock button.on{background:var(--accent);color:var(--on-accent);opacity:1}
+.dock .sep{width:1px;height:16px;background:currentColor;opacity:.25;margin:0 4px}
+.dock .th{padding:6px 10px;display:flex}
+.label{position:fixed;z-index:300;top:12px;right:14px;font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow)}
+[data-screen=editor] .label{top:auto;bottom:22px;right:16px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></symbol>
+<symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></symbol>
+<symbol id="files" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.4 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 002 1.2L10 21h4l.4-2.6a7 7 0 002-1.2l2.4 1 2-3.4-2-1.6c.1-.4.2-.8.2-1.2z"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="note" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5zM14 4v5h5M8 13h8M8 17h5"/></symbol>
+<symbol id="board" viewBox="0 0 24 24"><path d="M4 5h16v11H4zM8 21l4-5 4 5M12 5V3"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 17v3h16v-3"/></symbol>
+<symbol id="diagram" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/><path d="M6.5 9v3.5H17.5V15"/></symbol>
+<symbol id="code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+<symbol id="share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="chevr" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></symbol>
+<symbol id="move" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+<symbol id="dl" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></symbol>
+<symbol id="hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-7 3.5M3 4v4h4M12 8v4l3 2"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></symbol>
+<symbol id="pdf" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5"/></symbol>
+<symbol id="undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></symbol>
+<symbol id="cursor" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></symbol>
+<symbol id="sq" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></symbol>
+<symbol id="dia" viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9z"/></symbol>
+<symbol id="circ" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></symbol>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3"/></symbol>
+<symbol id="txt" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></symbol>
+<symbol id="img" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-9 9"/></symbol>
+<symbol id="erase" viewBox="0 0 24 24"><path d="M8 20h12M5 15l9-9a2 2 0 013 0l2 2a2 2 0 010 3l-8 8H8z"/></symbol>
+<symbol id="vid" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></symbol>
+</defs></svg>
+
+<div class="label" id="dirlabel">Direction B · Warm &amp; crafted</div>
+
+<!-- ================= HOME ================= -->
+<section class="screen" id="home">
+  <aside class="side" data-side></aside>
+  <div class="main"><div class="wrap">
+    <h1 class="hello">Good morning, <em>Thilina</em></h1>
+    <p class="date">Tuesday, 3 November · 3 things waiting in your inbox</p>
+
+    <label class="capture">
+      <svg class="i" style="color:var(--accent)"><use href="#pen"/></svg>
+      <input placeholder="Capture a thought…  (N)" aria-label="Quick capture">
+      <button class="btn"><svg class="i"><use href="#note"/></svg>Note</button>
+      <button class="btn"><svg class="i"><use href="#board"/></svg>Whiteboard</button>
+      <button class="btn"><svg class="i"><use href="#upload"/></svg>Upload</button>
+    </label>
+
+    <div class="h2"><h2>Continue where you left off</h2><a href="#">View all recent</a></div>
+    <div class="grid4">
+      <a class="card" tabindex="0"><div class="prev dots"><svg class="art" viewBox="0 0 240 128" fill="none" stroke="var(--stroke)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M30 40c0-6 4-9 10-9l46 1c6 0 9 3 9 9l-1 20c0 5-3 8-9 8l-45-1c-6 0-9-3-9-9z" fill="#F6E4D5" stroke="#B84A14"/><path d="M120 50c20 2 28 10 42 8" /><path d="M156 52l8 6-9 5"/>
+        <ellipse cx="190" cy="58" rx="30" ry="20" fill="#E1EDE3" stroke="#3F7A55"/><path d="M60 80c0 14 10 22 40 24 24 2 40-6 50-16" stroke-dasharray="4 5"/><path d="M62 54h36M62 44h24" opacity=".6"/><path d="M184 54h12M180 63h20" opacity=".6"/></svg></div>
+        <div class="cb"><div class="t">Cache topology sketch</div><div class="m"><span class="tag"><svg class="i"><use href="#board"/></svg>Board</span>· 🎓 Sessions · 2h ago</div></div></a>
+      <a class="card" tabindex="0"><div class="prev note-prev fade"><h4>Rollout plan — Atlas v2</h4>Phase 1 migrates the <code>edge-cache</code> tier behind a feature flag.<br>• Shadow traffic for 48h<br>• Compare p99 latency<br>• Flip region by region</div>
+        <div class="cb"><div class="t">Rollout plan — Atlas v2</div><div class="m"><span class="tag"><svg class="i"><use href="#note"/></svg>Note</span>· 🚀 Atlas · 3h ago</div></div></a>
+      <a class="card" tabindex="0"><div class="prev"><svg class="art" viewBox="0 0 240 128" fill="none" stroke-width="1.5"><g stroke="#4B6FA5" fill="#E7EEF8"><rect x="14" y="48" width="56" height="32" rx="4"/><rect x="92" y="14" width="56" height="32" rx="4"/><rect x="92" y="82" width="56" height="32" rx="4"/></g><g stroke="#B84A14" fill="#F6E4D5"><rect x="172" y="48" width="56" height="32" rx="4"/></g><g stroke="var(--faint)"><path d="M70 64h10l12-34M70 64h10l12 34M148 30h12l12 34M148 98h12l12-34"/></g><g fill="#4B6FA5" opacity=".45"><rect x="24" y="60" width="30" height="3"/><rect x="102" y="26" width="30" height="3"/><rect x="102" y="94" width="30" height="3"/><rect x="182" y="60" width="30" height="3" fill="#B84A14"/></g></svg></div>
+        <div class="cb"><div class="t">Lab network layout</div><div class="m"><span class="tag"><svg class="i"><use href="#diagram"/></svg>Diagram</span>· 🧪 Home Lab · 1d</div></div></a>
+      <a class="card" tabindex="0"><div class="prev" style="display:grid;place-items:center;background:var(--surface2)"><div style="width:84px;height:112px;background:#fff;border:1px solid var(--border2);border-radius:3px;box-shadow:var(--shadow);padding:10px 9px;position:relative;top:14px"><div style="height:5px;width:60%;background:#B84A14;margin-bottom:7px"></div><div style="height:3px;background:#ddd;margin-bottom:4px"></div><div style="height:3px;background:#ddd;margin-bottom:4px"></div><div style="height:3px;width:80%;background:#ddd;margin-bottom:9px"></div><div style="height:26px;background:#F1EBDD;border-radius:2px;margin-bottom:6px"></div><div style="height:3px;background:#ddd;margin-bottom:4px"></div><div style="height:3px;width:50%;background:#ddd"></div></div></div>
+        <div class="cb"><div class="t">Q4-budget-draft.pdf</div><div class="m"><span class="tag"><svg class="i"><use href="#pdf"/></svg>PDF</span>· 📊 Q4 Planning · 2d</div></div></a>
+    </div>
+
+    <div class="h2"><h2>Pinned projects</h2><a href="#">All projects</a></div>
+    <div class="grid3">
+      <a class="card pc" tabindex="0"><div class="top"><div class="em">🚀</div><div><div class="nm">Atlas Platform</div><div class="m" style="color:var(--faint);font-size:12px">42 items</div></div><span class="pill active">Active</span></div>
+        <div><div class="bar"><i style="width:68%"></i></div></div><div class="row"><span>68% of milestones</span><span>edited 3h ago</span></div></a>
+      <a class="card pc" tabindex="0"><div class="top"><div class="em">🎓</div><div><div class="nm">Knowledge Sessions</div><div class="m" style="color:var(--faint);font-size:12px">28 items</div></div><span class="pill active">Active</span></div>
+        <div class="spark"><i style="height:6px"></i><i style="height:10px"></i><i style="height:5px"></i><i class="h" style="height:16px"></i><i class="h" style="height:12px"></i><i style="height:7px"></i><i class="h" style="height:18px"></i><i class="h" style="height:14px"></i><i style="height:4px"></i><i class="h" style="height:11px"></i></div><div class="row"><span>6 edits this week</span><span>edited 2h ago</span></div></a>
+      <a class="card pc" tabindex="0"><div class="top"><div class="em">🧪</div><div><div class="nm">Home Lab</div><div class="m" style="color:var(--faint);font-size:12px">17 items</div></div><span class="pill paused">Paused</span></div>
+        <div><div class="bar"><i style="width:35%;background:var(--amber)"></i></div></div><div class="row"><span>35% of milestones</span><span>edited yesterday</span></div></a>
+    </div>
+
+    <div class="h2"><h2>Inbox</h2><a href="#">Triage all</a></div>
+    <div class="inbox">
+      <div class="ib"><span class="bul"></span><p>Ask about TTL strategy for session cache — check Redis docs on eviction</p><span>Today, 08:12</span><button class="btn">File to project</button></div>
+      <div class="ib"><span class="bul"></span><p>Idea: record the next knowledge session and auto-transcribe it</p><span>Yesterday</span><button class="btn">File to project</button></div>
+      <div class="ib"><span class="bul"></span><p>Swap the NAS drives before the weekend; order 2× 8TB</p><span>Mon</span><button class="btn">File to project</button></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ================= PROJECT ================= -->
+<section class="screen" id="project">
+  <aside class="side" data-side data-active="ks"></aside>
+  <div class="main"><div class="wrap">
+    <div class="crumb"><a href="#">Projects</a><svg class="i" style="width:12px"><use href="#chevr"/></svg><span>Knowledge Sessions</span></div>
+    <div class="ph"><div class="big">🎓</div>
+      <div><h1>Knowledge Sessions <span class="pill active" style="font-family:var(--sans);letter-spacing:0">Active</span></h1>
+      <p>Weekly deep-dives on distributed systems — boards, notes and recordings from every session.</p></div>
+      <div class="acts"><button class="ibtn" aria-label="More"><svg class="i"><use href="#more"/></svg></button><button class="btn"><svg class="i"><use href="#share"/></svg>Share</button></div></div>
+
+    <details class="ov" open><summary><svg class="i"><use href="#note"/></svg><span class="l">Overview</span><svg class="i chev"><use href="#chev"/></svg></summary>
+      <div class="body">A running programme for the team: each Thursday we pick one topic, sketch it on a board, and write up a note. <b>Next up:</b> consistency models and when caching bites back. Recordings live in the <b>Recordings</b> folder; slides are exported as PDFs and kept alongside the notes so they're easy to find months later.</div></details>
+
+    <div class="tb">
+      <div class="chips" role="tablist"><button class="chip on">All<small>28</small></button><button class="chip">Boards<small>9</small></button><button class="chip">Notes<small>12</small></button><button class="chip">Files<small>7</small></button></div>
+      <div class="seg"><button class="on" aria-label="Cards"><svg class="i"><use href="#grid"/></svg></button><button aria-label="List"><svg class="i"><use href="#list"/></svg></button></div>
+      <button class="btn primary"><svg class="i"><use href="#plus"/></svg>New</button>
+    </div>
+
+    <div class="grid4" id="items"></div>
+  </div></div>
+</section>
+
+<!-- ================= EDITOR ================= -->
+<section class="screen" id="editor">
+  <div class="canvas dots" style="background-color:var(--canvas)">
+    <svg width="100%" height="100%" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" fill="none" stroke="var(--stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- client -->
+      <path d="M262 340c0-8 5-12 13-12l150 2c8 0 12 5 12 13l-2 70c0 8-5 12-13 12l-148-2c-8 0-12-5-12-13z" fill="#F6E4D5" stroke="#B84A14" fill-opacity=".9"/>
+      <text class="hand" x="318" y="378" style="fill:#7a3510">Client</text><text class="hand" x="304" y="404" style="fill:#7a3510;font-size:18px">(browser)</text>
+      <!-- cache -->
+      <path d="M600 330c0-6 4-10 10-10l170 1c7 0 10 4 10 10l-1 90c0 7-4 10-10 10l-168-1c-7 0-11-4-11-10z" fill="#E7EEF8" stroke="#4B6FA5"/>
+      <text class="hand" x="662" y="368" style="fill:#233a5c;font-size:26px">Cache layer</text><text class="hand" x="654" y="398" style="fill:#233a5c;font-size:19px">LRU · TTL 60s</text>
+      <!-- db -->
+      <path d="M1000 340c0 -16 60-16 60 0v80c0 16-60 16-60 0z M1000 340c0 16 60 16 60 0 M1000 380c0 16 60 16 60 0" stroke="#3F7A55" fill="#E1EDE3" fill-opacity=".9"/>
+      <text class="hand" x="990" y="470">Postgres</text>
+      <!-- arrows -->
+      <path d="M440 372c50-8 100-6 150 0"/><path d="M574 360l18 12-20 10"/>
+      <path d="M800 372c60 4 120 2 190 4"/><path d="M974 364l18 12-18 12"/>
+      <path d="M600 410c-60 70-140 90-230 40" stroke-dasharray="7 8"/>
+      <text class="hand" x="462" y="352" style="font-size:19px">1. GET</text><text class="hand" x="858" y="360" style="font-size:19px">miss →</text>
+      <text class="hand" x="440" y="512" style="font-size:19px;fill:#B84A14">hit: 2ms</text>
+      <!-- sticky note -->
+      <path d="M270 600l170-4 4 120-172 4z" fill="#F5E8C8" stroke="#9A6A12" stroke-width="1.8"/>
+      <text class="hand" x="288" y="634" style="fill:#4a3408;font-size:20px">Invalidate on write?</text><text class="hand" x="288" y="662" style="fill:#4a3408;font-size:20px">or let TTL expire…</text>
+      <!-- selection -->
+      <rect x="590" y="310" width="212" height="132" stroke="#B84A14" stroke-width="1.4" stroke-dasharray="none" rx="3" opacity=".8"/>
+      <g fill="var(--canvas)" stroke="#B84A14" stroke-width="1.4"><rect x="585" y="305" width="9" height="9"/><rect x="798" y="305" width="9" height="9"/><rect x="585" y="438" width="9" height="9"/><rect x="798" y="438" width="9" height="9"/></g>
+      <text class="hand" x="620" y="190" style="font-size:44px">Session 12 — Caching</text>
+      <path d="M622 202c80 8 220 8 330 -2" stroke="#B84A14" stroke-width="3"/>
+      <!-- scribble -->
+      <path d="M1120 620c30-40 60 30 90-6s50 24 80-10" stroke="#B84A14" stroke-width="2.5"/>
+    </svg>
+  </div>
+
+  <header class="ehead">
+    <button class="ibtn" aria-label="Back to project"><svg class="i"><use href="#back"/></svg></button>
+    <nav class="crumb" aria-label="Breadcrumb"><a href="#">🎓 Knowledge Sessions</a><span>/</span></nav>
+    <input class="title" value="Session 12 – Caching" aria-label="Title">
+    <span class="saved" tabindex="0"><svg class="i"><use href="#check"/></svg>Saved<span class="tip">Auto-saved · save now<kbd>Ctrl S</kbd></span></span>
+    <div class="r">
+      <button class="btn ghost"><svg class="i"><use href="#play"/></svg>Present</button>
+      <button class="btn"><svg class="i"><use href="#share"/></svg>Share</button>
+      <button class="ibtn on" aria-label="More" style="background:var(--hover);color:var(--text)"><svg class="i"><use href="#more"/></svg></button>
+    </div>
+  </header>
+
+  <div class="menu" role="menu">
+    <button><svg class="i"><use href="#dl"/></svg>Export as…<svg class="i" style="margin-left:auto;width:13px"><use href="#chev"/></svg></button>
+    <div class="sub"><span>.excalidraw</span><span>PNG</span><span>SVG</span></div>
+    <button><svg class="i"><use href="#copy"/></svg>Duplicate</button>
+    <button><svg class="i"><use href="#move"/></svg>Move to…</button>
+    <button><svg class="i"><use href="#dl"/></svg>Download</button>
+    <button><svg class="i"><use href="#hist"/></svg>Version history<span class="k">⌘H</span></button>
+    <hr>
+    <button class="danger"><svg class="i"><use href="#trash"/></svg>Delete</button>
+  </div>
+
+  <div class="styles"><div class="lab">Stroke</div><div class="row"><span class="sw" style="background:#B84A14"></span><span class="sw sel" style="background:#1E2330"></span><span class="sw" style="background:#4B6FA5"></span><span class="sw" style="background:#3F7A55"></span></div>
+    <div class="lab">Background</div><div class="row"><span class="sw" style="background:transparent"></span><span class="sw" style="background:#F6E4D5"></span><span class="sw sel" style="background:#E7EEF8"></span><span class="sw" style="background:#E1EDE3"></span></div>
+    <div class="lab">Roughness</div><div class="row"><span class="sw" style="width:40px"></span></div></div>
+
+  <div class="island" role="toolbar" aria-label="Tools">
+    <button aria-label="Select" class="on"><svg class="i"><use href="#cursor"/></svg></button><i></i>
+    <button aria-label="Rectangle"><svg class="i"><use href="#sq"/></svg></button><button aria-label="Diamond"><svg class="i"><use href="#dia"/></svg></button><button aria-label="Ellipse"><svg class="i"><use href="#circ"/></svg></button><button aria-label="Arrow"><svg class="i"><use href="#arrow"/></svg></button><button aria-label="Draw"><svg class="i"><use href="#pen"/></svg></button><button aria-label="Text"><svg class="i"><use href="#txt"/></svg></button><button aria-label="Image"><svg class="i"><use href="#img"/></svg></button><i></i><button aria-label="Eraser"><svg class="i"><use href="#erase"/></svg></button>
+  </div>
+  <div class="zoom"><button aria-label="Zoom out">−</button><span>100%</span><button aria-label="Zoom in">+</button><button aria-label="Undo" style="border-left:1px solid var(--border)"><svg class="i"><use href="#undo"/></svg></button></div>
+</section>
+
+<!-- dock -->
+<div class="dock" role="tablist" aria-label="Screens">
+  <button data-go="home" class="on">Home</button><button data-go="project">Project</button><button data-go="editor">Editor</button>
+  <span class="sep"></span><button class="th" id="theme" aria-label="Toggle light/dark"><svg class="i"><use id="thi" href="#moon"/></svg></button>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), R=document.documentElement;
+// sidebar
+const projs=[['ar','🚀','Atlas Platform',42],['ks','🎓','Knowledge Sessions',28],['hl','🧪','Home Lab',17],['q4','📊','Q4 Planning',9]];
+document.querySelectorAll('[data-side]').forEach(s=>{
+  const act=s.dataset.active;
+  s.innerHTML=`<div class="logo"><span class="mark"><svg class="i" style="width:15px;height:15px;stroke-width:2"><use href="#pen"/></svg></span><span>ink<b>well</b></span></div>
+  <button class="search"><svg class="i"><use href="#search"/></svg>Search<kbd>⌘K</kbd></button>
+  <button class="nav ${act?'':'on'}"><svg class="i"><use href="#home"/></svg>Home</button>
+  <button class="nav"><svg class="i"><use href="#folder"/></svg>Projects</button>
+  <button class="nav"><svg class="i"><use href="#files"/></svg>Files</button>
+  <div class="sect">Projects</div>
+  ${projs.map(p=>`<button class="nav proj ${p[0]==act?'on':''}"><span class="e">${p[1]}</span>${p[2]}<span class="n">${p[3]}</span></button>`).join('')}
+  <button class="nav newp"><svg class="i"><use href="#plus"/></svg>New project</button>
+  <div class="spacer"></div>
+  <button class="nav"><svg class="i"><use href="#gear"/></svg>Settings</button>
+  <div class="user"><div class="av">TL</div><div>Thilina<small>admin@inkwell.com</small></div></div>`;
+});
+// items
+const A=(c)=>`<svg class="art" viewBox="0 0 240 128" fill="none" stroke="var(--stroke)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${c}</svg>`;
+const board=(n)=>[A(`<rect x="28" y="30" width="58" height="34" rx="6" fill="#F6E4D5" stroke="#B84A14"/><rect x="150" y="56" width="62" height="40" rx="6" fill="#E7EEF8" stroke="#4B6FA5"/><path d="M86 48c30 0 40 22 62 24M142 66l8 6-9 5"/><path d="M40 90c20 14 50 12 70 0" stroke-dasharray="4 5"/>`),
+ A(`<circle cx="70" cy="62" r="26" fill="#E1EDE3" stroke="#3F7A55"/><path d="M100 62h50M142 54l10 8-10 8"/><path d="M165 38l40 0 0 50-40 0z" fill="#F5E8C8" stroke="#9A6A12"/>`),
+ A(`<path d="M30 90l40-50 30 30 40-44 50 64" stroke="#B84A14" stroke-width="2.4"/><circle cx="70" cy="40" r="4" fill="#B84A14"/><path d="M30 100h180" opacity=".4"/>`)][n];
+const note=(h,t)=>`<div class="note-prev"><h4>${h}</h4>${t}</div>`;
+const items=[
+ ['board','Session 12 – Caching','Board','2h ago',board(0),'dots'],
+ ['note','Session 11 notes: Consensus','Note','yesterday',note('Raft in plain words','A leader is elected by <b style="color:var(--text)">majority vote</b>; followers replicate its log. If the leader stalls, a new <code>term</code> begins…'),'fade'],
+ ['diagram','Request lifecycle','Diagram','3d ago',`<svg class="art" viewBox="0 0 240 128" fill="none" stroke-width="1.5"><g stroke="#4B6FA5" fill="#E7EEF8"><rect x="16" y="14" width="64" height="30" rx="4"/><rect x="16" y="84" width="64" height="30" rx="4"/><rect x="104" y="49" width="64" height="30" rx="4"/></g><rect x="184" y="49" width="46" height="30" rx="15" stroke="#B84A14" fill="#F6E4D5"/><g stroke="var(--faint)"><path d="M80 29h12l12 35M80 99h12l12-35M168 64h16"/></g></svg>`,''],
+ ['html','Sharding explorer','HTML','5d ago',`<div style="padding:12px;height:100%;background:var(--surface2)"><div style="display:flex;gap:5px;margin-bottom:8px"><i style="width:7px;height:7px;border-radius:50%;background:#E5705A"></i><i style="width:7px;height:7px;border-radius:50%;background:#E4B75A"></i><i style="width:7px;height:7px;border-radius:50%;background:#7CC49A"></i></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"><b style="height:22px;background:#F6E4D5;border-radius:4px"></b><b style="height:22px;background:#E7EEF8;border-radius:4px"></b><b style="height:22px;background:#E1EDE3;border-radius:4px"></b><b style="height:22px;background:#F5E8C8;border-radius:4px"></b><b style="height:22px;background:#E7EEF8;border-radius:4px"></b><b style="height:22px;background:#F6E4D5;border-radius:4px"></b><b style="height:22px;background:#F5E8C8;border-radius:4px"></b><b style="height:22px;background:#E1EDE3;border-radius:4px"></b></div></div>`,''],
+ ['note','Reading list','Note','1w ago',note('To read','☐ Designing Data-Intensive Apps, ch. 5<br>☑ Dynamo paper<br>☐ Spanner, TrueTime<br>☐ CRDTs primer'),'fade'],
+ ['pdf','Caching-slides.pdf','PDF · 4.1 MB','1w ago',`<div style="display:grid;place-items:center;height:100%"><div style="width:84px;height:112px;background:#fff;border:1px solid var(--border2);border-radius:3px;box-shadow:var(--shadow);padding:10px 9px;position:relative;top:14px"><div style="height:5px;width:70%;background:#1E2330;margin-bottom:7px"></div><div style="height:3px;background:#ddd;margin-bottom:4px"></div><div style="height:30px;background:#E7EEF8;border-radius:2px;margin-bottom:6px"></div><div style="height:3px;background:#ddd;margin-bottom:4px"></div><div style="height:3px;width:60%;background:#ddd"></div></div></div>`,''],
+ ['board','Consistency models','Board','2w ago',board(1),'dots'],
+ ['folder','Recordings','Folder · 6 items','3w ago','<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M6 18a4 4 0 014-4h14l5 6h25a4 4 0 014 4v26a4 4 0 01-4 4H10a4 4 0 01-4-4z" fill="var(--surface)"/><path d="M6 28h52" opacity=".5"/></svg>','']
+];
+const ic={board:'board',note:'note',diagram:'diagram',html:'code',pdf:'pdf',folder:'folder'};
+$('#items').innerHTML=items.map((it,i)=>`<a class="card ${it[0]=='folder'?'folder':''} ${i==2?'hov':''}" tabindex="0">
+ <div class="prev ${it[5]}">${it[4]}${it[0]=='html'?'<span class="badge">HTML</span>':''}${it[0]=='diagram'?'<span class="badge">DRAW.IO</span>':''}</div>
+ <div class="qa"><button aria-label="Star"><svg class="i"><use href="#star"/></svg></button><button aria-label="Duplicate"><svg class="i"><use href="#copy"/></svg></button><button aria-label="More"><svg class="i"><use href="#more"/></svg></button></div>
+ <div class="cb"><div class="t">${it[1]}</div><div class="m"><span class="tag"><svg class="i"><use href="#${ic[it[0]]}"/></svg>${it[2]}</span>· ${it[3]}</div></div></a>`).join('');
+// switching
+function go(s){R.dataset.screen=s;document.querySelectorAll('[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go==s));location.hash=s}
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+function setTheme(t){R.dataset.theme=t;$('#thi').setAttribute('href',t=='dark'?'#sun':'#moon')}
+$('#theme').onclick=()=>setTheme(R.dataset.theme=='dark'?'light':'dark');
+const q=new URLSearchParams(location.search);
+if(q.get('theme'))setTheme(q.get('theme'));
+go(location.hash.slice(1)||'home');
+</script>
+</body>
+</html>

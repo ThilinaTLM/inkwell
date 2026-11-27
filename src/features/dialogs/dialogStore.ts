@@ -2,7 +2,7 @@
 //
 // PUBLIC CONTRACT
 //   interface DialogPropsMap {
-//     newFile:   { folderId: string | null; kind?: FileKind }
+//     newFile:   { folderId: string | null; kind?: FileKind }   (renders the "Create new" chooser)
 //     newFolder: { parentId: string | null; onCreated?: (f: FolderMeta) => void }
 //     move:      { items: ItemRef[] }
 //     rename:    { item: ItemRef }

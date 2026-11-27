@@ -11,13 +11,12 @@ export default function ExcalidrawMenu({ variant, theme, onSelectTheme }: Excali
   if (variant === "shared") {
     return (
       <MainMenu>
-        {/* Share permission, back and download live in the header. */}
+        {/* Share permission, back, export and download live in the header. */}
         <MainMenu.DefaultItems.ToggleTheme
           allowSystemTheme
           theme={theme}
           onSelect={onSelectTheme}
         />
-        <MainMenu.DefaultItems.SaveAsImage />
         <MainMenu.DefaultItems.Help />
       </MainMenu>
     );
@@ -25,11 +24,8 @@ export default function ExcalidrawMenu({ variant, theme, onSelectTheme }: Excali
 
   return (
     <MainMenu>
-      {/* File-level actions live in the editor header. */}
-      <MainMenu.DefaultItems.SaveAsImage />
-      <MainMenu.Separator />
+      {/* File-level actions (export, save, rename…) live in the editor header. */}
       <MainMenu.DefaultItems.ToggleTheme allowSystemTheme theme={theme} onSelect={onSelectTheme} />
-      <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.DefaultItems.Help />
     </MainMenu>
   );

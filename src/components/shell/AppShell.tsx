@@ -1,25 +1,24 @@
-// Authenticated layout route: TopBar + Sidebar + <Outlet/> + right
-// details column + global overlays.
+// Authenticated layout route: AppSidebar + <Outlet/> (+ mobile bottom bar) +
+// global overlays. No top bar, no status bar.
 //
 // PUBLIC CONTRACT
 //   <AppShell />                 – use as a layout route element (RequireAuth built in)
 //   useShell(): {
 //     sidebarOpen: boolean;      // desktop: expanded; mobile: drawer open
 //     toggleSidebar(): void;     // also ⌘\ / Ctrl+\ (view.sidebar)
-//     detailsOpen: boolean;
-//     setDetailsOpen(open: boolean): void;
-//     toggleDetails(): void;     // also `I` (view.details)
 //     isMobile: boolean;         // < 768px
 //   }
 //   useInShell(): boolean        – true inside the shell (AppPage uses it to drop its own chrome)
 //
-// Pages render inside <main> (a flex column; use PageFrame / PageToolbar /
-// PageBody / StatusBar from ./page) and portal their inspector through
-// <DetailsPanel>. The shell also:
+// Pages render inside <main> (a flex column) with <PageContainer> +
+// <PageHeader> from "@/components/PageHeader". Scroll model: dashboard pages
+// scroll at page level; collection pages use <PageContainer fixed> and let only
+// the item list scroll (see PageHeader.tsx). The shell also:
 //   - mounts useGlobalHotkeys (so single-key shortcuts never run in editors)
 //   - registers the app command set (features/actions/itemCommands)
 //   - publishes { route, currentFolderId } to the command context
-//     (currentFolderId: null on "/", the id on /folders/:id, undefined elsewhere)
+//     (currentFolderId: null on "/", "/recents" and "/projects", the id on
+//     /folders/:id, undefined elsewhere)
 //   - clears the selection when the route changes
 //   - mounts CommandPalette, ShortcutSheet, DialogHost and UploadTray
 
@@ -31,26 +30,18 @@ import { useMe } from "@/data/auth";
 import { registerAppCommands, setCommandNavigate } from "@/features/actions/itemCommands";
 import { bindItemActionsRuntime } from "@/features/actions/useItemActions";
 import { DialogHost } from "@/features/dialogs/DialogHost";
+import { ProjectDialogHost } from "@/features/projects/ProjectDialog";
 import { UploadTray, useGlobalFileDrop } from "@/features/upload";
 import { setCommandContext } from "@/lib/commands/registry";
 import { useGlobalHotkeys } from "@/lib/commands/useGlobalHotkeys";
 import { clearSelection, selectionStore } from "@/lib/selection";
-import { useStore } from "@/lib/store";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import { cn } from "@/lib/utils";
+import { AppSidebar } from "./AppSidebar";
 import { CommandPalette } from "./CommandPalette";
-import { detailsSlotStore } from "./DetailsPanel";
+import { MobileBottomBar } from "./MobileBottomBar";
 import { ShortcutSheet } from "./ShortcutSheet";
-import { Sidebar } from "./Sidebar";
-import {
-  setDetailsOpen,
-  setIsMobile,
-  setSidebarOpen,
-  toggleDetails,
-  toggleSidebar,
-  useShellState,
-} from "./shellStore";
-import { TopBar } from "./TopBar";
+import { SidebarResizeHandle } from "./SidebarResizeHandle";
+import { setIsMobile, setSidebarOpen, toggleSidebar, useShellState } from "./shellStore";
 
 const InShellContext = createContext(false);
 
@@ -60,16 +51,12 @@ export function useInShell(): boolean {
 
 export function useShell() {
   const sidebarOpen = useShellState((s) => (s.isMobile ? s.mobileSidebarOpen : s.sidebarOpen));
-  const detailsOpen = useShellState((s) => s.detailsOpen);
   const isMobile = useShellState((s) => s.isMobile);
-  return useMemo(
-    () => ({ sidebarOpen, toggleSidebar, detailsOpen, setDetailsOpen, toggleDetails, isMobile }),
-    [sidebarOpen, detailsOpen, isMobile],
-  );
+  return useMemo(() => ({ sidebarOpen, toggleSidebar, isMobile }), [sidebarOpen, isMobile]);
 }
 
 function currentFolderFromPath(pathname: string): string | null | undefined {
-  if (pathname === "/") return null;
+  if (pathname === "/" || pathname === "/recents" || pathname === "/projects") return null;
   const m = matchPath("/folders/:folderId", pathname);
   return m?.params.folderId ?? undefined;
 }
@@ -111,9 +98,7 @@ export function AppShell() {
 
   const sidebarOpen = useShellState((s) => s.sidebarOpen);
   const mobileSidebarOpen = useShellState((s) => s.mobileSidebarOpen);
-  const detailsOpen = useShellState((s) => s.detailsOpen);
-  const panelCount = useStore(detailsSlotStore, (s) => s.count);
-  const showDetails = !isMobile && detailsOpen && panelCount > 0;
+  const sidebarWidth = useShellState((s) => s.sidebarWidth);
 
   if (!me.data) return null; // App.tsx redirects anonymous users to /login.
   const user = me.data;
@@ -121,25 +106,21 @@ export function AppShell() {
   return (
     <InShellContext.Provider value={true}>
       <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-        <TopBar user={user} />
         <div className="flex min-h-0 flex-1">
           {!isMobile && sidebarOpen ? (
-            <aside className="w-[232px] shrink-0 border-r border-border bg-card">
-              <Sidebar isAdmin={user.isAdmin} />
+            <aside
+              className="relative shrink-0 border-r border-sidebar-border bg-sidebar"
+              style={{ width: sidebarWidth }}
+            >
+              <AppSidebar user={user} />
+              <SidebarResizeHandle />
             </aside>
           ) : null}
           <main id="main" className="flex min-w-0 flex-1 flex-col">
             <Outlet />
           </main>
-          <aside
-            ref={(el) => detailsSlotStore.set((s) => (s.el === el ? s : { ...s, el }))}
-            aria-label="Details"
-            className={cn(
-              "w-[300px] shrink-0 overflow-y-auto border-l border-border bg-card",
-              !showDetails && "hidden",
-            )}
-          />
         </div>
+        {isMobile ? <MobileBottomBar /> : null}
       </div>
 
       {isMobile ? (
@@ -148,9 +129,9 @@ export function AppShell() {
           onOpenChange={(o) => setSidebarOpen(o)}
           swipeDirection="left"
         >
-          <DrawerContent side="left" className="w-[272px] gap-0 bg-card p-0">
+          <DrawerContent side="left" className="w-[280px] gap-0 bg-sidebar p-0">
             <DrawerTitle className="sr-only">Navigation</DrawerTitle>
-            <Sidebar isAdmin={user.isAdmin} onNavigate={() => setSidebarOpen(false)} />
+            <AppSidebar user={user} onNavigate={() => setSidebarOpen(false)} />
           </DrawerContent>
         </Drawer>
       ) : null}
@@ -158,6 +139,7 @@ export function AppShell() {
       <CommandPalette />
       <ShortcutSheet />
       <DialogHost />
+      <ProjectDialogHost />
       <UploadTray />
     </InShellContext.Provider>
   );

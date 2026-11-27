@@ -58,8 +58,8 @@ sharesRoot.patch("/:token", async (c) => {
   // write permission applies to the non-static-site files inside.
   if (body.permission === "write" && row.target_type === "file") {
     const file = await filesRepo.findByIdAnyOwner(c.env, row.target_id);
-    if (file && file.kind === "static-site") {
-      return errorResponse(400, "static-site shares cannot grant write access");
+    if (file && (file.kind === "static-site" || file.kind === "file")) {
+      return errorResponse(400, "static-site and uploaded-file shares cannot grant write access");
     }
   }
 
@@ -161,8 +161,8 @@ fileSharesNested.post("/", async (c) => {
   if (!row) return errorResponse(404, "file not found");
   const body = await parseJsonOrEmpty<CreateShareBody>(c);
   // Static-site shares are view-only — see PATCH handler above.
-  if (row.kind === "static-site" && body.permission === "write") {
-    return errorResponse(400, "static-site shares cannot grant write access");
+  if ((row.kind === "static-site" || row.kind === "file") && body.permission === "write") {
+    return errorResponse(400, "static-site and uploaded-file shares cannot grant write access");
   }
   const created = await createShareRow(c.env, owner, "file", fileId, body);
   return jsonResponse(rowToSharePublic(created));

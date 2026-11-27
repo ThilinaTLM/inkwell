@@ -241,6 +241,15 @@ function scheduleInvalidate(): void {
   }, 250);
 }
 
+let navigateFn: ((to: string) => void) | null = null;
+/** Bound by `<UploadTray>` so toasts can deep-link without a router import. */
+export function bindUploadNavigate(fn: (to: string) => void): () => void {
+  navigateFn = fn;
+  return () => {
+    if (navigateFn === fn) navigateFn = null;
+  };
+}
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
@@ -265,8 +274,17 @@ async function maybeFinishBatch(batchId: string): Promise<void> {
   ].filter(Boolean);
   const head = done > 0 ? `Uploaded ${plural(done, "file")} to ${target}` : "Nothing uploaded";
   const msg = [head, ...extra].join(" · ");
-  if (done > 0 && extra.length === 0) toast.success(msg);
-  else if (done === 0 && failed > 0) toast.error(msg);
+  // A single uploaded file gets an "Open" action straight into its viewer/editor.
+  const openId =
+    done === 1 && jobs.length === 1 ? jobs.find((j) => j.stage === "done")?.fileId : undefined;
+  if (done > 0 && extra.length === 0) {
+    toast.success(
+      msg,
+      openId && navigateFn
+        ? { action: { label: "Open", onClick: () => navigateFn?.(`/f/${openId}`) } }
+        : undefined,
+    );
+  } else if (done === 0 && failed > 0) toast.error(msg);
   else toast.warning(msg);
 }
 
@@ -295,16 +313,9 @@ function pump(): void {
 
 class Cancelled extends Error {}
 
-function readConflictPref(): ConflictChoice | null {
-  try {
-    // Tolerate a JSON-encoded string value too.
-    const v = localStorage.getItem(CONFLICT_PREF_KEY)?.replace(/^"|"$/g, "");
-    if (v === "keepBoth" || v === "replace" || v === "skip") return v;
-  } catch {
-    /* storage unavailable */
-  }
-  return null;
-}
+/** Upload conflicts always keep both copies (product decision); the old
+ *  explorer preference (`CONFLICT_PREF_KEY`) is no longer read. */
+const DEFAULT_CONFLICT_CHOICE: ConflictChoice = "keepBoth";
 
 async function runJob(id: string): Promise<void> {
   const rt = runtimes.get(id);
@@ -330,7 +341,7 @@ async function runJob(id: string): Promise<void> {
       if (!rt.reserved) {
         const key = nameKey(job.name);
         if (index.byName.has(key)) {
-          const choice = rt.resolution ?? uploadStore.get().applyAll ?? readConflictPref();
+          const choice = rt.resolution ?? uploadStore.get().applyAll ?? DEFAULT_CONFLICT_CHOICE;
           const existing = index.byName.get(key) ?? null;
           const canReplace = !!existing && existing.kind === job.kind;
           if (!choice) {
@@ -395,7 +406,7 @@ async function runJob(id: string): Promise<void> {
 
     // 3. Thumbnail (best-effort).
     const fileId = rt.created?.id ?? rt.replaceTarget?.id;
-    if (fileId && job.kind && hasClientThumb(job.kind)) {
+    if (fileId && job.kind && hasClientThumb(job.kind, prepared)) {
       setStage(id, "thumbnail");
       try {
         await writeThumb(prepared, fileId);
@@ -486,7 +497,7 @@ async function enqueue(entries: DroppedEntry[], folderId: string | null): Promis
     folderId,
     targetName:
       folderId === null
-        ? Promise.resolve("Home")
+        ? Promise.resolve("Loose files")
         : getFolders().then((all) => all.find((f) => f.id === folderId)?.name ?? "folder"),
     toasted: false,
   };

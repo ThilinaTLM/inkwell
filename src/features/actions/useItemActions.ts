@@ -41,7 +41,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { invalidations } from "@/data/invalidations";
+import { defaultCaptureName } from "@/features/capture/captureActions";
 import { confirmDialog, openDialog } from "@/features/dialogs/dialogStore";
+import { openProjectDialog } from "@/features/projects/projectDialogStore";
 import {
   ApiError,
   type FileKind,
@@ -58,7 +60,6 @@ import { keys } from "@/lib/api/query-keys";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getCommandContext } from "@/lib/commands/registry";
 import { errorMessage } from "@/lib/errors";
-import { getExplorerPref } from "@/lib/explorerPrefs";
 import { clearSelection } from "@/lib/selection";
 import { toastWithUndo } from "@/lib/undo";
 import { shareUrl } from "@/lib/url";
@@ -107,16 +108,10 @@ function nav(to: string, opts?: { replace?: boolean }) {
 }
 
 export function defaultNameForKind(kind: FileKind): string {
-  switch (kind) {
-    case "drawio":
-      return "Untitled diagram";
-    case "notes":
-      return "Untitled markdown";
-    case "static-site":
-      return "Untitled site";
-    default:
-      return "Untitled drawing";
+  if (kind === "notes" || kind === "excalidraw" || kind === "drawio") {
+    return defaultCaptureName(kind);
   }
+  return kind === "static-site" ? "Untitled site" : "Untitled file";
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -130,7 +125,7 @@ function describe(refs: ItemRef[]): string {
 }
 
 function folderName(id: string | null): string {
-  if (id === null) return "Home";
+  if (id === null) return "Loose files";
   return findFolderMeta(qc(), id)?.name ?? "folder";
 }
 
@@ -183,7 +178,7 @@ function dedupe(refs: ItemRef[]): ItemRef[] {
 // ─── Operations ────────────────────────────────────────────────────────
 
 function open(ref: ItemRef, opts: { newTab?: boolean } = {}) {
-  const newTab = opts.newTab ?? (ref.type === "file" && getExplorerPref("openFilesIn") === "new");
+  const newTab = opts.newTab ?? false;
   if (newTab) {
     window.open(urlFor(ref), "_blank", "noopener");
     return;
@@ -193,7 +188,7 @@ function open(ref: ItemRef, opts: { newTab?: boolean } = {}) {
 
 function reveal(ref: ItemRef) {
   const [info] = resolveItems(qc(), [ref]);
-  const base = info.parentId ? `/folders/${info.parentId}` : "/";
+  const base = info.parentId ? `/folders/${info.parentId}` : "/files";
   nav(`${base}?select=${ref.type}:${ref.id}`);
 }
 
@@ -312,13 +307,16 @@ async function move(refs: ItemRef[], targetFolderId: string | null) {
     toast(`Already in ${folderName(targetFolderId)}`);
     return;
   }
+  // Resolve the label BEFORE the optimistic patch: it can drop the file from the
+  // only cached list that knew its name (→ "Untitled" in the toast).
+  const movedLabel = describe(toMove);
   applyMoveToCache(client, toMove, targetFolderId);
   try {
     const { previous } = await itemsApi.move(toMove, targetFolderId);
     invalidations.itemsMutated(client);
     pushRecentDestination(targetFolderId);
     clearSelection();
-    toastWithUndo(`Moved ${describe(toMove)} to ${folderName(targetFolderId)}`, async () => {
+    toastWithUndo(`Moved ${movedLabel} to ${folderName(targetFolderId)}`, async () => {
       // Group by original parent and move back.
       const groups = new Map<string, ItemRef[]>();
       for (const p of previous) {
@@ -457,14 +455,6 @@ async function trash(refs: ItemRef[]) {
   await ensureItems(client, refs);
   const top = topLevel(refs);
   if (!top.length) return;
-  if (getExplorerPref("confirmTrash")) {
-    const ok = await confirmDialog({
-      title: `Move ${describe(top)} to Trash?`,
-      description: "Items stay in Trash for 30 days before they are deleted permanently.",
-      confirmLabel: "Move to Trash",
-    });
-    if (!ok) return;
-  }
   // If the user is inside a folder being trashed, step out first.
   const ctx = getCommandContext();
   const trashedFolders = descendantFolderIds(
@@ -478,14 +468,15 @@ async function trash(refs: ItemRef[]) {
     ).find((i) =>
       descendantFolderIds(getFoldersCached(client), [i.ref.id]).has(ctx.currentFolderId as string),
     );
-    nav(topFolder?.parentId ? `/folders/${topFolder.parentId}` : "/");
+    nav(topFolder?.parentId ? `/folders/${topFolder.parentId}` : "/projects");
   }
+  const trashedLabel = describe(top);
   removeFromLists(client, top);
   try {
     await itemsApi.trash(top);
     invalidations.itemsMutated(client);
     clearSelection();
-    toastWithUndo(`Moved ${describe(top)} to Trash`, async () => {
+    toastWithUndo(`Moved ${trashedLabel} to Trash`, async () => {
       await itemsApi.restore(top);
       invalidations.itemsMutated(client);
     });
@@ -512,8 +503,8 @@ async function restore(refs: ItemRef[]) {
       {
         description: relocated
           ? relocated === 1
-            ? "1 item was restored to Home because its original folder is unavailable."
-            : `${relocated} items were restored to Home because their original folders are unavailable.`
+            ? "1 item was restored to Loose files because its original folder is unavailable."
+            : `${relocated} items were restored to Loose files because their original folders are unavailable.`
           : undefined,
       },
     );
@@ -586,6 +577,11 @@ async function newFile(
 }
 
 function newFolder(parentId: string | null) {
+  // Top-level folders are projects.
+  if (parentId === null) {
+    openProjectDialog();
+    return;
+  }
   openDialog("newFolder", { parentId });
 }
 

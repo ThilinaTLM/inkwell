@@ -1,171 +1,178 @@
-// FileRow — one paper-sheet-style row inside the static-site file
-// list. Renders:
-//
-//   [KindChip]  path                                size   [Entry ribbon | actions]
-//
-// Visual notes:
-//   - The entry row gets a 1px primary stripe down its left edge (a
-//     subtle "this is the page that publishes" marker) and a
-//     small "entry" pill on the right.
-//   - Non-entry rows reveal a two-icon cluster (set-as-entry + delete)
-//     on hover / focus-within, identical in behaviour to the previous
-//     implementation. The reservation column is always present so the
-//     row layout doesn't shift when actions appear.
-//   - `writable={false}` callers (share-token viewers) get an entry
-//     ribbon but no action cluster.
+// FileRow — one row of the bundle table. Mirrors the library list rows:
+// kind tile · name (+ folder path) · kind · size · modified · actions.
 
-import { Delete02Icon, Home02Icon } from "@hugeicons/core-free-icons";
+import {
+  Delete02Icon,
+  Download01Icon,
+  FileEditIcon,
+  Home01Icon,
+  MoreHorizontalIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { StaticSiteAsset } from "@/lib/api/client";
+import { relTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { chipForPath } from "./fileKindChip";
+import { baseName, formatBytes, isHtmlPath } from "./sitePaths";
+
+export const FILE_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 md:grid-cols-[minmax(0,1fr)_7rem_5.5rem_7rem_5.5rem]";
 
 export interface FileRowProps {
-  path: string;
-  size: string;
+  asset: StaticSiteAsset;
   isEntry: boolean;
   writable: boolean;
   busy: boolean;
-  onSetEntry: () => void;
-  onDelete: () => void;
+  /** Absolute URL for download, when a render session exists. */
+  href: string | null;
+  onOpen: (path: string) => void;
+  onSetEntry: (path: string) => void;
+  onDelete: (path: string) => void;
 }
 
-export function FileRow({
-  path,
-  size,
-  isEntry,
-  writable,
-  busy,
-  onSetEntry,
-  onDelete,
-}: FileRowProps) {
-  const desc = chipForPath(path);
-
-  return (
-    <li
-      aria-label={isEntry ? `${path} (entry page)` : path}
-      className={cn(
-        "group/row relative grid items-center gap-3 px-4 py-2 sm:px-5",
-        // Reservation columns: chip | path (flex) | size | actions/ribbon.
-        "grid-cols-[auto_minmax(0,1fr)_auto_auto]",
-        isEntry && "bg-folder-soft/30",
-      )}
-    >
-      {/* Entry stripe — a thin ink ribbon down the left edge. */}
-      {isEntry ? (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-1 left-0 w-[3px] rounded-full bg-primary/70"
-        />
-      ) : null}
-
-      <KindChip abbr={desc.abbr} label={desc.label} color={desc.color} fg={desc.fg} />
-
-      <span
-        className={cn(
-          "min-w-0 truncate font-mono text-xs",
-          isEntry ? "font-semibold text-foreground" : "text-foreground/85",
-        )}
-        title={path}
-      >
-        {path}
-      </span>
-
-      <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{size}</span>
-
-      <div className="flex min-w-[5.25rem] items-center justify-end">
-        {isEntry ? (
-          <EntryRibbon />
-        ) : writable ? (
-          <RowActions onSetEntry={onSetEntry} onDelete={onDelete} disabled={busy} path={path} />
-        ) : (
-          <span aria-hidden className="block w-0" />
-        )}
-      </div>
-    </li>
-  );
-}
-
-// ─── KindChip ────────────────────────────────────────────────────────
-
-function KindChip({
-  abbr,
-  label,
-  color,
-  fg,
-}: {
-  abbr: string;
-  label: string;
-  color: string;
-  fg: string;
-}) {
+export function KindTile({ path, className }: { path: string; className?: string }) {
+  const chip = chipForPath(path);
   return (
     <span
       role="img"
-      aria-label={label}
-      title={label}
-      className="inline-grid size-[1.125rem] place-items-center rounded-[4px] font-heading text-[8px] font-bold uppercase tracking-tight ring-1 ring-border/40"
-      style={{ backgroundColor: color, color: fg }}
+      aria-label={chip.label}
+      title={chip.label}
+      className={cn(
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-[9px] border border-border/70 font-mono text-[10px] font-semibold tracking-tight text-foreground/80",
+        className,
+      )}
+      style={{ background: `color-mix(in oklab, ${chip.color} 24%, transparent)` }}
     >
-      {abbr}
+      {chip.abbr}
     </span>
   );
 }
 
-// ─── EntryRibbon ─────────────────────────────────────────────────────
-//
-// A small "entry" pill marking the site's entry file: primary-tinted
-// fill with a hairline ring, sized to fit inside the row.
-
-function EntryRibbon() {
-  return (
-    <span
-      aria-hidden
-      className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] leading-none font-medium text-primary ring-1 ring-primary/30"
-    >
-      entry
-    </span>
-  );
-}
-
-// ─── RowActions ──────────────────────────────────────────────────────
-
-function RowActions({
-  path,
+export function FileRow({
+  asset,
+  isEntry,
+  writable,
+  busy,
+  href,
+  onOpen,
   onSetEntry,
   onDelete,
-  disabled,
-}: {
-  path: string;
-  onSetEntry: () => void;
-  onDelete: () => void;
-  disabled: boolean;
-}) {
+}: FileRowProps) {
+  const chip = chipForPath(asset.path);
+  const dir = asset.path.includes("/") ? asset.path.slice(0, asset.path.lastIndexOf("/")) : "";
+  const canBeEntry = !isEntry && isHtmlPath(asset.path);
+  const canDelete = writable && !isEntry;
+
   return (
-    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+    <li
+      data-testid="site-file-row"
+      className={cn(
+        FILE_GRID,
+        "group/row min-h-12 border-b border-border/50 px-3 py-2 last:border-b-0 hover:bg-muted/50 sm:px-4",
+      )}
+    >
       <button
         type="button"
-        className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
-        title="Set as entry"
-        aria-label={`Set ${path} as entry`}
-        onClick={onSetEntry}
-        disabled={disabled}
+        onClick={() => onOpen(asset.path)}
+        className="flex min-w-0 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        <HugeiconsIcon icon={Home02Icon} className="size-3.5" />
+        <KindTile path={asset.path} />
+        <span className="min-w-0">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">
+              {baseName(asset.path)}
+            </span>
+            {isEntry ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text">
+                <HugeiconsIcon icon={Home01Icon} strokeWidth={2} className="size-2.5" />
+                Entry
+              </span>
+            ) : null}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {dir ? `${dir}/` : null}
+            <span className="md:hidden">
+              {dir ? " · " : ""}
+              {formatBytes(asset.size)}
+            </span>
+          </span>
+        </span>
       </button>
-      <button
-        type="button"
-        className="rounded p-1 text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
-        title="Delete"
-        aria-label={`Delete ${path}`}
-        onClick={() => {
-          if (window.confirm(`Delete "${path}"? This cannot be undone.`)) {
-            onDelete();
-          }
-        }}
-        disabled={disabled}
-      >
-        <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-      </button>
-    </div>
+
+      <span className="hidden text-xs text-muted-foreground md:block">{chip.label}</span>
+      <span className="hidden text-xs text-muted-foreground tabular-nums md:block">
+        {formatBytes(asset.size)}
+      </span>
+      <span className="hidden text-xs text-muted-foreground md:block">
+        {relTime(asset.updatedAt)}
+      </span>
+
+      <div className="flex items-center justify-end gap-0.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Actions for ${asset.path}`}
+                className="text-muted-foreground"
+              >
+                <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={1.8} />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-auto min-w-48">
+            <DropdownMenuItem onClick={() => onOpen(asset.path)}>
+              <HugeiconsIcon icon={FileEditIcon} strokeWidth={1.8} />
+              {writable ? "Open in editor" : "View source"}
+            </DropdownMenuItem>
+            {writable && canBeEntry ? (
+              <DropdownMenuItem disabled={busy} onClick={() => onSetEntry(asset.path)}>
+                <HugeiconsIcon icon={Home01Icon} strokeWidth={1.8} />
+                Set as entry page
+              </DropdownMenuItem>
+            ) : null}
+            {href ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  const a = document.createElement("a");
+                  a.href = href;
+                  a.download = baseName(asset.path);
+                  a.target = "_blank";
+                  a.rel = "noopener";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                }}
+              >
+                <HugeiconsIcon icon={Download01Icon} strokeWidth={1.8} />
+                Download
+              </DropdownMenuItem>
+            ) : null}
+            {canDelete ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => onDelete(asset.path)}
+                >
+                  <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </li>
   );
 }

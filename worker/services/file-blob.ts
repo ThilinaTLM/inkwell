@@ -26,6 +26,9 @@ import { rowToMeta } from "../types";
 import { emptyManifest, isStaticSiteBlob, validateManifest, writeSeedSite } from "./static-site";
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** Hard cap for generic uploads (`POST /api/files/upload`). Matches the
+ *  Cloudflare Workers request-body limit on Free/Pro plans (100 MB). */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_THUMB_BYTES = 1 * 1024 * 1024;
 
 // ─── Blob construction ──────────────────────────────────────────────
@@ -50,6 +53,10 @@ export function seedManifestForKind(kind: FileKind, name: string): FileBlob {
       // The canonical seed manifest (with one asset entry) is built
       // by `writeSeedSite`; this sentinel keeps the function pure.
       return emptyManifest();
+    case "file":
+      // Uploaded files have no JSON blob; they are created through
+      // `createUploadedFile` and never seeded.
+      throw new Error("kind=file has no seed blob");
     default:
       return assertNever(kind);
   }
@@ -110,6 +117,8 @@ export function validateBlobForKind(kind: FileKind, parsed: FileBlob): string | 
       // directly (e.g. round-trip symmetry tests).
       if (!isStaticSiteBlob(parsed)) return "static-site blob shape invalid";
       return validateManifest(parsed as StaticSiteFileBlob);
+    case "file":
+      return "uploaded files are immutable; upload a new file instead";
     default:
       return assertNever(kind);
   }
@@ -206,6 +215,9 @@ export async function putFileBlob(env: Env, row: FileRow, req: Request): Promise
   // through the dedicated /api/files/:id/assets* endpoints, which keep
   // the R2 objects and the manifest in lockstep. Allowing a raw
   // manifest PUT here would let a client desync the two.
+  if (row.kind === "file") {
+    return errorResponse(415, "uploaded files cannot be edited; upload a replacement instead");
+  }
   if (row.kind === "static-site") {
     return errorResponse(400, "static-site files are managed via /api/files/:id/assets endpoints");
   }
@@ -258,6 +270,7 @@ export async function putFileBlob(env: Env, row: FileRow, req: Request): Promise
     tags,
     version: nextVersion,
     sizeBytes: buf.byteLength,
+    mime: row.mime ?? null,
     hasThumb: row.has_thumb,
     thumbUpdatedAt: row.thumb_updated_at,
     activeShareCount: shareMap.get(row.id) ?? 0,
@@ -314,6 +327,7 @@ export async function createFile(
     kind,
     version: 1,
     size_bytes: totalBytes,
+    mime: null,
     has_thumb: false,
     thumb_updated_at: 0,
     created_at: ts,
@@ -333,6 +347,7 @@ export async function createFile(
     tags,
     version: 1,
     sizeBytes: totalBytes,
+    mime: null,
     hasThumb: false,
     thumbUpdatedAt: 0,
     activeShareCount: 0,
@@ -340,6 +355,50 @@ export async function createFile(
     createdAt: ts,
     updatedAt: ts,
   };
+}
+
+// Create a generic uploaded file (`kind = "file"`): the bytes are streamed
+// straight into R2 (no buffering) at the standard blob key, then the D1 row
+// is inserted. `body` must be a fixed-length stream (the request body of a
+// request carrying Content-Length) or a buffer; `size` is that length.
+// If the insert fails the R2 object is removed so nothing is orphaned.
+export async function createUploadedFile(
+  env: Env,
+  owner: string,
+  folderId: string | null,
+  name: string,
+  upload: { body: ReadableStream | ArrayBuffer | null; size: number; mime: string },
+): Promise<FileMeta> {
+  const id = newId();
+  const ts = now();
+  const safe = (name || "Untitled").trim().slice(0, 200) || "Untitled";
+  await env.R2.put(r2FileKey(id), upload.body ?? new Uint8Array(0), {
+    httpMetadata: { contentType: upload.mime },
+  });
+  const row: FileRow = {
+    id,
+    owner,
+    folder_id: folderId,
+    name: safe,
+    kind: "file",
+    version: 1,
+    size_bytes: upload.size,
+    mime: upload.mime,
+    has_thumb: false,
+    thumb_updated_at: 0,
+    created_at: ts,
+    updated_at: ts,
+    deleted_at: null,
+    trashed_via: null,
+    starred_at: null,
+  };
+  try {
+    await filesRepo.insert(env, row);
+  } catch (e) {
+    await env.R2.delete(r2FileKey(id)).catch(() => {});
+    throw e;
+  }
+  return rowToMeta(row);
 }
 
 // ─── Rename: mirror new name into excalidraw appState ───────────────

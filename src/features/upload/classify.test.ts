@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifyName, isJunkPath, MAX_UPLOAD_BYTES, planEntries, sniffMatches } from "./classify";
+import {
+  classifyName,
+  isJunkPath,
+  MAX_RAW_FILE_BYTES,
+  MAX_UPLOAD_BYTES,
+  planEntries,
+  sniffMatches,
+} from "./classify";
 import type { DroppedEntry } from "./types";
 
 function entry(relativePath: string, content = "x", size?: number): DroppedEntry {
@@ -67,19 +74,33 @@ describe("planEntries", () => {
     expect(jobs.map((j) => [j.kind, j.name, j.reason ?? null])).toEqual([
       ["excalidraw", "a", null],
       ["notes", "Retro", null],
-      [null, "budget", "Unsupported type (.xlsx)"],
+      ["file", "budget.xlsx", null],
     ]);
   });
 
-  it("rejects files over the size limit", () => {
+  it("stores unknown types as generic files that keep their extension", () => {
+    const jobs = planEntries([entry("photo.PNG"), entry("noext"), entry("deck.pdf")]);
+    expect(jobs.map((j) => [j.kind, j.name, j.reason ?? null])).toEqual([
+      ["file", "photo.PNG", null],
+      ["file", "noext", null],
+      ["file", "deck.pdf", null],
+    ]);
+  });
+
+  it("keeps oversize convertible files as generic files, up to the raw limit", () => {
     const [job] = planEntries([entry("big.md", "x", MAX_UPLOAD_BYTES + 1)]);
-    expect(job.kind).toBe("notes");
-    expect(job.reason).toMatch(/Too large/);
+    expect(job.kind).toBe("file");
+    expect(job.name).toBe("big.md");
+    expect(job.reason).toBeUndefined();
+    const [huge] = planEntries([entry("huge.mov", "x", MAX_RAW_FILE_BYTES + 1)]);
+    expect(huge.kind).toBe("file");
+    expect(huge.reason).toMatch(/Too large/);
   });
 
   it("allows zips up to the site limit", () => {
     const [job] = planEntries([entry("site.zip", "x", MAX_UPLOAD_BYTES + 1)]);
     expect(job.reason).toBeUndefined();
+    expect(job.kind).toBe("static-site");
     expect(job.site).toBe("zip");
   });
 
@@ -88,8 +109,9 @@ describe("planEntries", () => {
     const bad = entry("pkg.json");
     const jobs = planEntries([good, bad], (e) => e.file === good.file);
     expect(jobs[0].kind).toBe("excalidraw");
-    expect(jobs[1].kind).toBeNull();
-    expect(jobs[1].reason).toMatch(/not an Excalidraw/);
+    expect(jobs[1].kind).toBe("file");
+    expect(jobs[1].name).toBe("pkg.json");
+    expect(jobs[1].reason).toBeUndefined();
   });
 
   it("turns a directory with top-level index.html into one site", () => {

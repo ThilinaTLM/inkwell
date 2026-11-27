@@ -1,6 +1,6 @@
-// Key binding parser / matcher / user overrides.
+// Key binding parser / matcher (default bindings only — rebinding was removed).
 //
-// PUBLIC CONTRACT (used by the registry, Settings → Shortcuts, menus):
+// PUBLIC CONTRACT (used by the registry, shortcut sheet, menus):
 //
 //   Binding syntax (one string per binding; a command may have several):
 //     "mod+shift+c"   modifiers joined with "+"; `mod` = ⌘ on mac, Ctrl elsewhere
@@ -18,16 +18,9 @@
 //   formatBindingParts(str, isMac?)   → ["⌘","⇧","C"] for <kbd> rendering
 //   formatKeys(keys, isMac?)          → formats the first binding of a list ("" if none)
 //
-//   Overrides (localStorage `inkwell.keymap`, JSON { [commandId]: string[] }):
-//   getKeyOverrides() / setKeyOverride(id, keys | null) (null = reset to default,
-//   [] = explicitly unbound) / resetAllKeyOverrides() / useKeyOverridesVersion()
-//
 //   findConflicts(bindings?)          → [{ binding, ids }] where ≥2 commands share a
 //                                        binding, or a chord prefix shadows a single key.
 //                                        Defaults to the registry's effective bindings.
-
-import { useSyncExternalStore } from "react";
-import { createStore } from "@/lib/store";
 
 export interface KeyCombo {
   key: string;
@@ -320,76 +313,16 @@ export function formatKeys(keys: string[] | string | undefined, isMac?: boolean)
   return first ? formatBinding(first, isMac) : "";
 }
 
-// ─── Overrides ─────────────────────────────────────────────────────────
+// ─── Legacy overrides ──────────────────────────────────────────────────
+// Shortcut rebinding was removed. Drop any stale user overrides once so
+// they can never shadow the defaults.
 
-export const KEYMAP_STORAGE_KEY = "inkwell.keymap";
-
-export type KeyOverrides = Record<string, string[]>;
-
-function readOverrides(): KeyOverrides {
+if (typeof localStorage !== "undefined") {
   try {
-    const raw = localStorage.getItem(KEYMAP_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object") return {};
-    const out: KeyOverrides = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (Array.isArray(v) && v.every((x) => typeof x === "string")) out[k] = v as string[];
-    }
-    return out;
+    localStorage.removeItem("inkwell.keymap");
   } catch {
-    return {};
+    /* storage unavailable */
   }
-}
-
-const overridesStore = createStore<{ overrides: KeyOverrides; version: number }>({
-  overrides: typeof localStorage === "undefined" ? {} : readOverrides(),
-  version: 0,
-});
-
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (e) => {
-    if (e.key !== KEYMAP_STORAGE_KEY) return;
-    overridesStore.set((s) => ({ overrides: readOverrides(), version: s.version + 1 }));
-  });
-}
-
-export function getKeyOverrides(): KeyOverrides {
-  return overridesStore.get().overrides;
-}
-
-function writeOverrides(next: KeyOverrides) {
-  try {
-    localStorage.setItem(KEYMAP_STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* storage unavailable — keep in memory */
-  }
-  overridesStore.set((s) => ({ overrides: next, version: s.version + 1 }));
-}
-
-/** `null` resets to the command's default keys; `[]` unbinds it. */
-export function setKeyOverride(id: string, keys: string[] | null): void {
-  const next = { ...getKeyOverrides() };
-  if (keys === null) delete next[id];
-  else next[id] = keys.map(normalizeBinding).filter(Boolean);
-  writeOverrides(next);
-}
-
-export function resetAllKeyOverrides(): void {
-  writeOverrides({});
-}
-
-export function subscribeKeyOverrides(listener: () => void): () => void {
-  return overridesStore.subscribe(listener);
-}
-
-/** Re-render when overrides change; returns a version counter. */
-export function useKeyOverridesVersion(): number {
-  return useSyncExternalStore(
-    overridesStore.subscribe,
-    () => overridesStore.get().version,
-    () => 0,
-  );
 }
 
 // ─── Conflicts ─────────────────────────────────────────────────────────

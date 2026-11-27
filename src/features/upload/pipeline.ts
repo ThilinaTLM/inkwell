@@ -1,7 +1,6 @@
 // Per-kind upload pipeline: prepare (read + validate + convert), create,
 // write, thumbnail. The queue drives these; every function here is a
-// thin composition of existing API endpoints (plan §2 "Uploads": no new
-// upload endpoint).
+// thin composition of the API endpoints (`files.uploadRaw` for generic files).
 
 import type { FileKind, FileMeta } from "@/lib/api/client";
 import { files as filesApi, staticSites } from "@/lib/api/client";
@@ -11,6 +10,7 @@ import {
   renderSceneThumb,
   sceneToStoredBlob,
 } from "./excalidraw";
+import { imageToThumbSvg, isThumbnailableImage } from "./imageThumb";
 import { normalizeMarkdownSource } from "./textBlocks";
 import type { PlannedJob } from "./types";
 
@@ -18,7 +18,8 @@ export type Prepared =
   | { kind: "excalidraw"; file: File; scene: ExcalidrawScene }
   | { kind: "drawio"; xml: string }
   | { kind: "notes"; source: string }
-  | { kind: "static-site"; zip: Blob };
+  | { kind: "static-site"; zip: Blob }
+  | { kind: "file"; file: File };
 
 export class UploadError extends Error {}
 
@@ -44,6 +45,8 @@ export async function prepareJob(job: PlannedJob): Promise<Prepared> {
     }
     case "notes":
       return { kind, source: normalizeMarkdownSource(await first.text()) };
+    case "file":
+      return { kind, file: first };
     case "static-site": {
       if (job.site === "zip") return { kind, zip: first };
       return { kind, zip: await zipEntries(job) };
@@ -82,8 +85,8 @@ export interface CreatedFile {
   meta: FileMeta;
 }
 
-/** Create the file row. Excalidraw goes through the import endpoint,
- *  which creates and writes in one request. */
+/** Create the file row. Excalidraw (import endpoint) and generic files
+ *  (raw upload endpoint) create and write in one request. */
 export async function createForJob(
   prepared: Prepared,
   name: string,
@@ -91,6 +94,11 @@ export async function createForJob(
 ): Promise<CreatedFile> {
   if (prepared.kind === "excalidraw") {
     const meta = await filesApi.importExcalidraw(prepared.file, { name, folderId });
+    return { id: meta.id, version: meta.version, name: meta.name, written: true, meta };
+  }
+  if (prepared.kind === "file") {
+    // Generic files are created and written in one raw upload.
+    const meta = await filesApi.uploadRaw(prepared.file, { name, folderId });
     return { id: meta.id, version: meta.version, name: meta.name, written: true, meta };
   }
   const meta = await filesApi.create({ name, folderId, kind: prepared.kind });
@@ -120,6 +128,10 @@ export async function writeContent(
       });
     case "static-site":
       return (await staticSites.uploadZip(target.id, prepared.zip, target.version)).meta;
+    case "file":
+      // Created and written in one request (`createForJob`); there is no
+      // in-place rewrite for uploaded files.
+      throw new UploadError("Uploaded files can't be replaced in place");
   }
 }
 
@@ -129,6 +141,8 @@ export async function writeThumb(prepared: Prepared, fileId: string): Promise<vo
   let svg: string | null = null;
   if (prepared.kind === "excalidraw") {
     svg = await renderSceneThumb(prepared.scene);
+  } else if (prepared.kind === "file") {
+    svg = await imageToThumbSvg(prepared.file);
   } else if (prepared.kind === "notes") {
     const { markdownToThumbSvg } = await import("@/features/editor/markdown/thumb");
     svg = markdownToThumbSvg(prepared.source);
@@ -136,6 +150,7 @@ export async function writeThumb(prepared: Prepared, fileId: string): Promise<vo
   if (svg) await filesApi.putThumb(fileId, svg);
 }
 
-export function hasClientThumb(kind: FileKind): boolean {
+export function hasClientThumb(kind: FileKind, prepared?: Prepared): boolean {
+  if (kind === "file") return prepared?.kind === "file" && isThumbnailableImage(prepared.file);
   return kind === "excalidraw" || kind === "notes";
 }
