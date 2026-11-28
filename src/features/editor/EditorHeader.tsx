@@ -600,6 +600,7 @@ function useOnline(): boolean {
 function SaveControl({ bridge, version }: { bridge: EditorHeaderBridge; version: number }) {
   const online = useOnline();
   const { status, errorMessage, saveNow } = bridge;
+  const autosave = bridge.autosave !== false;
   if (status === null) return null;
 
   const doSave = () => {
@@ -610,6 +611,22 @@ function SaveControl({ bridge, version }: { bridge: EditorHeaderBridge; version:
   const chip =
     "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs whitespace-nowrap [&_svg]:size-3.5";
   const live = { "data-testid": "editor-save-state", "data-status": status } as const;
+
+  if (status === "dirty" && autosave) {
+    const title = `Unsaved changes — autosaves a moment after you stop typing · ${MOD}S saves now`;
+    return (
+      <output
+        {...live}
+        title={title}
+        aria-label="Unsaved changes"
+        aria-live="polite"
+        className={cn(chip, "text-muted-foreground")}
+      >
+        <span aria-hidden className="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+        <span className="hidden sm:inline">Unsaved</span>
+      </output>
+    );
+  }
 
   if (status === "dirty" && saveNow) {
     return (

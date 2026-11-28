@@ -71,6 +71,11 @@ export interface EditorHeaderBridge {
   toolbar?: ReactNode;
   /** Optional secondary row under the header (tabs / view switchers). */
   subbar?: ReactNode;
+  /** Whether the editor saves on its own (default `true`). Autosaving
+   *  editors show a quiet "Unsaved / Saving… / Saved" status; only
+   *  `autosave: false` editors (static sites) get a prominent Save button
+   *  while dirty. ⌘S always saves immediately. */
+  autosave?: boolean;
 }
 
 export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
@@ -79,7 +84,7 @@ export type RenderEditorHeader = (bridge: EditorHeaderBridge) => ReactNode;
 export function staticBridge(
   extra: Pick<
     EditorHeaderBridge,
-    "menuExtras" | "toolbar" | "subbar" | "exporters" | "present"
+    "menuExtras" | "toolbar" | "subbar" | "exporters" | "present" | "autosave"
   > = {},
 ): EditorHeaderBridge {
   return {

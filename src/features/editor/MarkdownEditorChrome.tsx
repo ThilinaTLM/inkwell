@@ -6,6 +6,7 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { ComputerIcon, Moon02Icon, SunIcon, TextFontIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import { type ThemeMode, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
@@ -38,32 +39,24 @@ const THEMES: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof SunI
 export function MarkdownEditorChrome() {
   const { mode, setMode } = useNotesPreferences();
   return (
-    <div className="flex items-center gap-1" role="toolbar" aria-label="Markdown view">
-      <div className="flex items-center rounded-lg bg-muted p-0.5">
-        {MODES.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            aria-pressed={mode === item.value}
-            title={item.hint}
-            data-testid={`markdown-mode-${item.value}`}
-            onClick={() => setMode(item.value)}
-            className={cn(
-              "h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors",
-              "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              mode === item.value && "bg-background text-foreground shadow-xs",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+    <div className="flex items-center gap-1.5" role="toolbar" aria-label="Markdown view">
+      <Segmented<MarkdownEditorMode>
+        ariaLabel="Editor view"
+        value={mode}
+        onChange={setMode}
+        options={MODES.map((item) => ({
+          value: item.value,
+          title: item.hint,
+          // The shared control has no per-option test ids; clicks bubble.
+          label: <span data-testid={`markdown-mode-${item.value}`}>{item.label}</span>,
+        }))}
+      />
       <DisplayPopover />
     </div>
   );
 }
 
-function Segmented<T extends string>({
+function PrefSegmented<T extends string>({
   label,
   value,
   options,
@@ -112,6 +105,7 @@ function DisplayPopover() {
             aria-label="Display options"
             title="Width, font and theme"
             data-testid="markdown-display"
+            className="focus-visible:ring-1 focus-visible:ring-ring/35"
           >
             <HugeiconsIcon icon={TextFontIcon} strokeWidth={1.8} className="size-4" />
           </Button>
@@ -123,7 +117,7 @@ function DisplayPopover() {
             aria-label="Display options"
             className="w-72 space-y-3 rounded-xl bg-popover p-3 text-popover-foreground shadow-[0_18px_40px_-14px_rgba(28,24,20,0.35)] ring-1 ring-border outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95"
           >
-            <Segmented<NotesEditorWidth>
+            <PrefSegmented<NotesEditorWidth>
               label="Width"
               value={width}
               options={NOTES_WIDTHS.map((w) => ({
@@ -132,13 +126,18 @@ function DisplayPopover() {
               }))}
               onChange={setWidth}
             />
-            <Segmented<NotesEditorFont>
+            <PrefSegmented<NotesEditorFont>
               label="Font"
               value={FONT_CHOICES.some((f) => f.value === font) ? font : "inter"}
               options={FONT_CHOICES}
               onChange={setFont}
             />
-            <Segmented<ThemeMode> label="Theme" value={mode} options={THEMES} onChange={setMode} />
+            <PrefSegmented<ThemeMode>
+              label="Theme"
+              value={mode}
+              options={THEMES}
+              onChange={setMode}
+            />
           </PopoverPrimitive.Popup>
         </PopoverPrimitive.Positioner>
       </PopoverPrimitive.Portal>

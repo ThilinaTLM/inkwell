@@ -38,6 +38,12 @@ interface CodeMirrorEditorProps {
    * the classic full-height editor with line numbers used for HTML files.
    */
   variant?: "code" | "writing";
+  /**
+   * HTML only: insert the matching close tag on `>` / `</`. Defaults to true.
+   * Turn it off where users type closing tags themselves, which otherwise
+   * produces doubled tags such as `</p></p>`.
+   */
+  autoCloseTags?: boolean;
   /** Receives the underlying view (for focus / scroll restoration). */
   onView?: (view: EditorView | null) => void;
 }
@@ -116,11 +122,28 @@ function writingTheme(dark: boolean, fontFamily: string) {
       "&": {
         color: "var(--foreground)",
         backgroundColor: "transparent",
-        fontSize: "15px",
+        fontSize: "14px",
       },
-      ".cm-scroller": { overflow: "visible", fontFamily, lineHeight: "1.8" },
+      ".cm-scroller": { overflow: "visible", fontFamily, lineHeight: "1.7" },
       ".cm-content": { padding: "0 0 38vh", caretColor: "var(--primary)" },
-      ".cm-line": { padding: "0" },
+      ".cm-line": { padding: "0 0 0 0.75rem" },
+      ".cm-gutters": {
+        backgroundColor: "transparent",
+        color: "var(--faint)",
+        border: "none",
+        paddingRight: "0.25rem",
+      },
+      ".cm-lineNumbers .cm-gutterElement": {
+        padding: "0 0.5rem 0 0.25rem",
+        minWidth: "2.25rem",
+        lineHeight: "23.8px",
+        fontSize: "12px",
+      },
+      ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)" },
+      ".cm-activeLineGutter": {
+        backgroundColor: "transparent",
+        color: "var(--muted-foreground)",
+      },
       ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
         backgroundColor: "color-mix(in srgb, var(--primary) 22%, transparent) !important",
       },
@@ -175,6 +198,7 @@ export function CodeMirrorEditor({
   language = "markdown",
   ariaLabel,
   variant = "code",
+  autoCloseTags = true,
   onView,
 }: CodeMirrorEditorProps) {
   const hostRef = useRef<HTMLElement>(null);
@@ -191,6 +215,7 @@ export function CodeMirrorEditor({
     language,
     ariaLabel,
     variant,
+    autoCloseTags,
   }).current;
   const onViewRef = useRef(onView);
   onViewRef.current = onView;
@@ -201,9 +226,9 @@ export function CodeMirrorEditor({
     const state = EditorState.create({
       doc: mountConfig.value,
       extensions: [
-        ...(mountConfig.variant === "writing"
-          ? []
-          : [lineNumbers(), highlightActiveLineGutter(), highlightActiveLine()]),
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
         history(),
         drawSelection(),
         dropCursor(),
@@ -223,7 +248,7 @@ export function CodeMirrorEditor({
                 : "Markdown source editor"),
         }),
         ...(mountConfig.language === "html"
-          ? [html()]
+          ? [html({ autoCloseTags: mountConfig.autoCloseTags })]
           : mountConfig.language === "text"
             ? []
             : [markdown()]),

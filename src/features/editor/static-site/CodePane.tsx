@@ -2,7 +2,7 @@
 // a slim file bar (path, size, entry chip, actions) over a themed
 // CodeMirror, an image viewer, or a "can't edit this" notice.
 
-import { Delete02Icon, Home01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, Home01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@/components/ui/button";
 import type { StaticSiteAsset } from "@/lib/api/client";
@@ -18,6 +18,10 @@ export type BufferState =
 
 export interface CodePaneProps {
   asset: StaticSiteAsset;
+  /** Current size in bytes (buffer size for edited files). */
+  size?: number;
+  /** Not on the server yet. */
+  isNew?: boolean;
   isEntry: boolean;
   writable: boolean;
   dark: boolean;
@@ -27,7 +31,6 @@ export interface CodePaneProps {
   imageUrl: string | null;
   busy: boolean;
   onChange: (text: string) => void;
-  onRefreshPreview: () => void;
   onSetEntry: () => void;
   onDelete: () => void;
 }
@@ -36,6 +39,8 @@ const MONO = '"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, mo
 
 export function CodePane({
   asset,
+  size,
+  isNew,
   isEntry,
   writable,
   dark,
@@ -44,7 +49,6 @@ export function CodePane({
   imageUrl,
   busy,
   onChange,
-  onRefreshPreview,
   onSetEntry,
   onDelete,
 }: CodePaneProps) {
@@ -59,8 +63,13 @@ export function CodePane({
             {baseName(asset.path)}
           </span>
           <span className="hidden text-xs text-muted-foreground sm:inline">
-            {formatBytes(asset.size)}
+            {formatBytes(size ?? asset.size)}
           </span>
+          {isNew ? (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+              New
+            </span>
+          ) : null}
           {isEntry ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-text">
               <HugeiconsIcon icon={Home01Icon} strokeWidth={2} className="size-2.5" />
@@ -69,7 +78,7 @@ export function CodePane({
           ) : null}
         </div>
         <div className="flex-1" />
-        {writable && !isEntry && isHtmlPath(asset.path) ? (
+        {writable && !isEntry && !isNew && isHtmlPath(asset.path) ? (
           <Button variant="ghost" size="sm" onClick={onSetEntry} disabled={busy}>
             <span className="hidden sm:inline">Set as entry</span>
             <HugeiconsIcon icon={Home01Icon} strokeWidth={1.8} className="sm:hidden" />
@@ -88,15 +97,6 @@ export function CodePane({
             <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} />
           </Button>
         ) : null}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onRefreshPreview}
-          aria-label="Reload preview"
-          title="Reload preview"
-        >
-          <HugeiconsIcon icon={RefreshIcon} strokeWidth={1.8} />
-        </Button>
         {/* Save lives in the editor header (one Save button per editor). */}
       </div>
 
@@ -110,6 +110,7 @@ export function CodePane({
             dark={dark}
             fontFamily={MONO}
             language={isHtmlPath(asset.path) ? "html" : "text"}
+            autoCloseTags={false}
             ariaLabel={`${asset.path} source`}
           />
         ) : buffer.status === "unsupported" && isImageAsset(asset) && imageUrl ? (

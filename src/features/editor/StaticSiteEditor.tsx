@@ -2,18 +2,20 @@
 //
 // A static-site file is a bundle of HTML/CSS/JS/image assets; the common
 // case — a single self-contained `.html` artifact — behaves like a
-// document. Two modes, switched from the editor header's toolbar slot:
+// document. Three modes, switched from the editor header's toolbar slot:
 //
-//   Preview  the rendered entry page inside a framed, browser-style
-//            canvas (reload, open in new tab, device-width presets),
-//            served from the signed render-session URL
-//            (`/sites/:id/:sig/<entry>`).
-//   Files    one workspace: a file tree (plus an "Overview & uploads"
+//   Preview  the rendered page inside a framed canvas (reload, page
+//            picker, device-width presets, open in new tab). Saved state
+//            comes from the signed render-session URL
+//            (`/sites/:id/:sig/<page>`); with unsaved edits it shows a
+//            live draft (`srcdoc`, see draftPreview.ts).
+//   Split    file tree + code + live preview side by side (wide screens).
+//   Code     one workspace: a file tree (plus an "Overview & uploads"
 //            page with the bundle table and the drop zone) next to a
 //            themed CodeMirror for the selected file. Edits across
-//            several files are kept as a buffer and saved together
-//            (Ctrl/⌘+S → one assets POST with `If-Match`; every save is
-//            a new bundle version, no autosave).
+//            several files (including new files) are kept as a buffer
+//            and saved together (Ctrl/⌘+S → one assets POST with
+//            `If-Match`; every save is a new bundle version, no autosave).
 //
 // Share-token visitors never see this surface — they are redirected
 // straight to the signed `/shared/...` URL by `SharedTokenLandingPage` /
@@ -28,7 +30,14 @@
 // Concurrency: every mutator is its own POST with `If-Match: <version>`;
 // 409s surface as a toast.
 
-import { ArrowDown01Icon, CodeIcon, ViewIcon } from "@hugeicons/core-free-icons";
+import {
+  ArrowDown01Icon,
+  CodeIcon,
+  File01Icon,
+  Layout2ColumnIcon,
+  SidebarLeftIcon,
+  ViewIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -44,6 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import {
   ApiError,
@@ -57,6 +67,7 @@ import {
 import { keys } from "@/lib/api/query-keys";
 import { errorMessage } from "@/lib/errors";
 import { useTheme } from "@/lib/theme";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import type { EditorExporter, EditorHeaderBridge, RenderEditorHeader } from "./editorHeaderBridge";
 import { LeaveConfirmDialog } from "./lifecycle/LeaveConfirmDialog";
@@ -66,18 +77,24 @@ import { downloadBlob, exportBaseName } from "./shared/exportFile";
 import { type BufferState, CodePane } from "./static-site/CodePane";
 import { FilesList } from "./static-site/FilesList";
 import { FileTree } from "./static-site/FileTree";
+import { NewFileDialog } from "./static-site/NewFileDialog";
 import { PreviewFrame } from "./static-site/PreviewFrame";
 import { SiteCard } from "./static-site/SiteCard";
+import { SPLIT_MAX, SPLIT_MIN, SplitDivider } from "./static-site/SplitDivider";
 import {
   baseName,
+  byteLength,
   encodePath,
   isHtmlPath,
   isImageAsset,
   isTextAsset,
+  looksLikePlaceholder,
   MAX_EDITABLE_BYTES,
+  starterFor,
   TEMPLATE_HTML,
 } from "./static-site/sitePaths";
 import { UploadPanel } from "./static-site/UploadPanel";
+import { useDraftPreview } from "./static-site/useDraftPreview";
 
 export interface StaticSiteEditorProps {
   loaded: LoadedFile;
@@ -94,7 +111,24 @@ export interface StaticSiteEditorProps {
   onManifestChanged?: (manifest: StaticSiteFileBlob, meta: FileMeta) => void;
 }
 
-type Mode = "preview" | "files";
+type Mode = "preview" | "split" | "code";
+
+const MODE_KEY = "inkwell:site-editor-mode";
+const SPLIT_KEY = "inkwell:site-editor-split";
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeStored(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Private mode / quota — the preference just doesn't persist.
+  }
+}
 type MutResult = Awaited<ReturnType<typeof staticSites.uploadAssets>>;
 
 const MIME: Record<string, string> = {
@@ -135,10 +169,34 @@ export default function StaticSiteEditor({
   const manifest = manifestQuery.data ?? initialManifest;
   const isEmpty = manifest.assets.length === 0;
 
-  const [mode, setMode] = useState<Mode>(isEmpty ? "files" : "preview");
-  // Selected file in the Files workspace; `null` = Overview & uploads.
+  const wide = useMediaQuery("(min-width: 1100px)");
+  const [mode, setMode] = useState<Mode>(() => {
+    if (isEmpty) return "code";
+    const stored = readStored(MODE_KEY);
+    if (stored === "preview" || stored === "split" || stored === "code") return stored;
+    return writable && wide ? "split" : "preview";
+  });
+  // Split needs room: on narrow screens it degrades to the Preview view.
+  const effMode: Mode = isEmpty ? "code" : mode === "split" && !wide ? "preview" : mode;
+  const changeMode = useCallback((m: Mode) => {
+    setMode(m);
+    writeStored(MODE_KEY, m);
+  }, []);
+  const [splitPct, setSplitPct] = useState(() => {
+    const n = Number(readStored(SPLIT_KEY));
+    return Number.isFinite(n) && n >= SPLIT_MIN && n <= SPLIT_MAX ? n : 50;
+  });
+  const onSplitChange = useCallback((n: number) => {
+    setSplitPct(n);
+    writeStored(SPLIT_KEY, String(Math.round(n)));
+  }, []);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const [treeHidden, setTreeHidden] = useState(false);
+  // Selected file in the code workspace; `null` = Overview & uploads.
   const [selected, setSelected] = useState<string | null>(isEmpty ? null : manifest.entry);
+  const [previewPath, setPreviewPath] = useState<string>(manifest.entry);
   const [treeOpen, setTreeOpen] = useState(false);
+  const [newFileOpen, setNewFileOpen] = useState(false);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -171,6 +229,10 @@ export default function StaticSiteEditor({
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [loadErrors, setLoadErrors] = useState<Record<string, string>>({});
+  // Files created in the editor and not saved yet (path → created-at ms).
+  const [created, setCreated] = useState<Record<string, number>>({});
+  const createdRef = useRef(created);
+  createdRef.current = created;
   const [epoch, setEpoch] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -183,19 +245,50 @@ export default function StaticSiteEditor({
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
 
+  // The bundle as the user sees it: server assets with buffer sizes for
+  // edited files, plus files created locally.
+  const viewManifest = useMemo<StaticSiteFileBlob>(() => {
+    const assets = manifest.assets.map((a) =>
+      edits[a.path] !== undefined ? { ...a, size: byteLength(edits[a.path]) } : a,
+    );
+    for (const [path, at] of Object.entries(created)) {
+      if (assets.some((a) => a.path === path)) continue;
+      assets.push({
+        path,
+        size: byteLength(edits[path] ?? ""),
+        contentType: mimeFor(path),
+        updatedAt: at,
+      });
+    }
+    return { ...manifest, assets };
+  }, [manifest, edits, created]);
+  const hasAny = viewManifest.assets.length > 0;
+  const htmlPages = useMemo(
+    () => viewManifest.assets.filter((a) => isHtmlPath(a.path)).map((a) => a.path),
+    [viewManifest.assets],
+  );
+  const pagePath = htmlPages.includes(previewPath) ? previewPath : manifest.entry;
+
   const selectedAsset = selected
-    ? (manifest.assets.find((a) => a.path === selected) ?? null)
+    ? (viewManifest.assets.find((a) => a.path === selected) ?? null)
     : null;
   // Selected file vanished (deleted elsewhere / replaced by a zip).
   useEffect(() => {
-    if (selected && !selectedAsset && manifest.assets.length > 0) setSelected(manifest.entry);
-    if (mode === "preview" && isEmpty) setMode("files");
-  }, [selected, selectedAsset, manifest.assets.length, manifest.entry, mode, isEmpty]);
+    if (selected && !selectedAsset && hasAny) setSelected(manifest.entry);
+  }, [selected, selectedAsset, hasAny, manifest.entry]);
+  // Created files that now exist on the server are ordinary files.
+  useEffect(() => {
+    const live = new Set(manifest.assets.map((a) => a.path));
+    setCreated((c) => {
+      const keep = Object.entries(c).filter(([p]) => !live.has(p));
+      return keep.length === Object.keys(c).length ? c : Object.fromEntries(keep);
+    });
+  }, [manifest.assets]);
 
   // Load the selected text file the first time it is opened.
   const failedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (mode !== "files" || !selectedAsset || !fileUrl) return;
+    if (effMode === "preview" || !selectedAsset || !fileUrl) return;
     const path = selectedAsset.path;
     if (
       texts[path] !== undefined ||
@@ -222,12 +315,12 @@ export default function StaticSiteEditor({
     return () => {
       cancelled = true;
     };
-  }, [mode, selectedAsset, fileUrl, texts, version, epoch]);
+  }, [effMode, selectedAsset, fileUrl, texts, version, epoch]);
 
   const onEdit = useCallback((path: string, text: string) => {
     setEdits((prev) => {
       const base = textsRef.current[path];
-      if (text === base) {
+      if (text === base && !(path in createdRef.current)) {
         if (!(path in prev)) return prev;
         const { [path]: _drop, ...rest } = prev;
         return rest;
@@ -248,7 +341,10 @@ export default function StaticSiteEditor({
         setEpoch((n) => n + 1);
       }
       // Forget edits for files that no longer exist.
-      const live = new Set(result.manifest.assets.map((a) => a.path));
+      const live = new Set([
+        ...result.manifest.assets.map((a) => a.path),
+        ...Object.keys(createdRef.current),
+      ]);
       setEdits((prev) => {
         const keep = Object.entries(prev).filter(([p]) => live.has(p));
         return keep.length === Object.keys(prev).length ? prev : Object.fromEntries(keep);
@@ -291,9 +387,10 @@ export default function StaticSiteEditor({
           toast.success(entries.length === 1 ? "File added" : `${entries.length} files added`);
           if (wasEmpty) {
             setSelected(null);
+            setPreviewPath(r.manifest.entry);
             setMode("preview");
           } else if (r.manifest.assets.length === 0) {
-            setMode("files");
+            setMode("code");
           }
         },
       });
@@ -306,6 +403,7 @@ export default function StaticSiteEditor({
         onSuccess: (r) => {
           toast.success("Site replaced");
           setSelected(r.manifest.entry);
+          setPreviewPath(r.manifest.entry);
           setMode("preview");
         },
       });
@@ -323,11 +421,35 @@ export default function StaticSiteEditor({
       {
         onSuccess: () => {
           setSelected("index.html");
-          setMode("files");
+          setMode(wide ? "split" : "code");
         },
       },
     );
-  }, [uploadFilesMutation]);
+  }, [uploadFilesMutation, wide]);
+
+  const setEntry = useCallback(
+    (path: string) => {
+      if (path in createdRef.current) {
+        toast.info("Save the new file first, then set it as the entry page.");
+        return;
+      }
+      setEntryMutation.mutate(path, { onSuccess: () => setPreviewPath(path) });
+    },
+    [setEntryMutation],
+  );
+
+  const createFile = useCallback(
+    (path: string) => {
+      setTexts((t) => ({ ...t, [path]: "" }));
+      setEdits((e) => ({ ...e, [path]: starterFor(path) }));
+      setCreated((c) => ({ ...c, [path]: Date.now() }));
+      setSelected(path);
+      setTreeOpen(false);
+      if (isHtmlPath(path)) setPreviewPath(path);
+      setMode((m) => (m === "preview" ? (wide ? "split" : "code") : m));
+    },
+    [wide],
+  );
 
   const pending = uploadZipMutation.isPending
     ? { kind: "zip" as const, label: "Replacing the site…" }
@@ -385,6 +507,7 @@ export default function StaticSiteEditor({
 
   const discardSource = useCallback(() => {
     setEdits({});
+    setCreated({});
     setSaveError(null);
     setEpoch((n) => n + 1);
   }, []);
@@ -405,6 +528,41 @@ export default function StaticSiteEditor({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
+
+  // ── Live draft preview ───────────────────────────────────────────
+  const draft = dirty && writable;
+  const { srcDoc } = useDraftPreview({
+    enabled: draft && effMode !== "code" && !isEmpty,
+    prefix,
+    version,
+    pagePath,
+    edits,
+    texts,
+    nonce: previewNonce,
+  });
+
+  // Placeholder site (the server's default page / first-run template):
+  // offer "Edit code" / "Upload files" right in the preview.
+  const [placeholder, setPlaceholder] = useState(false);
+  useEffect(() => {
+    const only = manifest.assets.length === 1 ? manifest.assets[0] : null;
+    if (!writable || !fileUrl || !only || !isHtmlPath(only.path) || only.size > 2500) {
+      setPlaceholder(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`${fileUrl(only.path)}?v=${version}`)
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((t) => {
+        if (!cancelled) setPlaceholder(looksLikePlaceholder(t));
+      })
+      .catch(() => {
+        if (!cancelled) setPlaceholder(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [manifest.assets, writable, fileUrl, version]);
 
   // ── Open preview in a new tab ────────────────────────────────────
   const openPreviewMutation = useMutation({
@@ -493,8 +651,8 @@ export default function StaticSiteEditor({
     () => (
       <Segmented<Mode>
         ariaLabel="Site view"
-        value={mode}
-        onChange={setMode}
+        value={effMode}
+        onChange={changeMode}
         options={[
           {
             value: "preview",
@@ -507,13 +665,35 @@ export default function StaticSiteEditor({
               </span>
             ),
           },
+          ...(wide
+            ? [
+                {
+                  value: "split" as const,
+                  disabled: isEmpty,
+                  title: "Code and live preview side by side",
+                  label: (
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      data-testid="site-mode-split"
+                    >
+                      <HugeiconsIcon
+                        icon={Layout2ColumnIcon}
+                        strokeWidth={1.8}
+                        className="size-3.5"
+                      />
+                      <span className="sr-only sm:not-sr-only">Split</span>
+                    </span>
+                  ),
+                },
+              ]
+            : []),
           {
-            value: "files",
+            value: "code",
             title: "Files and code",
             label: (
               <span className="inline-flex items-center gap-1.5" data-testid="site-mode-files">
                 <HugeiconsIcon icon={CodeIcon} strokeWidth={1.8} className="size-3.5" />
-                <span className="sr-only sm:not-sr-only">Files</span>
+                <span className="sr-only sm:not-sr-only">Code</span>
                 {dirty ? (
                   <span
                     role="img"
@@ -527,7 +707,7 @@ export default function StaticSiteEditor({
         ]}
       />
     ),
-    [mode, isEmpty, dirty],
+    [effMode, changeMode, wide, isEmpty, dirty],
   );
 
   const { requestLeave } = leave;
@@ -541,6 +721,7 @@ export default function StaticSiteEditor({
       requestLeave,
       exporters,
       toolbar,
+      autosave: false,
     }),
     [status, saveError, writable, saveSource, discardSource, requestLeave, exporters, toolbar],
   );
@@ -569,6 +750,7 @@ export default function StaticSiteEditor({
 
   const selectFile = (p: string) => {
     setSelected(p);
+    if (isHtmlPath(p)) setPreviewPath(p);
     setTreeOpen(false);
   };
   const showOverview = () => {
@@ -576,6 +758,14 @@ export default function StaticSiteEditor({
     setTreeOpen(false);
   };
   const deleteFile = (p: string) => {
+    if (p in createdRef.current) {
+      // Never saved: just forget the local buffer.
+      setCreated(({ [p]: _c, ...rest }) => rest);
+      setEdits(({ [p]: _e, ...rest }) => rest);
+      setTexts(({ [p]: _t, ...rest }) => rest);
+      if (selected === p) setSelected(manifest.entry);
+      return;
+    }
     deleteAssetMutation.mutate(p, {
       onSuccess: () => {
         if (selected === p) setSelected(manifest.entry);
@@ -584,32 +774,123 @@ export default function StaticSiteEditor({
   };
 
   // ── Render ────────────────────────────────────────────────────────
+  const renderPreview = (compact: boolean) => (
+    <PreviewFrame
+      url={prefix ? prefix + encodePath(pagePath) : null}
+      pagePath={pagePath}
+      pages={htmlPages}
+      onPageChange={setPreviewPath}
+      nonce={previewNonce}
+      version={version}
+      error={sessionQuery.isError ? errorMessage(sessionQuery.error, "preview unavailable") : null}
+      title={loaded.meta.name}
+      onRefresh={refreshPreview}
+      onOpen={onOpenPreview}
+      openPending={openPreviewMutation.isPending}
+      draft={draft}
+      srcDoc={srcDoc}
+      writable={writable}
+      onSave={() => void saveSource()}
+      compact={compact}
+      hint={
+        placeholder && !dirty && effMode === "preview"
+          ? {
+              onEdit: () => {
+                setSelected(manifest.entry);
+                changeMode(wide ? "split" : "code");
+              },
+              onUpload: () => {
+                setSelected(null);
+                changeMode(wide ? "split" : "code");
+              },
+            }
+          : null
+      }
+    />
+  );
+
+  const content = selectedAsset ? (
+    <CodePane
+      asset={selectedAsset}
+      size={selectedAsset.size}
+      isNew={selectedAsset.path in created}
+      isEntry={selectedAsset.path === manifest.entry}
+      writable={writable}
+      dark={theme === "dark"}
+      buffer={buffer}
+      editorKey={`${selectedAsset.path}:${epoch}`}
+      imageUrl={fileUrl ? fileUrl(selectedAsset.path) : null}
+      busy={mutating}
+      onChange={(t) => onEdit(selectedAsset.path, t)}
+      onSetEntry={() => setEntry(selectedAsset.path)}
+      onDelete={() => setConfirmDelete(selectedAsset.path)}
+    />
+  ) : (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6">
+        {writable ? (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setNewFileOpen(true)}
+              data-testid="site-new-file-overview"
+            >
+              <HugeiconsIcon icon={File01Icon} strokeWidth={1.8} />
+              New file
+            </Button>
+          </div>
+        ) : null}
+        {hasAny ? (
+          <SiteCard
+            manifest={viewManifest}
+            writable={writable}
+            busy={mutating}
+            onOpen={onOpenPreview}
+            openPending={openPreviewMutation.isPending}
+            onSetEntry={setEntry}
+          />
+        ) : null}
+        {writable ? (
+          <UploadPanel
+            isEmpty={!hasAny}
+            pending={pending}
+            onUploadFiles={uploadFiles}
+            onUploadZip={uploadZip}
+            onUseTemplate={useTemplate}
+          />
+        ) : !hasAny ? (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            This site has no files yet.
+          </p>
+        ) : null}
+        {hasAny ? (
+          <FilesList
+            manifest={viewManifest}
+            writable={writable}
+            busy={mutating}
+            fileUrl={fileUrl}
+            onOpen={selectFile}
+            onSetEntry={setEntry}
+            onDelete={deleteFile}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <Surface variant="page" className="flex h-dvh flex-col">
       {renderHeader?.(bridge)}
 
       <main className="min-h-0 flex-1 overflow-hidden">
-        {mode === "preview" && !isEmpty ? (
-          <PreviewFrame
-            url={entryUrl}
-            entry={manifest.entry}
-            nonce={previewNonce}
-            version={version}
-            error={
-              sessionQuery.isError ? errorMessage(sessionQuery.error, "preview unavailable") : null
-            }
-            title={loaded.meta.name}
-            onRefresh={refreshPreview}
-            onOpen={onOpenPreview}
-            openPending={openPreviewMutation.isPending}
-            unsaved={dirty && writable}
-            onSave={() => void saveSource()}
-          />
+        {effMode === "preview" ? (
+          renderPreview(false)
         ) : (
           <div className="flex h-full min-h-0 flex-col md:flex-row" data-testid="site-files-pane">
-            {!isEmpty ? (
+            {hasAny ? (
               <>
-                {/* Mobile: collapsible picker; desktop: fixed sidebar */}
+                {/* Mobile: collapsible picker; desktop: sidebar */}
                 <div className="shrink-0 border-b border-border/60 md:hidden">
                   <button
                     type="button"
@@ -621,7 +902,7 @@ export default function StaticSiteEditor({
                       {selected ?? "Overview & uploads"}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {manifest.assets.length} files
+                      {viewManifest.assets.length} files
                     </span>
                     <HugeiconsIcon
                       icon={ArrowDown01Icon}
@@ -632,90 +913,80 @@ export default function StaticSiteEditor({
                   {treeOpen ? (
                     <FileTree
                       className="max-h-[45dvh] border-t border-border/60 bg-card/50"
-                      assets={manifest.assets}
+                      assets={viewManifest.assets}
                       entry={manifest.entry}
                       selected={selected}
                       dirty={dirtyPaths}
                       onSelect={selectFile}
                       onOverview={showOverview}
+                      onNewFile={writable ? () => setNewFileOpen(true) : undefined}
                     />
                   ) : null}
                 </div>
-                <FileTree
-                  className="hidden w-64 shrink-0 border-r border-border/60 bg-card/40 md:flex"
-                  assets={manifest.assets}
-                  entry={manifest.entry}
-                  selected={selected}
-                  dirty={dirtyPaths}
-                  onSelect={selectFile}
-                  onOverview={showOverview}
-                />
+                {treeHidden ? (
+                  <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-r border-border/60 bg-card/40 py-2 md:flex">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setTreeHidden(false)}
+                      title="Show files"
+                      aria-label="Show files"
+                    >
+                      <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={1.8} />
+                    </Button>
+                    {writable ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setNewFileOpen(true)}
+                        title="New file"
+                        aria-label="New file"
+                      >
+                        <HugeiconsIcon icon={File01Icon} strokeWidth={1.8} />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <FileTree
+                    className={cn(
+                      "hidden shrink-0 border-r border-border/60 bg-card/40 md:flex",
+                      effMode === "split" ? "w-56" : "w-64",
+                    )}
+                    assets={viewManifest.assets}
+                    entry={manifest.entry}
+                    selected={selected}
+                    dirty={dirtyPaths}
+                    onSelect={selectFile}
+                    onOverview={showOverview}
+                    onNewFile={writable ? () => setNewFileOpen(true) : undefined}
+                    onCollapse={() => setTreeHidden(true)}
+                  />
+                )}
               </>
             ) : null}
 
-            <div className="min-h-0 min-w-0 flex-1">
-              {selectedAsset ? (
-                <CodePane
-                  asset={selectedAsset}
-                  isEntry={selectedAsset.path === manifest.entry}
-                  writable={writable}
-                  dark={theme === "dark"}
-                  buffer={buffer}
-                  editorKey={`${selectedAsset.path}:${epoch}`}
-                  imageUrl={fileUrl ? fileUrl(selectedAsset.path) : null}
-                  busy={mutating}
-                  onChange={(t) => onEdit(selectedAsset.path, t)}
-                  onRefreshPreview={() => {
-                    if (dirtyRef.current) void saveSource().then(() => setMode("preview"));
-                    else setMode("preview");
-                  }}
-                  onSetEntry={() => setEntryMutation.mutate(selectedAsset.path)}
-                  onDelete={() => setConfirmDelete(selectedAsset.path)}
-                />
-              ) : (
-                <div className="h-full overflow-y-auto">
-                  <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6">
-                    {isEmpty ? null : (
-                      <SiteCard
-                        manifest={manifest}
-                        writable={writable}
-                        busy={mutating}
-                        onOpen={onOpenPreview}
-                        openPending={openPreviewMutation.isPending}
-                        onSetEntry={(p) => setEntryMutation.mutate(p)}
-                      />
-                    )}
-                    {writable ? (
-                      <UploadPanel
-                        isEmpty={isEmpty}
-                        pending={pending}
-                        onUploadFiles={uploadFiles}
-                        onUploadZip={uploadZip}
-                        onUseTemplate={useTemplate}
-                      />
-                    ) : isEmpty ? (
-                      <p className="py-16 text-center text-sm text-muted-foreground">
-                        This site has no files yet.
-                      </p>
-                    ) : null}
-                    {isEmpty ? null : (
-                      <FilesList
-                        manifest={manifest}
-                        writable={writable}
-                        busy={mutating}
-                        fileUrl={fileUrl}
-                        onOpen={selectFile}
-                        onSetEntry={(p) => setEntryMutation.mutate(p)}
-                        onDelete={deleteFile}
-                      />
-                    )}
-                  </div>
+            {effMode === "split" ? (
+              <div ref={splitRef} className="flex min-h-0 min-w-0 flex-1">
+                <div className="min-h-0 min-w-0 shrink-0" style={{ width: `${splitPct}%` }}>
+                  {content}
                 </div>
-              )}
-            </div>
+                <SplitDivider value={splitPct} onChange={onSplitChange} containerRef={splitRef} />
+                <div className="min-h-0 min-w-0 flex-1">{renderPreview(true)}</div>
+              </div>
+            ) : (
+              <div className="min-h-0 min-w-0 flex-1">{content}</div>
+            )}
           </div>
         )}
       </main>
+
+      <NewFileDialog
+        open={newFileOpen}
+        onOpenChange={setNewFileOpen}
+        existing={viewManifest.assets.map((a) => a.path)}
+        initial={hasAny ? undefined : "index.html"}
+        onCreate={createFile}
+      />
 
       <AlertDialog open={confirmDelete !== null} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>

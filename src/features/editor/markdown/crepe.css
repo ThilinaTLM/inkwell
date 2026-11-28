@@ -92,30 +92,61 @@
 .inkwell-crepe .milkdown .ProseMirror h1 {
   font-size: 2.15em;
   line-height: 1.18;
-  margin-top: 1.1em;
-  margin-bottom: 0.25em;
+  margin-top: 1.3em;
+  margin-bottom: 0.45em;
 }
 .inkwell-crepe .milkdown .ProseMirror h2 {
   font-size: 1.6em;
   line-height: 1.25;
   margin-top: 1.5em;
-  margin-bottom: 0.2em;
+  margin-bottom: 0.4em;
 }
 .inkwell-crepe .milkdown .ProseMirror h3 {
-  font-size: 1.28em;
+  font-size: 1.3em;
   line-height: 1.3;
-  margin-top: 1.4em;
-  margin-bottom: 0.15em;
+  margin-top: 1.45em;
+  margin-bottom: 0.4em;
 }
-.inkwell-crepe .milkdown .ProseMirror :is(h4, h5, h6) {
-  font-size: 1.05em;
+.inkwell-crepe .milkdown .ProseMirror h4 {
+  font-size: 1.12em;
+  line-height: 1.35;
+  margin-top: 1.4em;
+  margin-bottom: 0.4em;
+}
+.inkwell-crepe .milkdown .ProseMirror h5 {
+  font-size: 1em;
   line-height: 1.4;
-  margin-top: 1.2em;
+  margin-top: 1.4em;
+  margin-bottom: 0.4em;
 }
 .inkwell-crepe .milkdown .ProseMirror h6 {
+  font-size: 0.86em;
+  line-height: 1.4;
+  margin-top: 1.4em;
+  margin-bottom: 0.4em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
 }
-.inkwell-crepe .milkdown .ProseMirror > :first-child {
+
+/* The first real block never gets a top margin. ProseMirror (and the
+   virtual-cursor plugin) can insert widget elements before it, so
+   ":first-child" alone is not enough. Widgets also take no layout space. */
+.inkwell-crepe .milkdown .ProseMirror > :is(.ProseMirror-widget, .prosemirror-virtual-cursor) {
+  position: absolute;
+  margin: 0;
+  pointer-events: none;
+}
+.inkwell-crepe
+  .milkdown
+  .ProseMirror
+  > :is(
+    :first-child,
+    :is(.ProseMirror-widget, .prosemirror-virtual-cursor):first-child + *,
+    :is(.ProseMirror-widget, .prosemirror-virtual-cursor):first-child
+      + :is(.ProseMirror-widget, .prosemirror-virtual-cursor)
+      + *
+  ):not(.ProseMirror-widget, .prosemirror-virtual-cursor) {
   margin-top: 0;
 }
 
@@ -159,9 +190,13 @@
 
 .inkwell-crepe .milkdown .ProseMirror hr {
   border: none;
+  padding: 0;
   height: 1px;
   background: var(--border);
-  margin: 2em 0;
+  margin: 1.25em 0;
+}
+.inkwell-crepe .milkdown .ProseMirror hr.ProseMirror-selectednode {
+  background: var(--primary);
 }
 
 /* lists */
@@ -181,6 +216,13 @@
 /* images */
 .inkwell-crepe .milkdown .ProseMirror img {
   border-radius: 12px;
+}
+/* left-aligned with the text column (Crepe centres by default) */
+.inkwell-crepe .milkdown .milkdown-image-block > .image-wrapper {
+  margin: 0;
+}
+.inkwell-crepe .milkdown .milkdown-image-block > .caption-input {
+  text-align: left;
 }
 .inkwell-crepe .milkdown .milkdown-image-block {
   margin: 0.8em 0;
@@ -228,8 +270,17 @@
 .inkwell-crepe .milkdown .milkdown-code-block .cm-line {
   padding: 0 14px;
 }
+.inkwell-crepe .milkdown .milkdown-code-block .cm-scroller {
+  overflow-x: auto;
+}
 .inkwell-crepe .milkdown .milkdown-code-block .cm-focused {
   outline: none;
+}
+.inkwell-crepe .milkdown .milkdown-code-block:has(.codemirror-host.hidden) .preview-panel {
+  cursor: pointer;
+}
+.inkwell-crepe[data-readonly="true"] .milkdown .milkdown-code-block .preview-panel {
+  cursor: default;
 }
 .inkwell-crepe .milkdown .milkdown-code-block .preview-panel {
   border-top: 1px dashed var(--border);
@@ -243,11 +294,39 @@
 .inkwell-mermaid {
   display: flex;
   justify-content: center;
-  padding: 8px 4px;
+  padding: 12px 8px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .inkwell-mermaid svg {
   max-width: 100%;
   height: auto;
+}
+/* Reset the editor's prose typography inside the SVG's HTML labels. */
+.inkwell-crepe .milkdown .ProseMirror .inkwell-mermaid :is(p, span, div, strong, em) {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.inkwell-crepe .milkdown .ProseMirror .inkwell-mermaid foreignObject div {
+  line-height: 1.3;
+}
+/* No blurry drop shadows (they read as smudges in dark mode). */
+.inkwell-mermaid svg * {
+  filter: none !important;
+}
+.inkwell-mermaid .edgeLabel,
+.inkwell-mermaid .edgeLabel :is(p, span, rect) {
+  background-color: transparent !important;
+}
+.inkwell-mermaid .edgeLabel .labelBkg {
+  background-color: var(--card) !important;
+  border-radius: 4px;
 }
 .inkwell-mermaid-error {
   display: grid;
@@ -274,7 +353,12 @@
 }
 .inkwell-crepe .milkdown .milkdown-table-block :is(th, td) {
   border-color: var(--border);
-  padding: 6px 12px;
+  padding: 3px 12px;
+  line-height: 1.45;
+}
+.inkwell-crepe .milkdown .milkdown-table-block :is(th, td) p {
+  padding: 0;
+  line-height: 1.45;
 }
 .inkwell-crepe .milkdown .milkdown-table-block th {
   background: color-mix(in srgb, var(--muted) 60%, transparent);
@@ -307,7 +391,58 @@
 }
 
 .milkdown .milkdown-slash-menu {
-  max-height: min(380px, 60vh);
+  max-height: min(360px, 60vh);
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 450;
+}
+.milkdown .milkdown-slash-menu:not([data-show="false"]) {
+  display: flex;
+  flex-direction: column;
+}
+.milkdown .milkdown-slash-menu .tab-group {
+  flex: none;
+  padding: 6px 8px 0;
+}
+.milkdown .milkdown-slash-menu .tab-group ul {
+  padding: 4px;
+  gap: 4px;
+}
+.milkdown .milkdown-slash-menu .tab-group ul li {
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.milkdown .milkdown-slash-menu .menu-groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 0 6px 6px;
+  scroll-behavior: auto;
+}
+.milkdown .milkdown-slash-menu .menu-groups .menu-group h6 {
+  padding: 10px 8px 4px;
+  line-height: 16px;
+}
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li {
+  min-width: 200px;
+  gap: 10px;
+  padding: 5px 8px;
+}
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li svg {
+  width: 18px;
+  height: 18px;
+}
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li > span {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.milkdown .milkdown-slash-menu .menu-groups .menu-group + .menu-group::before {
+  margin: 4px 8px 0;
 }
 .milkdown .milkdown-slash-menu .tab-group {
   border-bottom: 1px solid var(--border);
@@ -389,15 +524,6 @@
 }
 
 /* ── Refinements ───────────────────────────────────────────────── */
-.inkwell-crepe .milkdown .ProseMirror hr {
-  padding: 0;
-  height: 1px;
-  background: var(--border);
-  margin: 2em 0;
-}
-.inkwell-crepe .milkdown .ProseMirror hr.ProseMirror-selectednode {
-  background: var(--primary);
-}
 .inkwell-crepe .milkdown .milkdown-list-item-block li {
   gap: 6px;
 }
